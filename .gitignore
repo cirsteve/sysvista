@@ -1,0 +1,19 @@
+# Rust
+sysvista-cli/target/
+
+# Node
+sysvista-web/node_modules/
+sysvista-web/dist/
+
+# Output
+*.json
+!sysvista-web/public/sample-output.json
+!sysvista-web/package.json
+!sysvista-web/package-lock.json
+!sysvista-web/tsconfig*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

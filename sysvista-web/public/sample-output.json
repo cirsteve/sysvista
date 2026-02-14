@@ -1,0 +1,149 @@
+{
+  "version": "1",
+  "scanned_at": "2026-02-13T12:00:00Z",
+  "root_dir": "/example/ecommerce-api",
+  "project_name": "ecommerce-api",
+  "detected_languages": ["typescript"],
+  "components": [
+    {
+      "id": "a1b2c3d4e5f60001",
+      "name": "User",
+      "kind": "model",
+      "language": "typescript",
+      "source": { "file": "src/models/user.ts", "line_start": 3 },
+      "metadata": {},
+      "model_fields": ["id", "email", "name", "role", "createdAt"]
+    },
+    {
+      "id": "a1b2c3d4e5f60002",
+      "name": "Product",
+      "kind": "model",
+      "language": "typescript",
+      "source": { "file": "src/models/product.ts", "line_start": 1 },
+      "metadata": {},
+      "model_fields": ["id", "name", "price", "description", "categoryId"]
+    },
+    {
+      "id": "a1b2c3d4e5f60003",
+      "name": "Order",
+      "kind": "model",
+      "language": "typescript",
+      "source": { "file": "src/models/order.ts", "line_start": 5 },
+      "metadata": {},
+      "model_fields": ["id", "userId", "items", "total", "status", "createdAt"]
+    },
+    {
+      "id": "a1b2c3d4e5f60004",
+      "name": "Category",
+      "kind": "model",
+      "language": "typescript",
+      "source": { "file": "src/models/category.ts", "line_start": 1 },
+      "metadata": {},
+      "model_fields": ["id", "name", "slug"]
+    },
+    {
+      "id": "b1b2c3d4e5f60001",
+      "name": "UserService",
+      "kind": "service",
+      "language": "typescript",
+      "source": { "file": "src/services/user.service.ts", "line_start": 8 },
+      "metadata": { "detection": "decorator" }
+    },
+    {
+      "id": "b1b2c3d4e5f60002",
+      "name": "ProductService",
+      "kind": "service",
+      "language": "typescript",
+      "source": { "file": "src/services/product.service.ts", "line_start": 6 },
+      "metadata": { "detection": "decorator" }
+    },
+    {
+      "id": "b1b2c3d4e5f60003",
+      "name": "OrderService",
+      "kind": "service",
+      "language": "typescript",
+      "source": { "file": "src/services/order.service.ts", "line_start": 10 },
+      "metadata": { "detection": "decorator" }
+    },
+    {
+      "id": "c1b2c3d4e5f60001",
+      "name": "GET /api/users",
+      "kind": "transport",
+      "language": "typescript",
+      "source": { "file": "src/controllers/user.controller.ts", "line_start": 12 },
+      "metadata": {},
+      "transport_protocol": "http",
+      "http_method": "GET",
+      "http_path": "/api/users"
+    },
+    {
+      "id": "c1b2c3d4e5f60002",
+      "name": "POST /api/users",
+      "kind": "transport",
+      "language": "typescript",
+      "source": { "file": "src/controllers/user.controller.ts", "line_start": 20 },
+      "metadata": {},
+      "transport_protocol": "http",
+      "http_method": "POST",
+      "http_path": "/api/users"
+    },
+    {
+      "id": "c1b2c3d4e5f60003",
+      "name": "GET /api/products",
+      "kind": "transport",
+      "language": "typescript",
+      "source": { "file": "src/controllers/product.controller.ts", "line_start": 8 },
+      "metadata": {},
+      "transport_protocol": "http",
+      "http_method": "GET",
+      "http_path": "/api/products"
+    },
+    {
+      "id": "c1b2c3d4e5f60004",
+      "name": "POST /api/orders",
+      "kind": "transport",
+      "language": "typescript",
+      "source": { "file": "src/controllers/order.controller.ts", "line_start": 15 },
+      "metadata": {},
+      "transport_protocol": "http",
+      "http_method": "POST",
+      "http_path": "/api/orders"
+    },
+    {
+      "id": "d1b2c3d4e5f60001",
+      "name": "toUserResponse",
+      "kind": "transform",
+      "language": "typescript",
+      "source": { "file": "src/transforms/user.transform.ts", "line_start": 4 },
+      "metadata": {}
+    },
+    {
+      "id": "d1b2c3d4e5f60002",
+      "name": "toOrderSummary",
+      "kind": "transform",
+      "language": "typescript",
+      "source": { "file": "src/transforms/order.transform.ts", "line_start": 6 },
+      "metadata": {}
+    }
+  ],
+  "edges": [
+    { "from_id": "b1b2c3d4e5f60001", "to_id": "a1b2c3d4e5f60001", "label": "references" },
+    { "from_id": "b1b2c3d4e5f60002", "to_id": "a1b2c3d4e5f60002", "label": "references" },
+    { "from_id": "b1b2c3d4e5f60003", "to_id": "a1b2c3d4e5f60003", "label": "references" },
+    { "from_id": "b1b2c3d4e5f60003", "to_id": "a1b2c3d4e5f60002", "label": "references" },
+    { "from_id": "c1b2c3d4e5f60001", "to_id": "b1b2c3d4e5f60001", "label": "calls" },
+    { "from_id": "c1b2c3d4e5f60002", "to_id": "b1b2c3d4e5f60001", "label": "calls" },
+    { "from_id": "c1b2c3d4e5f60003", "to_id": "b1b2c3d4e5f60002", "label": "calls" },
+    { "from_id": "c1b2c3d4e5f60004", "to_id": "b1b2c3d4e5f60003", "label": "calls" },
+    { "from_id": "d1b2c3d4e5f60001", "to_id": "a1b2c3d4e5f60001", "label": "converts_to" },
+    { "from_id": "d1b2c3d4e5f60002", "to_id": "a1b2c3d4e5f60003", "label": "converts_to" },
+    { "from_id": "b1b2c3d4e5f60001", "to_id": "d1b2c3d4e5f60001", "label": "calls" },
+    { "from_id": "b1b2c3d4e5f60003", "to_id": "d1b2c3d4e5f60002", "label": "calls" },
+    { "from_id": "a1b2c3d4e5f60003", "to_id": "a1b2c3d4e5f60002", "label": "references" }
+  ],
+  "scan_stats": {
+    "files_scanned": 42,
+    "files_skipped": 3,
+    "scan_duration_ms": 87
+  }
+}

@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  body {
+    margin: 0;
+  }
+}
+
+/* React Flow overrides for dark theme */
+.react-flow__background {
+  background-color: #030712;
+}
+.react-flow__minimap {
+  background-color: #111827;
+}
+.react-flow__controls button {
+  background-color: #1f2937;
+  color: #d1d5db;
+  border-color: #374151;
+}
+.react-flow__controls button:hover {
+  background-color: #374151;
+}
+.react-flow__edge-path {
+  stroke: #6b7280;
+  stroke-width: 1.5;
+}
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #60a5fa;
+  stroke-width: 2;
+}
