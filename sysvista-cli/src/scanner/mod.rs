@@ -68,18 +68,25 @@ pub fn scan(root: &Path) -> SysVistaOutput {
         all_components.extend(components);
     }
 
+    // Deduplicate components by ID (multiple patterns can match the same definition)
+    let mut seen_ids = HashSet::new();
+    all_components.retain(|c| seen_ids.insert(c.id.clone()));
+
     // Infer edges
     let mut edges = relationships::infer_edges(&all_components, &file_contents);
 
-    // Infer flow edges (handles, persists, transforms) and merge,
-    // skipping flow edges where an import/reference edge already exists
+    // Infer flow edges (handles, persists, transforms, consumes, produces) and merge.
+    // Skip flow edges where an import/reference edge already exists,
+    // but always keep payload edges (consumes/produces) since they carry unique meaning.
     let flow_edges = relationships::infer_flow_edges(&all_components, &file_contents);
     let existing_pairs: HashSet<(String, String)> = edges
         .iter()
         .map(|e| (e.from_id.clone(), e.to_id.clone()))
         .collect();
     for fe in flow_edges {
-        if !existing_pairs.contains(&(fe.from_id.clone(), fe.to_id.clone())) {
+        let is_payload = fe.label.as_deref() == Some("consumes")
+            || fe.label.as_deref() == Some("produces");
+        if is_payload || !existing_pairs.contains(&(fe.from_id.clone(), fe.to_id.clone())) {
             edges.push(fe);
         }
     }

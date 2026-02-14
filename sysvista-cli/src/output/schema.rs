@@ -43,6 +43,10 @@ pub struct DetectedComponent {
     pub http_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_fields: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub consumes: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub produces: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,6 +55,8 @@ pub struct DetectedEdge {
     pub to_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

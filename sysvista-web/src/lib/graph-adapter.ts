@@ -113,7 +113,7 @@ export function buildGraph(
   );
 
   // Deduplicate edges between the same node pair
-  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[] }>();
+  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[]; payload_type?: string }>();
   for (const e of filteredEdges) {
     const key = `${e.from_id}->${e.to_id}`;
     const existing = edgeMap.get(key);
@@ -121,8 +121,11 @@ export function buildGraph(
       if (e.label && !existing.labels.includes(e.label)) {
         existing.labels.push(e.label);
       }
+      if (e.payload_type && !existing.payload_type) {
+        existing.payload_type = e.payload_type;
+      }
     } else {
-      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [] });
+      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [], payload_type: e.payload_type });
     }
   }
   const uniqueEdges = [...edgeMap.values()];
@@ -190,20 +193,42 @@ export function buildGraph(
     });
   }
 
-  const FLOW_LABELS = new Set(["handles", "persists", "transforms"]);
+  const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces"]);
+  const PAYLOAD_LABELS = new Set(["consumes", "produces"]);
 
   const edges: Edge[] = uniqueEdges.map((e, i) => {
-    const label = e.labels.join(", ");
+    const isPayload = e.labels.some((l) => PAYLOAD_LABELS.has(l));
     const isFlow = e.labels.some((l) => FLOW_LABELS.has(l));
+
+    // Build label: include payload_type for payload edges
+    let label = e.labels.join(", ");
+    if (isPayload && e.payload_type) {
+      label = `${label} ${e.payload_type}`;
+    }
+
     return {
       id: `e-${i}`,
       source: e.from_id,
       target: e.to_id,
       label: label || undefined,
       animated: isFlow || e.labels.includes("calls"),
-      style: { stroke: isFlow ? "#06b6d4" : "#6b7280" },
-      labelStyle: { fill: isFlow ? "#67e8f9" : "#9ca3af", fontSize: 10 },
+      zIndex: isPayload ? 10 : 0,
+      style: {
+        stroke: isPayload ? "#f472b6" : isFlow ? "#06b6d4" : "#6b7280",
+        strokeWidth: isPayload ? 2 : 1,
+      },
+      labelStyle: {
+        fill: isPayload ? "#f9a8d4" : isFlow ? "#67e8f9" : "#9ca3af",
+        fontSize: 10,
+      },
     };
+  });
+
+  // Sort so payload edges render on top (last in SVG = highest z-order)
+  edges.sort((a, b) => {
+    const aPayload = a.style?.stroke === "#f472b6" ? 1 : 0;
+    const bPayload = b.style?.stroke === "#f472b6" ? 1 : 0;
+    return aPayload - bPayload;
   });
 
   return { nodes: componentNodes, edges };

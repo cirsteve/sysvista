@@ -60,6 +60,8 @@ pub fn detect_transforms(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                consumes: None,
+                produces: None,
             });
         }
     }

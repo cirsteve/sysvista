@@ -10,7 +10,7 @@ import { initSearch, search } from "../lib/search";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform"];
 
-const FLOW_LABELS = new Set(["handles", "persists", "transforms"]);
+const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces"]);
 
 export function useGraphData() {
   const [schema, setSchema] = useState<SysVistaOutput | null>(null);

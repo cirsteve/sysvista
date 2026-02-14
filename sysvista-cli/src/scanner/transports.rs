@@ -60,6 +60,118 @@ static HTTP_PATTERNS: LazyLock<Vec<RoutePattern>> = LazyLock::new(|| {
     ]
 });
 
+// Payload type extraction patterns for Python FastAPI handlers
+static RESPONSE_MODEL_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"response_model\s*=\s*([A-Za-z_][\w.\[\], |]*\w[\]]?)").unwrap()
+});
+
+static BODY_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(\w+)\s*:\s*([A-Za-z_][\w.\[\]| ]*?)\s*=\s*Body\(").unwrap()
+});
+
+static RETURN_TYPE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\)\s*->\s*([A-Za-z_][\w.\[\], |]*\w[\]]?)\s*:").unwrap()
+});
+
+// Also match `schemas.X` parameters without Body()
+static SCHEMA_PARAM_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(\w+)\s*:\s*(schemas\.\w[\w.\[\]| ]*)").unwrap()
+});
+
+const PRIMITIVES: &[&str] = &[
+    "str", "int", "float", "dict", "list", "none", "bool", "any", "bytes", "object",
+    "string", "number", "void", "undefined", "optional", "union",
+];
+
+/// Normalize a raw type string into clean type names.
+/// Strips module prefixes, unwraps generics, handles unions, filters primitives.
+fn normalize_types(raw: &str) -> Vec<String> {
+    let mut results = Vec::new();
+
+    // Split on | for union types
+    for part in raw.split('|') {
+        let trimmed = part.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Unwrap generics: list[schemas.Message] -> schemas.Message, Page[Peer] -> Peer
+        let inner = if let Some(bracket_start) = trimmed.find('[') {
+            if let Some(bracket_end) = trimmed.rfind(']') {
+                &trimmed[bracket_start + 1..bracket_end]
+            } else {
+                trimmed
+            }
+        } else {
+            trimmed
+        };
+
+        // Split on comma for multi-arg generics
+        for item in inner.split(',') {
+            let item = item.trim();
+            // Strip module prefix: schemas.Conclusion -> Conclusion
+            let name = item.rsplit('.').next().unwrap_or(item).trim();
+
+            if !name.is_empty() && !PRIMITIVES.contains(&name.to_lowercase().as_str()) {
+                // Check it starts with uppercase (likely a type name)
+                if name.chars().next().map(|c| c.is_uppercase()).unwrap_or(false) {
+                    results.push(name.to_string());
+                }
+            }
+        }
+    }
+
+    results.sort();
+    results.dedup();
+    results
+}
+
+/// Extract consumes/produces payload types from the handler body around a transport definition.
+fn extract_payload_types(content: &str, match_start: usize) -> (Option<Vec<String>>, Option<Vec<String>>) {
+    let lines: Vec<&str> = content.lines().collect();
+    let line_idx = content[..match_start].lines().count();
+    let start = if line_idx > 0 { line_idx - 1 } else { 0 };
+    let end = (start + 30).min(lines.len());
+    let snippet = lines[start..end].join("\n");
+
+    let mut consumes = Vec::new();
+    let mut produces = Vec::new();
+
+    // Response model → produces
+    if let Some(cap) = RESPONSE_MODEL_RE.captures(&snippet) {
+        produces.extend(normalize_types(&cap[1]));
+    }
+
+    // Body parameter → consumes
+    if let Some(cap) = BODY_PARAM_RE.captures(&snippet) {
+        consumes.extend(normalize_types(&cap[2]));
+    }
+
+    // schemas.X parameter fallback → consumes
+    if consumes.is_empty() {
+        for cap in SCHEMA_PARAM_RE.captures_iter(&snippet) {
+            consumes.extend(normalize_types(&cap[2]));
+        }
+    }
+
+    // Return type annotation fallback → produces
+    if produces.is_empty() {
+        if let Some(cap) = RETURN_TYPE_RE.captures(&snippet) {
+            produces.extend(normalize_types(&cap[1]));
+        }
+    }
+
+    consumes.sort();
+    consumes.dedup();
+    produces.sort();
+    produces.dedup();
+
+    let consumes = if consumes.is_empty() { None } else { Some(consumes) };
+    let produces = if produces.is_empty() { None } else { Some(produces) };
+
+    (consumes, produces)
+}
+
 static GRPC_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?m)^service\s+(\w+)\s*\{").unwrap()
 });
@@ -87,6 +199,8 @@ pub fn detect_transports(
             let match_start = cap.get(0).unwrap().start();
             let line_num = content[..match_start].lines().count() as u32 + 1;
 
+            let (consumes, produces) = extract_payload_types(content, match_start);
+
             components.push(DetectedComponent {
                 id: make_id("transport", &display_name, file),
                 name: display_name,
@@ -102,6 +216,8 @@ pub fn detect_transports(
                 http_method: Some(method),
                 http_path: Some(path),
                 model_fields: None,
+                consumes,
+                produces,
             });
         }
     }
@@ -127,6 +243,8 @@ pub fn detect_transports(
             http_method: None,
             http_path: None,
             model_fields: None,
+            consumes: None,
+            produces: None,
         });
     }
 
@@ -155,6 +273,8 @@ pub fn detect_transports(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                consumes: None,
+                produces: None,
             });
         }
     }

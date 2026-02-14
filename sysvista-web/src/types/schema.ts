@@ -18,12 +18,15 @@ export interface DetectedComponent {
   http_method?: string;
   http_path?: string;
   model_fields?: string[];
+  consumes?: string[];
+  produces?: string[];
 }
 
 export interface DetectedEdge {
   from_id: string;
   to_id: string;
   label?: string;
+  payload_type?: string;
 }
 
 export interface ScanStats {

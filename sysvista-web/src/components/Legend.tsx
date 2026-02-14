@@ -26,6 +26,10 @@ export function Legend() {
           <div className="w-3.5 h-3.5 rounded-full ring-2 ring-amber-400/60 bg-amber-950" />
           <span className="text-xs text-gray-400">Hub</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-5 h-0.5 bg-pink-400 rounded" />
+          <span className="text-xs text-gray-400">Payload</span>
+        </div>
       </div>
     </div>
   );

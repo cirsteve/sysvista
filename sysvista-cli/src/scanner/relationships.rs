@@ -97,6 +97,7 @@ pub fn infer_edges(
                             from_id: components[src_idx].id.clone(),
                             to_id: components[tgt_idx].id.clone(),
                             label: Some("imports".to_string()),
+                            payload_type: None,
                         });
                     }
                 }
@@ -129,6 +130,7 @@ pub fn infer_edges(
                                     from_id: components[src_idx].id.clone(),
                                     to_id: components[tgt_idx].id.clone(),
                                     label: Some("references".to_string()),
+                                    payload_type: None,
                                 });
                             }
                         }
@@ -182,6 +184,7 @@ pub fn infer_flow_edges(
                     from_id: svc.id.clone(),
                     to_id: tp.id.clone(),
                     label: Some("handles".to_string()),
+                    payload_type: None,
                 });
             }
         }
@@ -208,6 +211,7 @@ pub fn infer_flow_edges(
                                 from_id: tp.id.clone(),
                                 to_id: model_id.to_string(),
                                 label: Some("persists".to_string()),
+                                payload_type: None,
                             });
                         }
                     }
@@ -232,9 +236,51 @@ pub fn infer_flow_edges(
                                 from_id: tf.id.clone(),
                                 to_id: model_id.to_string(),
                                 label: Some("transforms".to_string()),
+                                payload_type: None,
                             });
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // Payload flow edges: match consumes/produces types to detected model names
+    // model_names is Vec<(id, name)>, we need name→id
+    let model_name_to_id: HashMap<&str, &str> = model_names
+        .iter()
+        .map(|&(id, name)| (name, id))
+        .collect();
+
+    for comp in components {
+        if comp.kind != ComponentKind::Transport {
+            continue;
+        }
+
+        // consumes: Model --consumes--> Transport (data flows into the transport)
+        if let Some(ref consumes) = comp.consumes {
+            for type_name in consumes {
+                if let Some(&model_id) = model_name_to_id.get(type_name.as_str()) {
+                    edges.push(DetectedEdge {
+                        from_id: model_id.to_string(),
+                        to_id: comp.id.clone(),
+                        label: Some("consumes".to_string()),
+                        payload_type: Some(type_name.clone()),
+                    });
+                }
+            }
+        }
+
+        // produces: Transport --produces--> Model (data flows out)
+        if let Some(ref produces) = comp.produces {
+            for type_name in produces {
+                if let Some(&model_id) = model_name_to_id.get(type_name.as_str()) {
+                    edges.push(DetectedEdge {
+                        from_id: comp.id.clone(),
+                        to_id: model_id.to_string(),
+                        label: Some("produces".to_string()),
+                        payload_type: Some(type_name.clone()),
+                    });
                 }
             }
         }

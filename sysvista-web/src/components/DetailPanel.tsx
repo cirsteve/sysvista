@@ -92,6 +92,45 @@ export function DetailPanel({
           </div>
         )}
 
+        {/* Payload Flow */}
+        {(component.consumes || component.produces) && (
+          <div className="mb-4">
+            <div className="text-xs font-medium text-gray-400 mb-1">
+              Payload Flow
+            </div>
+            {component.consumes && component.consumes.length > 0 && (
+              <div className="mb-1.5">
+                <span className="text-xs text-gray-500 mr-1.5">Accepts:</span>
+                <div className="inline-flex flex-wrap gap-1">
+                  {component.consumes.map((t) => (
+                    <span
+                      key={t}
+                      className="text-xs font-mono bg-pink-500/10 text-pink-300 border border-pink-500/30 rounded px-1.5 py-0.5"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {component.produces && component.produces.length > 0 && (
+              <div>
+                <span className="text-xs text-gray-500 mr-1.5">Returns:</span>
+                <div className="inline-flex flex-wrap gap-1">
+                  {component.produces.map((t) => (
+                    <span
+                      key={t}
+                      className="text-xs font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 rounded px-1.5 py-0.5"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Model fields */}
         {component.model_fields && component.model_fields.length > 0 && (
           <div className="mb-4">

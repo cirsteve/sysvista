@@ -153,6 +153,8 @@ pub fn detect_models(
                 http_method: None,
                 http_path: None,
                 model_fields,
+                consumes: None,
+                produces: None,
             });
         }
     }

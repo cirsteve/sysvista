@@ -28,6 +28,11 @@ export function TransportNode({ data }: NodeProps) {
           <div className="text-xs text-orange-400/70">
             {component.transport_protocol ?? component.language}
           </div>
+          {(component.consumes || component.produces) && (
+            <div className="text-[10px] text-pink-300/80 truncate">
+              {component.consumes?.join(", ") ?? "?"} → {component.produces?.join(", ") ?? "?"}
+            </div>
+          )}
         </div>
         {isHighHub && (
           <span className="ml-auto text-[10px] font-bold text-orange-300 bg-orange-800/60 rounded-full px-1.5 py-0.5 shrink-0">
