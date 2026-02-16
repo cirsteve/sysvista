@@ -259,7 +259,6 @@ function styleFlowEdge(e: { from_id: string; to_id: string; labels: string[]; pa
   const isPayload = e.labels.some((l) => PAYLOAD_LABELS.has(l));
   const isCalls = e.labels.includes("calls");
   const isDispatches = e.labels.includes("dispatches");
-  const isFlow = e.labels.some((l) => FLOW_LABELS.has(l));
 
   let label = e.labels.join(", ");
   if (e.payload_type) {
