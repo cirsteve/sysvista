@@ -470,6 +470,159 @@ pub fn infer_call_edges(
     edges
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::output::schema::{ComponentKind, SourceLocation};
+
+    fn make_comp(id: &str, name: &str, kind: ComponentKind, file: &str, line: u32) -> DetectedComponent {
+        DetectedComponent {
+            id: id.to_string(),
+            name: name.to_string(),
+            kind,
+            language: "python".to_string(),
+            source: SourceLocation { file: file.to_string(), line_start: Some(line), line_end: None },
+            metadata: std::collections::HashMap::new(),
+            transport_protocol: None,
+            http_method: None,
+            http_path: None,
+            model_fields: None,
+            consumes: None,
+            produces: None,
+        }
+    }
+
+    #[test]
+    fn detects_module_function_calls() {
+        let transport = make_comp("tp1", "create_msg_route", ComponentKind::Transport, "src/routes/messages.py", 1);
+        let service = make_comp("svc1", "create_message", ComponentKind::Service, "src/crud/messages.py", 1);
+
+        let file_content = r#"from . import crud
+
+@router.post("/messages")
+async def create_msg_route(body: MessageCreate):
+    result = await crud.create_message(db, body)
+    return result
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/messages.py".to_string(), file_content.to_string());
+        file_contents.insert("src/crud/messages.py".to_string(), String::new());
+
+        let components = vec![transport, service];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        assert!(!edges.is_empty());
+        let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].from_id, "tp1");
+        assert_eq!(calls[0].to_id, "svc1");
+    }
+
+    #[test]
+    fn detects_background_dispatch() {
+        let transport = make_comp("tp1", "create_route", ComponentKind::Transport, "src/routes/api.py", 1);
+        let worker = make_comp("w1", "enqueue", ComponentKind::Service, "src/services/worker.py", 1);
+
+        let file_content = r#"
+@router.post("/items")
+async def create_route(body: ItemCreate, background_tasks: BackgroundTasks):
+    background_tasks.add_task(enqueue, payload)
+    return {"ok": True}
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/api.py".to_string(), file_content.to_string());
+
+        let components = vec![transport, worker];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        let dispatches: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("dispatches")).collect();
+        assert_eq!(dispatches.len(), 1);
+        assert_eq!(dispatches[0].from_id, "tp1");
+        assert_eq!(dispatches[0].to_id, "w1");
+    }
+
+    #[test]
+    fn detects_await_calls() {
+        let transport = make_comp("tp1", "get_route", ComponentKind::Transport, "src/routes/api.py", 1);
+        let service = make_comp("svc1", "fetch_data", ComponentKind::Service, "src/services/data.py", 1);
+
+        let file_content = r#"
+@router.get("/data")
+async def get_route():
+    result = await fetch_data()
+    return result
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/api.py".to_string(), file_content.to_string());
+
+        let components = vec![transport, service];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].to_id, "svc1");
+    }
+
+    #[test]
+    fn skips_common_await_targets() {
+        let transport = make_comp("tp1", "route", ComponentKind::Transport, "src/routes/api.py", 1);
+
+        let file_content = r#"
+@router.get("/")
+async def route():
+    await sleep(1)
+    await commit()
+    return {}
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/api.py".to_string(), file_content.to_string());
+
+        let components = vec![transport];
+        let edges = infer_call_edges(&components, &file_contents);
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn skips_self_and_db_module_calls() {
+        let transport = make_comp("tp1", "route", ComponentKind::Transport, "src/routes/api.py", 1);
+
+        let file_content = r#"
+@router.get("/")
+async def route():
+    self.do_thing()
+    db.query()
+    session.execute()
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/api.py".to_string(), file_content.to_string());
+
+        let components = vec![transport];
+        let edges = infer_call_edges(&components, &file_contents);
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn deduplicates_call_edges() {
+        let transport = make_comp("tp1", "route", ComponentKind::Transport, "src/routes/api.py", 1);
+        let service = make_comp("svc1", "do_thing", ComponentKind::Service, "src/services/svc.py", 1);
+
+        let file_content = r#"
+@router.post("/")
+async def route():
+    await do_thing()
+    await do_thing()
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/api.py".to_string(), file_content.to_string());
+
+        let components = vec![transport, service];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
+        assert_eq!(calls.len(), 1);
+    }
+}
+
 /// Resolve a function call target to a component ID
 fn resolve_call_target(
     func_name: &str,

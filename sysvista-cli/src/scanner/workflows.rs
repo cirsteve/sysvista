@@ -169,3 +169,174 @@ pub fn infer_workflows(
 
     workflows
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::output::schema::SourceLocation;
+
+    fn make_comp(id: &str, name: &str, kind: ComponentKind, produces: Option<Vec<String>>) -> DetectedComponent {
+        DetectedComponent {
+            id: id.to_string(),
+            name: name.to_string(),
+            kind,
+            language: "python".to_string(),
+            source: SourceLocation { file: "test.py".to_string(), line_start: Some(1), line_end: None },
+            metadata: std::collections::HashMap::new(),
+            transport_protocol: None,
+            http_method: Some("POST".to_string()),
+            http_path: Some("/messages".to_string()),
+            model_fields: None,
+            consumes: None,
+            produces,
+        }
+    }
+
+    fn make_edge(from: &str, to: &str, label: &str) -> DetectedEdge {
+        DetectedEdge {
+            from_id: from.to_string(),
+            to_id: to.to_string(),
+            label: Some(label.to_string()),
+            payload_type: None,
+        }
+    }
+
+    #[test]
+    fn builds_workflow_from_transport_with_calls_and_persists() {
+        let components = vec![
+            make_comp("tp1", "create_route", ComponentKind::Transport, None),
+            make_comp("svc1", "create_message", ComponentKind::Service, None),
+            make_comp("m1", "Message", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "svc1", "calls"),
+            make_edge("svc1", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+
+        let wf = &workflows[0];
+        assert_eq!(wf.name, "POST /messages");
+        assert_eq!(wf.entry_point_id, "tp1");
+        assert_eq!(wf.steps.len(), 3);
+        assert_eq!(wf.steps[0].step_type, StepType::Entry);
+        assert_eq!(wf.steps[0].component_id, "tp1");
+        assert_eq!(wf.steps[1].step_type, StepType::Call);
+        assert_eq!(wf.steps[1].component_id, "svc1");
+        assert_eq!(wf.steps[2].step_type, StepType::Persist);
+        assert_eq!(wf.steps[2].component_id, "m1");
+    }
+
+    #[test]
+    fn includes_dispatch_steps() {
+        let components = vec![
+            make_comp("tp1", "create_route", ComponentKind::Transport, None),
+            make_comp("w1", "enqueue", ComponentKind::Service, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "w1", "dispatches"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+        assert_eq!(workflows[0].steps.len(), 2);
+        assert_eq!(workflows[0].steps[1].step_type, StepType::Dispatch);
+    }
+
+    #[test]
+    fn includes_response_steps_from_produces() {
+        let components = vec![
+            make_comp("tp1", "get_route", ComponentKind::Transport, Some(vec!["Message".to_string()])),
+            make_comp("m1", "Message", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "m1", "produces"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+        assert_eq!(workflows[0].steps.len(), 2);
+        assert_eq!(workflows[0].steps[1].step_type, StepType::Response);
+    }
+
+    #[test]
+    fn skips_trivial_single_step_workflows() {
+        let components = vec![
+            make_comp("tp1", "health_check", ComponentKind::Transport, None),
+        ];
+        let edges: Vec<DetectedEdge> = vec![];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert!(workflows.is_empty());
+    }
+
+    #[test]
+    fn ignores_non_transport_components() {
+        let components = vec![
+            make_comp("svc1", "helper", ComponentKind::Service, None),
+            make_comp("m1", "Model", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("svc1", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert!(workflows.is_empty());
+    }
+
+    #[test]
+    fn deterministic_workflow_id() {
+        let components = vec![
+            make_comp("tp1", "route", ComponentKind::Transport, None),
+            make_comp("svc1", "handler", ComponentKind::Service, None),
+        ];
+        let edges = vec![make_edge("tp1", "svc1", "calls")];
+
+        let wf1 = infer_workflows(&components, &edges);
+        let wf2 = infer_workflows(&components, &edges);
+        assert_eq!(wf1[0].id, wf2[0].id);
+    }
+
+    #[test]
+    fn sorted_by_step_count_descending() {
+        let components = vec![
+            make_comp("tp1", "small_route", ComponentKind::Transport, None),
+            make_comp("tp2", "big_route", ComponentKind::Transport, None),
+            make_comp("svc1", "svc_a", ComponentKind::Service, None),
+            make_comp("svc2", "svc_b", ComponentKind::Service, None),
+            make_comp("m1", "Model", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "svc1", "calls"),
+            make_edge("tp2", "svc2", "calls"),
+            make_edge("svc2", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 2);
+        assert!(workflows[0].steps.len() >= workflows[1].steps.len());
+    }
+
+    #[test]
+    fn step_ordering_is_sequential() {
+        let components = vec![
+            make_comp("tp1", "route", ComponentKind::Transport, Some(vec!["Resp".to_string()])),
+            make_comp("svc1", "handler", ComponentKind::Service, None),
+            make_comp("m1", "Resp", ComponentKind::Model, None),
+            make_comp("w1", "worker", ComponentKind::Service, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "svc1", "calls"),
+            make_edge("tp1", "w1", "dispatches"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+        let orders: Vec<u32> = workflows[0].steps.iter().map(|s| s.order).collect();
+        // Check orders are sequential starting from 0
+        for (i, &order) in orders.iter().enumerate() {
+            assert_eq!(order, i as u32);
+        }
+    }
+}

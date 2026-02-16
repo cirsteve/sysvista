@@ -192,3 +192,65 @@ static EXPORT_FUNC_PATTERN: LazyLock<Regex> =
 
 static PYTHON_FUNC_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^(?:async\s+)?def\s+(\w+)\s*\(").unwrap());
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_python_bare_functions_in_crud_dir() {
+        let content = r#"
+async def create_message(db, data):
+    pass
+
+async def get_messages(db, app_id):
+    pass
+
+def delete_message(db, msg_id):
+    pass
+"#;
+        let comps = detect_services(content, "python", "src/crud/messages.py");
+        let names: Vec<&str> = comps.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["create_message", "get_messages", "delete_message"]);
+        assert!(comps.iter().all(|c| c.kind == ComponentKind::Service));
+        assert!(comps.iter().all(|c| c.metadata.get("detection").unwrap() == "directory_convention"));
+    }
+
+    #[test]
+    fn filters_dunder_and_private_functions() {
+        let content = r#"
+def __init__(self):
+    pass
+
+def _helper(x):
+    pass
+
+def public_func(x):
+    pass
+"#;
+        let comps = detect_services(content, "python", "src/crud/utils.py");
+        assert_eq!(comps.len(), 1);
+        assert_eq!(comps[0].name, "public_func");
+    }
+
+    #[test]
+    fn no_detection_outside_service_dirs() {
+        let content = "async def some_func(x):\n    pass\n";
+        let comps = detect_services(content, "python", "src/utils/helpers.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn crud_dir_is_service_dir() {
+        assert!(is_service_dir("src/crud/messages.py"));
+        assert!(is_service_dir("app/services/user.py"));
+        assert!(!is_service_dir("src/models/user.py"));
+    }
+
+    #[test]
+    fn no_python_detection_for_non_python_language() {
+        let content = "def some_func(x):\n    pass\n";
+        let comps = detect_services(content, "javascript", "src/crud/helpers.js");
+        assert!(comps.is_empty());
+    }
+}
