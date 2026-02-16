@@ -3,9 +3,11 @@ import { Database } from "lucide-react";
 import type { GraphNode } from "../../lib/graph-adapter";
 
 export function ModelNode({ data }: NodeProps) {
-  const { component, hubTier, degree } = data as unknown as GraphNode;
+  const { component, hubTier, degree, direction } = data as unknown as GraphNode;
   const isHighHub = hubTier === "high";
   const isMediumHub = hubTier === "medium";
+  const targetPos = direction === "LR" ? Position.Left : Position.Top;
+  const sourcePos = direction === "LR" ? Position.Right : Position.Bottom;
 
   return (
     <div
@@ -17,7 +19,7 @@ export function ModelNode({ data }: NodeProps) {
             : "shadow-blue-500/10"
       }`}
     >
-      <Handle type="target" position={Position.Top} className="!bg-blue-400" />
+      <Handle type="target" position={targetPos} className="!bg-blue-400" />
       <div className="flex items-center gap-2">
         <Database className="h-4 w-4 text-blue-400 shrink-0" />
         <div className="truncate">
@@ -32,7 +34,7 @@ export function ModelNode({ data }: NodeProps) {
           </span>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-blue-400" />
+      <Handle type="source" position={sourcePos} className="!bg-blue-400" />
     </div>
   );
 }

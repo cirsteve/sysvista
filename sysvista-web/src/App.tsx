@@ -7,7 +7,6 @@ import { SearchBar } from "./components/SearchBar";
 import { Toolbar } from "./components/Toolbar";
 import { Legend } from "./components/Legend";
 import { WorkflowPanel } from "./components/WorkflowPanel";
-import { WorkflowView } from "./components/WorkflowView";
 import { setupDropZone } from "./lib/loader";
 import type { DetectedComponent } from "./types/schema";
 
@@ -16,12 +15,16 @@ function AppInner() {
     schema,
     nodes,
     edges,
+    flowNodes,
+    flowEdges,
+    flowNodeIdSet,
     activeKinds,
     selectedNode,
     searchQuery,
     searchResults,
     connectedComponents,
     highlightedNodeIds,
+    highlightedFlowNodeIds,
     workflows,
     selectedWorkflow,
     viewMode,
@@ -30,6 +33,7 @@ function AppInner() {
     setSelectedNode,
     doSearch,
     selectWorkflow,
+    toggleFlowView,
     setViewMode,
   } = useGraphData();
 
@@ -81,30 +85,39 @@ function AppInner() {
     (component: DetectedComponent) => {
       setSelectedNode(component);
       setFocusNodeId(component.id);
-      // Switch to graph view when navigating to a component from workflow panel
-      if (viewMode === "workflow") {
-        selectWorkflow(null);
-      }
     },
-    [setSelectedNode, viewMode, selectWorkflow],
+    [setSelectedNode],
   );
 
   const handleSearchSelect = useCallback(
     (component: DetectedComponent) => {
       setSelectedNode(component);
       setFocusNodeId(component.id);
+      // If in flow view and component is not in flow graph, switch to graph view
+      if (viewMode === "flow" && !flowNodeIdSet.has(component.id)) {
+        setViewMode("graph");
+      }
     },
-    [setSelectedNode],
+    [setSelectedNode, viewMode, flowNodeIdSet, setViewMode],
   );
+
+  // Select the right nodes/edges for the current view mode
+  const activeNodes = viewMode === "flow" ? flowNodes : nodes;
+  const activeEdges = viewMode === "flow" ? flowEdges : edges;
 
   // For large graphs, only show edges connected to the selected node
   const visibleEdges = useMemo(() => {
-    if (edges.length <= 500) return edges;
+    if (activeEdges.length <= 500) return activeEdges;
     if (!selectedNode) return [];
-    return edges.filter(
+    return activeEdges.filter(
       (e) => e.source === selectedNode.id || e.target === selectedNode.id,
     );
-  }, [edges, selectedNode]);
+  }, [activeEdges, selectedNode]);
+
+  // Combine highlight sources: transport trace (graph mode) or workflow highlight (flow mode)
+  const activeHighlightedNodeIds = viewMode === "flow"
+    ? highlightedFlowNodeIds
+    : highlightedNodeIds;
 
   const handleFitView = useCallback(() => {
     fitView({ padding: 0.2, duration: 300 });
@@ -113,10 +126,6 @@ function AppInner() {
   const handleToggleWorkflows = useCallback(() => {
     setShowWorkflowPanel((prev) => !prev);
   }, []);
-
-  const handleBackToGraph = useCallback(() => {
-    selectWorkflow(null);
-  }, [selectWorkflow]);
 
   return (
     <div ref={containerRef} className="flex flex-col h-screen">
@@ -131,51 +140,39 @@ function AppInner() {
               }
             : undefined
         }
+        viewMode={viewMode}
+        flowEdgeCount={flowEdges.length}
         workflowCount={workflows.length}
         onLoad={handleLoad}
         onError={setError}
         onFitView={handleFitView}
+        onToggleFlowView={toggleFlowView}
         onToggleWorkflows={handleToggleWorkflows}
       />
 
       <div className="flex-1 relative">
-        {/* Search bar overlay (only in graph view) */}
-        {viewMode === "graph" && (
-          <div className="absolute top-3 left-3 z-40">
-            <SearchBar
-              query={searchQuery}
-              results={searchResults}
-              activeKinds={activeKinds}
-              onSearch={doSearch}
-              onSelect={handleSearchSelect}
-              onToggleKind={toggleKind}
-            />
-          </div>
-        )}
+        {/* Search bar overlay */}
+        <div className="absolute top-3 left-3 z-40">
+          <SearchBar
+            query={searchQuery}
+            results={searchResults}
+            activeKinds={activeKinds}
+            onSearch={doSearch}
+            onSelect={handleSearchSelect}
+            onToggleKind={toggleKind}
+          />
+        </div>
 
         {schema ? (
           <>
-            {viewMode === "workflow" && selectedWorkflow ? (
-              <>
-                <WorkflowView
-                  workflow={selectedWorkflow}
-                  components={schema.components}
-                  onBack={handleBackToGraph}
-                />
-                <Legend mode="workflow" />
-              </>
-            ) : (
-              <>
-                <GraphCanvas
-                  nodes={nodes}
-                  edges={visibleEdges}
-                  onNodeClick={handleNodeClick}
-                  focusNodeId={focusNodeId}
-                  highlightedNodeIds={highlightedNodeIds}
-                />
-                <Legend mode="graph" />
-              </>
-            )}
+            <GraphCanvas
+              nodes={activeNodes}
+              edges={visibleEdges}
+              onNodeClick={handleNodeClick}
+              focusNodeId={focusNodeId}
+              highlightedNodeIds={activeHighlightedNodeIds}
+            />
+            <Legend mode={viewMode} />
           </>
         ) : (
           <div className="flex items-center justify-center h-full">
@@ -210,7 +207,7 @@ function AppInner() {
         )}
 
         {/* Detail panel */}
-        {selectedNode && viewMode === "graph" && (
+        {selectedNode && (
           <DetailPanel
             component={selectedNode}
             connectedComponents={connectedComponents}

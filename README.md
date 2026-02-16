@@ -97,15 +97,19 @@ TypeScript, JavaScript, Rust, Python, Go, Java, Kotlin, C#, Ruby, Protobuf, Grap
 
 ## Web viewer features
 
-- **Interactive graph** — pan, zoom, minimap (React Flow + dagre auto-layout)
+- **System view** — full graph of all components and edges (pan, zoom, minimap, dagre auto-layout)
+- **Flow view** — curated left-to-right data flow graph showing only components connected by flow edges (handles, persists, calls, dispatches, etc.), stripping away structural noise like imports/references
 - **Smart clustering** — components grouped by semantic prefix (e.g. all "Session*" models together), with cluster headers
 - **Hub highlighting** — high-degree nodes get a ring glow + degree badge; amber in the minimap
-- **Workflow trace** — click a transport to highlight its flow chain (service → transport → models) via `handles`/`persists`/`transforms` edges
+- **Workflow trace** — select a detected workflow to highlight its step components in the flow graph
 - **Color-coded nodes** — blue (model), green (service), orange (transport), purple (transform)
+- **Color-coded edges** — pink (payload), green (calls), amber (dispatches), cyan (other flow)
 - **Click to inspect** — detail panel shows source location, language, fields, metadata, connected components
-- **Fuzzy search** — find components by name, file path, or HTTP path
+- **Fuzzy search** — find components by name, file path, or HTTP path; auto-switches to system view if component isn't in flow view
 - **Filter chips** — toggle component kinds on/off
 - **Drag-and-drop** — load JSON files without any server
+
+See [`sysvista-web/USAGE.md`](sysvista-web/USAGE.md) for detailed web viewer usage.
 
 ## JSON schema
 
@@ -164,19 +168,21 @@ sysvista/
         schema.rs                 # Serde structs (JSON contract)
         writer.rs                 # JSON file output
   sysvista-web/                   # React/TypeScript (Vite)
+    USAGE.md                      # Detailed web viewer usage guide
     src/
       types/schema.ts             # TypeScript types (JSON contract)
       lib/
         loader.ts                 # File picker + drag-and-drop
-        graph-adapter.ts          # Schema → React Flow nodes/edges + dagre/cluster layout
+        graph-adapter.ts          # Schema → React Flow nodes/edges (buildGraph + buildFlowGraph)
         clustering.ts             # Semantic clustering + hub detection
         search.ts                 # Fuzzy search (Fuse.js)
-      hooks/useGraphData.ts       # Main state management + workflow tracing
+      hooks/useGraphData.ts       # Main state management, view modes, workflow tracing
       components/
-        GraphCanvas.tsx            # React Flow wrapper
+        GraphCanvas.tsx            # React Flow wrapper (shared by system + flow views)
         DetailPanel.tsx            # Slide-in component inspector
         SearchBar.tsx              # Search + filter chips
-        Toolbar.tsx                # Load JSON, fit view
-        Legend.tsx                  # Color/shape legend
-        nodes/                     # Custom node components per kind
+        Toolbar.tsx                # Load JSON, flow view toggle, fit view
+        Legend.tsx                  # Color/shape legend (adapts to view mode)
+        WorkflowPanel.tsx          # Workflow list + trace highlight panel
+        nodes/                     # Custom node components per kind (LR/TB handle support)
 ```

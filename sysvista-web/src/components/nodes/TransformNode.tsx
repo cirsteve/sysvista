@@ -3,9 +3,11 @@ import { ArrowRightLeft } from "lucide-react";
 import type { GraphNode } from "../../lib/graph-adapter";
 
 export function TransformNode({ data }: NodeProps) {
-  const { component, hubTier, degree } = data as unknown as GraphNode;
+  const { component, hubTier, degree, direction } = data as unknown as GraphNode;
   const isHighHub = hubTier === "high";
   const isMediumHub = hubTier === "medium";
+  const targetPos = direction === "LR" ? Position.Left : Position.Top;
+  const sourcePos = direction === "LR" ? Position.Right : Position.Bottom;
 
   return (
     <div
@@ -18,7 +20,7 @@ export function TransformNode({ data }: NodeProps) {
       }`}
       style={{ clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" }}
     >
-      <Handle type="target" position={Position.Top} className="!bg-purple-400" />
+      <Handle type="target" position={targetPos} className="!bg-purple-400" />
       <div className="flex items-center justify-center gap-2 px-4">
         <ArrowRightLeft className="h-4 w-4 text-purple-400 shrink-0" />
         <div className="truncate">
@@ -32,7 +34,7 @@ export function TransformNode({ data }: NodeProps) {
           </span>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-purple-400" />
+      <Handle type="source" position={sourcePos} className="!bg-purple-400" />
     </div>
   );
 }

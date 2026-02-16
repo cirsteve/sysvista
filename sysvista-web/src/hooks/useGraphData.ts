@@ -6,14 +6,12 @@ import type {
   ComponentKind,
   Workflow,
 } from "../types/schema";
-import { buildGraph, type GraphNode } from "../lib/graph-adapter";
+import { buildGraph, buildFlowGraph, FLOW_LABELS, type GraphNode } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform"];
 
-const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
-
-export type ViewMode = "graph" | "workflow";
+export type ViewMode = "graph" | "flow";
 
 export function useGraphData() {
   const [schema, setSchema] = useState<SysVistaOutput | null>(null);
@@ -67,6 +65,20 @@ export function useGraphData() {
     } catch (err) {
       console.error("buildGraph failed:", err);
       return { nodes: [], edges: [] };
+    }
+  }, [schema, activeKinds]);
+
+  const { flowNodes, flowEdges } = useMemo((): {
+    flowNodes: Node[];
+    flowEdges: Edge[];
+  } => {
+    if (!schema) return { flowNodes: [], flowEdges: [] };
+    try {
+      const result = buildFlowGraph(schema, activeKinds);
+      return { flowNodes: result.nodes, flowEdges: result.edges };
+    } catch (err) {
+      console.error("buildFlowGraph failed:", err);
+      return { flowNodes: [], flowEdges: [] };
     }
   }, [schema, activeKinds]);
 
@@ -130,21 +142,40 @@ export function useGraphData() {
     return nodeIds.size > 1 ? nodeIds : null;
   }, [selectedNode, traceWorkflow]);
 
+  // In flow mode, when a workflow is selected, highlight its step component IDs
+  const highlightedFlowNodeIds = useMemo((): Set<string> | null => {
+    if (viewMode !== "flow" || !selectedWorkflow) return null;
+    return new Set(selectedWorkflow.steps.map((s) => s.component_id));
+  }, [viewMode, selectedWorkflow]);
+
   const selectWorkflow = useCallback((workflow: Workflow | null) => {
     setSelectedWorkflow(workflow);
-    setViewMode(workflow ? "workflow" : "graph");
   }, []);
+
+  const toggleFlowView = useCallback(() => {
+    setViewMode((prev) => (prev === "flow" ? "graph" : "flow"));
+  }, []);
+
+  // Set of flow node IDs for quick lookup (used to check if a search result is in the flow view)
+  const flowNodeIdSet = useMemo(
+    () => new Set(flowNodes.map((n) => n.id)),
+    [flowNodes],
+  );
 
   return {
     schema,
     nodes,
     edges,
+    flowNodes,
+    flowEdges,
+    flowNodeIdSet,
     activeKinds,
     selectedNode,
     searchQuery,
     searchResults,
     connectedComponents,
     highlightedNodeIds,
+    highlightedFlowNodeIds,
     workflows,
     selectedWorkflow,
     viewMode,
@@ -153,6 +184,7 @@ export function useGraphData() {
     setSelectedNode,
     doSearch,
     selectWorkflow,
+    toggleFlowView,
     setViewMode,
   };
 }

@@ -3,9 +3,11 @@ import { Server } from "lucide-react";
 import type { GraphNode } from "../../lib/graph-adapter";
 
 export function ServiceNode({ data }: NodeProps) {
-  const { component, hubTier, degree } = data as unknown as GraphNode;
+  const { component, hubTier, degree, direction } = data as unknown as GraphNode;
   const isHighHub = hubTier === "high";
   const isMediumHub = hubTier === "medium";
+  const targetPos = direction === "LR" ? Position.Left : Position.Top;
+  const sourcePos = direction === "LR" ? Position.Right : Position.Bottom;
 
   return (
     <div
@@ -17,7 +19,7 @@ export function ServiceNode({ data }: NodeProps) {
             : "shadow-green-500/10"
       }`}
     >
-      <Handle type="target" position={Position.Top} className="!bg-green-400" />
+      <Handle type="target" position={targetPos} className="!bg-green-400" />
       <div className="flex items-center gap-2">
         <Server className="h-4 w-4 text-green-400 shrink-0" />
         <div className="truncate">
@@ -32,7 +34,7 @@ export function ServiceNode({ data }: NodeProps) {
           </span>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-green-400" />
+      <Handle type="source" position={sourcePos} className="!bg-green-400" />
     </div>
   );
 }
