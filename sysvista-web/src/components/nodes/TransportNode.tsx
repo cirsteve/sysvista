@@ -3,9 +3,11 @@ import { Globe } from "lucide-react";
 import type { GraphNode } from "../../lib/graph-adapter";
 
 export function TransportNode({ data }: NodeProps) {
-  const { component, hubTier, degree } = data as unknown as GraphNode;
+  const { component, hubTier, degree, direction } = data as unknown as GraphNode;
   const isHighHub = hubTier === "high";
   const isMediumHub = hubTier === "medium";
+  const targetPos = direction === "LR" ? Position.Left : Position.Top;
+  const sourcePos = direction === "LR" ? Position.Right : Position.Bottom;
 
   return (
     <div
@@ -18,7 +20,7 @@ export function TransportNode({ data }: NodeProps) {
       }`}
       style={{ clipPath: "polygon(10% 0%, 90% 0%, 100% 50%, 90% 100%, 10% 100%, 0% 50%)" }}
     >
-      <Handle type="target" position={Position.Top} className="!bg-orange-400" />
+      <Handle type="target" position={targetPos} className="!bg-orange-400" />
       <div className="flex items-center gap-2 px-2">
         <Globe className="h-4 w-4 text-orange-400 shrink-0" />
         <div className="truncate">
@@ -40,7 +42,7 @@ export function TransportNode({ data }: NodeProps) {
           </span>
         )}
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-orange-400" />
+      <Handle type="source" position={sourcePos} className="!bg-orange-400" />
     </div>
   );
 }

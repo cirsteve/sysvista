@@ -35,7 +35,9 @@ export function WorkflowPanel({
     <div className="absolute left-0 top-0 h-full w-80 bg-gray-900/95 backdrop-blur border-r border-gray-700 shadow-2xl overflow-y-auto z-50">
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-100">Workflows</h2>
+          <h2 className="text-lg font-bold text-gray-100">
+            {selectedWorkflow ? "Workflow Trace" : "Workflows"}
+          </h2>
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200"

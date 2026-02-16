@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildGraph } from "./graph-adapter";
+import { buildGraph, buildFlowGraph } from "./graph-adapter";
 import type { SysVistaOutput, ComponentKind } from "../types/schema";
 
 function makeScan(overrides: Partial<SysVistaOutput> = {}): SysVistaOutput {
@@ -138,5 +138,97 @@ describe("buildGraph filtering", () => {
     expect(edges).toHaveLength(1);
     expect(edges[0].label).toContain("imports");
     expect(edges[0].label).toContain("references");
+  });
+});
+
+describe("buildFlowGraph", () => {
+  const allKinds = new Set<ComponentKind>(["model", "service", "transport", "transform"]);
+
+  it("includes only flow-connected components", () => {
+    const data = makeScan({
+      components: [
+        makeComponent("tp1", "route", "transport"),
+        makeComponent("svc1", "handler", "service"),
+        makeComponent("m1", "Model", "model"),
+      ],
+      edges: [
+        { from_id: "tp1", to_id: "svc1", label: "calls" },
+        { from_id: "svc1", to_id: "m1", label: "imports" }, // not a flow edge
+      ],
+    });
+
+    const { nodes, edges } = buildFlowGraph(data, allKinds);
+    // Only tp1 and svc1 have flow edges; m1 only has an import edge
+    expect(nodes).toHaveLength(2);
+    expect(edges).toHaveLength(1);
+    expect(nodes.map((n) => n.id).sort()).toEqual(["svc1", "tp1"]);
+  });
+
+  it("excludes components with only non-flow edges", () => {
+    const data = makeScan({
+      components: [
+        makeComponent("a", "A", "service"),
+        makeComponent("b", "B", "model"),
+      ],
+      edges: [
+        { from_id: "a", to_id: "b", label: "imports" },
+        { from_id: "a", to_id: "b", label: "references" },
+      ],
+    });
+
+    const { nodes, edges } = buildFlowGraph(data, allKinds);
+    expect(nodes).toHaveLength(0);
+    expect(edges).toHaveLength(0);
+  });
+
+  it("sets LR direction on all nodes", () => {
+    const data = makeScan({
+      components: [
+        makeComponent("tp1", "route", "transport"),
+        makeComponent("svc1", "handler", "service"),
+      ],
+      edges: [{ from_id: "tp1", to_id: "svc1", label: "handles" }],
+    });
+
+    const { nodes } = buildFlowGraph(data, allKinds);
+    for (const node of nodes) {
+      expect((node.data as Record<string, unknown>).direction).toBe("LR");
+    }
+  });
+
+  it("all flow edges are animated", () => {
+    const data = makeScan({
+      components: [
+        makeComponent("tp1", "route", "transport"),
+        makeComponent("svc1", "handler", "service"),
+        makeComponent("m1", "Model", "model"),
+      ],
+      edges: [
+        { from_id: "tp1", to_id: "svc1", label: "calls" },
+        { from_id: "svc1", to_id: "m1", label: "persists" },
+      ],
+    });
+
+    const { edges } = buildFlowGraph(data, allKinds);
+    expect(edges).toHaveLength(2);
+    for (const edge of edges) {
+      expect(edge.animated).toBe(true);
+    }
+  });
+
+  it("respects activeKinds filter", () => {
+    const data = makeScan({
+      components: [
+        makeComponent("tp1", "route", "transport"),
+        makeComponent("svc1", "handler", "service"),
+      ],
+      edges: [{ from_id: "tp1", to_id: "svc1", label: "calls" }],
+    });
+
+    const onlyServices = new Set<ComponentKind>(["service"]);
+    const { nodes, edges } = buildFlowGraph(data, onlyServices);
+    // transport is filtered out, so no edges remain and service has no flow connections
+    expect(nodes).toHaveLength(0);
+    expect(edges).toHaveLength(0);
   });
 });
