@@ -10,6 +10,7 @@ export interface GraphNode extends Record<string, unknown> {
   degree: number;
   cluster: string;
   highlighted?: boolean;
+  direction?: "TB" | "LR";
 }
 
 export interface GroupLabelNode extends Record<string, unknown> {
@@ -24,6 +25,10 @@ const KIND_CONFIG: Record<ComponentKind, { color: string; width: number; height:
   transport: { color: "#f97316", width: 200, height: 60 },
   transform: { color: "#a855f7", width: 180, height: 60 },
 };
+
+export const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
+const PAYLOAD_LABELS = new Set(["consumes", "produces"]);
+const CALL_LABELS = new Set(["calls", "dispatches"]);
 
 // Dagre can't handle dense graphs — fall back to cluster grid layout above this threshold
 const MAX_DAGRE_EDGES = 2000;
@@ -193,20 +198,16 @@ export function buildGraph(
     });
   }
 
-  const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
-  const PAYLOAD_LABELS = new Set(["consumes", "produces"]);
-  const CALL_LABELS = new Set(["calls", "dispatches"]);
-
   const edges: Edge[] = uniqueEdges.map((e, i) => {
     const isPayload = e.labels.some((l) => PAYLOAD_LABELS.has(l));
     const isFlow = e.labels.some((l) => FLOW_LABELS.has(l));
     const isCalls = e.labels.includes("calls");
     const isDispatches = e.labels.includes("dispatches");
 
-    // Build label: include payload_type for payload edges
+    // Build label: include payload_type for any flow edge that carries one
     let label = e.labels.join(", ");
-    if (isPayload && e.payload_type) {
-      label = `${label} ${e.payload_type}`;
+    if (e.payload_type) {
+      label = `${label} [${e.payload_type}]`;
     }
 
     // Color priority: payload > calls > dispatches > flow > default
@@ -252,4 +253,145 @@ export function buildGraph(
   });
 
   return { nodes: componentNodes, edges };
+}
+
+function styleFlowEdge(e: { from_id: string; to_id: string; labels: string[]; payload_type?: string }, i: number): Edge {
+  const isPayload = e.labels.some((l) => PAYLOAD_LABELS.has(l));
+  const isCalls = e.labels.includes("calls");
+  const isDispatches = e.labels.includes("dispatches");
+  const isFlow = e.labels.some((l) => FLOW_LABELS.has(l));
+
+  let label = e.labels.join(", ");
+  if (e.payload_type) {
+    label = `${label} [${e.payload_type}]`;
+  }
+
+  let stroke = "#06b6d4"; // default flow = cyan
+  let labelFill = "#67e8f9";
+  if (isPayload) {
+    stroke = "#f472b6";
+    labelFill = "#f9a8d4";
+  } else if (isCalls) {
+    stroke = "#22c55e";
+    labelFill = "#86efac";
+  } else if (isDispatches) {
+    stroke = "#f59e0b";
+    labelFill = "#fcd34d";
+  }
+
+  return {
+    id: `fe-${i}`,
+    source: e.from_id,
+    target: e.to_id,
+    label: label || undefined,
+    animated: true,
+    zIndex: isPayload ? 10 : (isCalls || isDispatches) ? 5 : 0,
+    style: {
+      stroke,
+      strokeWidth: isPayload ? 2.5 : (isCalls || isDispatches) ? 2 : 1.5,
+    },
+    labelStyle: {
+      fill: labelFill,
+      fontSize: 10,
+    },
+  };
+}
+
+export function buildFlowGraph(
+  data: SysVistaOutput,
+  activeKinds: Set<ComponentKind>,
+): { nodes: Node[]; edges: Edge[] } {
+  // Filter to flow-only edges
+  const flowEdges = data.edges.filter(
+    (e) => e.label && FLOW_LABELS.has(e.label),
+  );
+
+  // Find components that participate in at least one flow edge
+  const flowNodeIds = new Set<string>();
+  for (const e of flowEdges) {
+    flowNodeIds.add(e.from_id);
+    flowNodeIds.add(e.to_id);
+  }
+
+  const filteredComponents = data.components.filter(
+    (c) => activeKinds.has(c.kind) && flowNodeIds.has(c.id),
+  );
+  const visibleIds = new Set(filteredComponents.map((c) => c.id));
+
+  // Deduplicate edges between the same node pair
+  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[]; payload_type?: string }>();
+  for (const e of flowEdges) {
+    if (!visibleIds.has(e.from_id) || !visibleIds.has(e.to_id)) continue;
+    const key = `${e.from_id}->${e.to_id}`;
+    const existing = edgeMap.get(key);
+    if (existing) {
+      if (e.label && !existing.labels.includes(e.label)) {
+        existing.labels.push(e.label);
+      }
+      if (e.payload_type && !existing.payload_type) {
+        existing.payload_type = e.payload_type;
+      }
+    } else {
+      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [], payload_type: e.payload_type });
+    }
+  }
+  const uniqueEdges = [...edgeMap.values()];
+
+  // Re-filter: only keep nodes that have at least one visible edge
+  const connectedIds = new Set<string>();
+  for (const e of uniqueEdges) {
+    connectedIds.add(e.from_id);
+    connectedIds.add(e.to_id);
+  }
+  const connectedComponents = filteredComponents.filter((c) => connectedIds.has(c.id));
+
+  // LR Dagre layout
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "LR", ranksep: 100, nodesep: 50 });
+
+  for (const comp of connectedComponents) {
+    const config = KIND_CONFIG[comp.kind];
+    g.setNode(comp.id, { width: config.width, height: config.height });
+  }
+
+  for (const edge of uniqueEdges) {
+    g.setEdge(edge.from_id, edge.to_id);
+  }
+
+  dagre.layout(g);
+
+  const hubMap = detectHubs(connectedComponents, flowEdges.filter((e) => visibleIds.has(e.from_id) && visibleIds.has(e.to_id)));
+  const clusterMap = classifyComponents(connectedComponents);
+
+  const nodes: Node<GraphNode>[] = connectedComponents.map((comp) => {
+    const n = g.node(comp.id);
+    const config = KIND_CONFIG[comp.kind];
+    const hub = hubMap.get(comp.id) ?? { tier: "normal" as const, degree: 0 };
+    return {
+      id: comp.id,
+      type: comp.kind,
+      position: {
+        x: n.x - config.width / 2,
+        y: n.y - config.height / 2,
+      },
+      data: {
+        component: comp,
+        hubTier: hub.tier,
+        degree: hub.degree,
+        cluster: clusterMap.get(comp.id) ?? "Other",
+        direction: "LR" as const,
+      },
+    };
+  });
+
+  const edges: Edge[] = uniqueEdges.map((e, i) => styleFlowEdge(e, i));
+
+  edges.sort((a, b) => {
+    const aPayload = a.style?.stroke === "#f472b6" ? 1 : 0;
+    const bPayload = b.style?.stroke === "#f472b6" ? 1 : 0;
+    return aPayload - bPayload;
+  });
+
+  return { nodes, edges };
 }

@@ -147,6 +147,15 @@ pub fn infer_edges(
     edges
 }
 
+/// Extract the first payload type from a transport's consumes/produces fields.
+fn transport_payload(comp: &DetectedComponent) -> Option<String> {
+    comp.consumes
+        .as_ref()
+        .and_then(|v| v.first())
+        .or_else(|| comp.produces.as_ref().and_then(|v| v.first()))
+        .cloned()
+}
+
 /// Infer flow edges that represent request-handling relationships:
 /// - handles: service → transport (route defined in same file as service)
 /// - persists: transport → model (handler body references model types)
@@ -184,7 +193,7 @@ pub fn infer_flow_edges(
                     from_id: svc.id.clone(),
                     to_id: tp.id.clone(),
                     label: Some("handles".to_string()),
-                    payload_type: None,
+                    payload_type: transport_payload(tp),
                 });
             }
         }
@@ -211,7 +220,7 @@ pub fn infer_flow_edges(
                                 from_id: tp.id.clone(),
                                 to_id: model_id.to_string(),
                                 label: Some("persists".to_string()),
-                                payload_type: None,
+                                payload_type: Some(model_name.to_string()),
                             });
                         }
                     }
@@ -236,7 +245,7 @@ pub fn infer_flow_edges(
                                 from_id: tf.id.clone(),
                                 to_id: model_id.to_string(),
                                 label: Some("transforms".to_string()),
-                                payload_type: None,
+                                payload_type: Some(model_name.to_string()),
                             });
                         }
                     }
@@ -415,7 +424,7 @@ pub fn infer_call_edges(
                             from_id: tp.id.clone(),
                             to_id: target_id,
                             label: Some("calls".to_string()),
-                            payload_type: None,
+                            payload_type: transport_payload(tp),
                         });
                     }
                 }
@@ -431,7 +440,7 @@ pub fn infer_call_edges(
                                 from_id: tp.id.clone(),
                                 to_id: components[idx].id.clone(),
                                 label: Some("dispatches".to_string()),
-                                payload_type: None,
+                                payload_type: transport_payload(tp),
                             });
                         }
                     }
@@ -454,7 +463,7 @@ pub fn infer_call_edges(
                                 from_id: tp.id.clone(),
                                 to_id: components[idx].id.clone(),
                                 label: Some("calls".to_string()),
-                                payload_type: None,
+                                payload_type: transport_payload(tp),
                             });
                         }
                     }
@@ -620,6 +629,82 @@ async def route():
 
         let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
         assert_eq!(calls.len(), 1);
+    }
+
+    fn make_comp_with_payload(
+        id: &str, name: &str, kind: ComponentKind, file: &str, line: u32,
+        consumes: Option<Vec<&str>>, produces: Option<Vec<&str>>,
+    ) -> DetectedComponent {
+        let mut comp = make_comp(id, name, kind, file, line);
+        comp.consumes = consumes.map(|v| v.into_iter().map(String::from).collect());
+        comp.produces = produces.map(|v| v.into_iter().map(String::from).collect());
+        comp
+    }
+
+    #[test]
+    fn persists_edge_gets_model_name_as_payload_type() {
+        let transport = make_comp("tp1", "create_user_route", ComponentKind::Transport, "src/routes.py", 1);
+        let model = make_comp("m1", "User", ComponentKind::Model, "src/models.py", 1);
+
+        let file_content = r#"
+@router.post("/users")
+async def create_user_route(body: UserCreate):
+    user = User(name=body.name)
+    db.add(user)
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes.py".to_string(), file_content.to_string());
+
+        let components = vec![transport, model];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let persists: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("persists")).collect();
+        assert_eq!(persists.len(), 1);
+        assert_eq!(persists[0].payload_type, Some("User".to_string()));
+    }
+
+    #[test]
+    fn handles_edge_gets_transport_payload_type() {
+        let service = make_comp("svc1", "UserService", ComponentKind::Service, "src/users.py", 1);
+        let transport = make_comp_with_payload(
+            "tp1", "create_user", ComponentKind::Transport, "src/users.py", 5,
+            Some(vec!["UserCreate"]), None,
+        );
+
+        let file_contents = HashMap::new();
+        let components = vec![service, transport];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let handles: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("handles")).collect();
+        assert_eq!(handles.len(), 1);
+        assert_eq!(handles[0].payload_type, Some("UserCreate".to_string()));
+    }
+
+    #[test]
+    fn calls_edge_gets_transport_payload_type() {
+        let transport = make_comp_with_payload(
+            "tp1", "create_msg_route", ComponentKind::Transport, "src/routes/messages.py", 1,
+            Some(vec!["MessageCreate"]), None,
+        );
+        let service = make_comp("svc1", "create_message", ComponentKind::Service, "src/crud/messages.py", 1);
+
+        let file_content = r#"from . import crud
+
+@router.post("/messages")
+async def create_msg_route(body: MessageCreate):
+    result = await crud.create_message(db, body)
+    return result
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/routes/messages.py".to_string(), file_content.to_string());
+        file_contents.insert("src/crud/messages.py".to_string(), String::new());
+
+        let components = vec![transport, service];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].payload_type, Some("MessageCreate".to_string()));
     }
 }
 
