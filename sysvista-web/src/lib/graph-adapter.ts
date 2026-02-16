@@ -118,7 +118,7 @@ export function buildGraph(
   );
 
   // Deduplicate edges between the same node pair
-  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[]; payload_type?: string }>();
+  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[]; payload_types: string[] }>();
   for (const e of filteredEdges) {
     const key = `${e.from_id}->${e.to_id}`;
     const existing = edgeMap.get(key);
@@ -126,11 +126,11 @@ export function buildGraph(
       if (e.label && !existing.labels.includes(e.label)) {
         existing.labels.push(e.label);
       }
-      if (e.payload_type && !existing.payload_type) {
-        existing.payload_type = e.payload_type;
+      if (e.payload_type && !existing.payload_types.includes(e.payload_type)) {
+        existing.payload_types.push(e.payload_type);
       }
     } else {
-      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [], payload_type: e.payload_type });
+      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [], payload_types: e.payload_type ? [e.payload_type] : [] });
     }
   }
   const uniqueEdges = [...edgeMap.values()];
@@ -204,10 +204,10 @@ export function buildGraph(
     const isCalls = e.labels.includes("calls");
     const isDispatches = e.labels.includes("dispatches");
 
-    // Build label: include payload_type for any flow edge that carries one
+    // Build label: include payload types for any flow edge that carries them
     let label = e.labels.join(", ");
-    if (e.payload_type) {
-      label = `${label} [${e.payload_type}]`;
+    if (e.payload_types.length > 0) {
+      label = `${label} [${e.payload_types.join(", ")}]`;
     }
 
     // Color priority: payload > calls > dispatches > flow > default
@@ -255,14 +255,14 @@ export function buildGraph(
   return { nodes: componentNodes, edges };
 }
 
-function styleFlowEdge(e: { from_id: string; to_id: string; labels: string[]; payload_type?: string }, i: number): Edge {
+function styleFlowEdge(e: { from_id: string; to_id: string; labels: string[]; payload_types: string[] }, i: number): Edge {
   const isPayload = e.labels.some((l) => PAYLOAD_LABELS.has(l));
   const isCalls = e.labels.includes("calls");
   const isDispatches = e.labels.includes("dispatches");
 
   let label = e.labels.join(", ");
-  if (e.payload_type) {
-    label = `${label} [${e.payload_type}]`;
+  if (e.payload_types.length > 0) {
+    label = `${label} [${e.payload_types.join(", ")}]`;
   }
 
   let stroke = "#06b6d4"; // default flow = cyan
@@ -318,7 +318,7 @@ export function buildFlowGraph(
   const visibleIds = new Set(filteredComponents.map((c) => c.id));
 
   // Deduplicate edges between the same node pair
-  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[]; payload_type?: string }>();
+  const edgeMap = new Map<string, { from_id: string; to_id: string; labels: string[]; payload_types: string[] }>();
   for (const e of flowEdges) {
     if (!visibleIds.has(e.from_id) || !visibleIds.has(e.to_id)) continue;
     const key = `${e.from_id}->${e.to_id}`;
@@ -327,11 +327,11 @@ export function buildFlowGraph(
       if (e.label && !existing.labels.includes(e.label)) {
         existing.labels.push(e.label);
       }
-      if (e.payload_type && !existing.payload_type) {
-        existing.payload_type = e.payload_type;
+      if (e.payload_type && !existing.payload_types.includes(e.payload_type)) {
+        existing.payload_types.push(e.payload_type);
       }
     } else {
-      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [], payload_type: e.payload_type });
+      edgeMap.set(key, { from_id: e.from_id, to_id: e.to_id, labels: e.label ? [e.label] : [], payload_types: e.payload_type ? [e.payload_type] : [] });
     }
   }
   const uniqueEdges = [...edgeMap.values()];
