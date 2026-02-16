@@ -59,6 +59,31 @@ pub struct DetectedEdge {
     pub payload_type: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum StepType {
+    Entry,
+    Call,
+    Persist,
+    Dispatch,
+    Response,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkflowStep {
+    pub component_id: String,
+    pub step_type: StepType,
+    pub order: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Workflow {
+    pub id: String,
+    pub name: String,
+    pub entry_point_id: String,
+    pub steps: Vec<WorkflowStep>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ScanStats {
     pub files_scanned: u64,
@@ -75,5 +100,6 @@ pub struct SysVistaOutput {
     pub detected_languages: Vec<String>,
     pub components: Vec<DetectedComponent>,
     pub edges: Vec<DetectedEdge>,
+    pub workflows: Vec<Workflow>,
     pub scan_stats: ScanStats,
 }

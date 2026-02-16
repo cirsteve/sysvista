@@ -12,6 +12,9 @@ function validate(data: unknown): SysVistaOutput {
       "Invalid SysVista JSON: missing required fields (components, edges)",
     );
   }
+  if (!Array.isArray(obj.workflows)) {
+    obj.workflows = [];
+  }
   return obj as unknown as SysVistaOutput;
 }
 

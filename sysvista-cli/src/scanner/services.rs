@@ -39,6 +39,7 @@ const SERVICE_DIRS: &[&str] = &[
     "resolvers",
     "middleware",
     "api",
+    "crud",
 ];
 
 fn is_service_dir(file: &str) -> bool {
@@ -147,8 +148,47 @@ pub fn detect_services(
         }
     }
 
+    // For Python: detect bare functions (async def / def) in service directories
+    if components.is_empty() && is_service_dir(file) && language == "python" {
+        let func_re = LazyLock::force(&PYTHON_FUNC_PATTERN);
+        for cap in func_re.captures_iter(content) {
+            let name = cap[1].to_string();
+            // Filter out dunder methods and private functions
+            if name.starts_with("__") || name.starts_with('_') {
+                continue;
+            }
+            let match_start = cap.get(0).unwrap().start();
+            let line_num = content[..match_start].lines().count() as u32 + 1;
+
+            components.push(DetectedComponent {
+                id: make_id("service", &name, file),
+                name,
+                kind: ComponentKind::Service,
+                language: language.to_string(),
+                source: SourceLocation {
+                    file: file.to_string(),
+                    line_start: Some(line_num),
+                    line_end: None,
+                },
+                metadata: HashMap::from([(
+                    "detection".to_string(),
+                    "directory_convention".to_string(),
+                )]),
+                transport_protocol: None,
+                http_method: None,
+                http_path: None,
+                model_fields: None,
+                consumes: None,
+                produces: None,
+            });
+        }
+    }
+
     components
 }
 
 static EXPORT_FUNC_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^export\s+(?:async\s+)?function\s+(\w+)").unwrap());
+
+static PYTHON_FUNC_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^(?:async\s+)?def\s+(\w+)\s*\(").unwrap());

@@ -193,12 +193,15 @@ export function buildGraph(
     });
   }
 
-  const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces"]);
+  const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
   const PAYLOAD_LABELS = new Set(["consumes", "produces"]);
+  const CALL_LABELS = new Set(["calls", "dispatches"]);
 
   const edges: Edge[] = uniqueEdges.map((e, i) => {
     const isPayload = e.labels.some((l) => PAYLOAD_LABELS.has(l));
     const isFlow = e.labels.some((l) => FLOW_LABELS.has(l));
+    const isCalls = e.labels.includes("calls");
+    const isDispatches = e.labels.includes("dispatches");
 
     // Build label: include payload_type for payload edges
     let label = e.labels.join(", ");
@@ -206,19 +209,36 @@ export function buildGraph(
       label = `${label} ${e.payload_type}`;
     }
 
+    // Color priority: payload > calls > dispatches > flow > default
+    let stroke = "#6b7280";
+    let labelFill = "#9ca3af";
+    if (isPayload) {
+      stroke = "#f472b6";
+      labelFill = "#f9a8d4";
+    } else if (isCalls) {
+      stroke = "#22c55e";
+      labelFill = "#86efac";
+    } else if (isDispatches) {
+      stroke = "#f59e0b";
+      labelFill = "#fcd34d";
+    } else if (isFlow) {
+      stroke = "#06b6d4";
+      labelFill = "#67e8f9";
+    }
+
     return {
       id: `e-${i}`,
       source: e.from_id,
       target: e.to_id,
       label: label || undefined,
-      animated: isFlow || e.labels.includes("calls"),
-      zIndex: isPayload ? 10 : 0,
+      animated: isFlow,
+      zIndex: isPayload ? 10 : (isCalls || isDispatches) ? 5 : 0,
       style: {
-        stroke: isPayload ? "#f472b6" : isFlow ? "#06b6d4" : "#6b7280",
-        strokeWidth: isPayload ? 2 : 1,
+        stroke,
+        strokeWidth: isPayload ? 2 : (isCalls || isDispatches) ? 1.5 : 1,
       },
       labelStyle: {
-        fill: isPayload ? "#f9a8d4" : isFlow ? "#67e8f9" : "#9ca3af",
+        fill: labelFill,
         fontSize: 10,
       },
     };

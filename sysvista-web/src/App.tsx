@@ -6,6 +6,8 @@ import { DetailPanel } from "./components/DetailPanel";
 import { SearchBar } from "./components/SearchBar";
 import { Toolbar } from "./components/Toolbar";
 import { Legend } from "./components/Legend";
+import { WorkflowPanel } from "./components/WorkflowPanel";
+import { WorkflowView } from "./components/WorkflowView";
 import { setupDropZone } from "./lib/loader";
 import type { DetectedComponent } from "./types/schema";
 
@@ -20,15 +22,21 @@ function AppInner() {
     searchResults,
     connectedComponents,
     highlightedNodeIds,
+    workflows,
+    selectedWorkflow,
+    viewMode,
     loadSchema,
     toggleKind,
     setSelectedNode,
     doSearch,
+    selectWorkflow,
+    setViewMode,
   } = useGraphData();
 
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showWorkflowPanel, setShowWorkflowPanel] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { fitView } = useReactFlow();
 
@@ -43,6 +51,7 @@ function AppInner() {
     (data: Parameters<typeof loadSchema>[0]) => {
       try {
         loadSchema(data);
+        setShowWorkflowPanel(false);
       } catch (err) {
         console.error("Graph build failed:", err);
         setError(
@@ -72,8 +81,12 @@ function AppInner() {
     (component: DetectedComponent) => {
       setSelectedNode(component);
       setFocusNodeId(component.id);
+      // Switch to graph view when navigating to a component from workflow panel
+      if (viewMode === "workflow") {
+        selectWorkflow(null);
+      }
     },
-    [setSelectedNode],
+    [setSelectedNode, viewMode, selectWorkflow],
   );
 
   const handleSearchSelect = useCallback(
@@ -97,6 +110,14 @@ function AppInner() {
     fitView({ padding: 0.2, duration: 300 });
   }, [fitView]);
 
+  const handleToggleWorkflows = useCallback(() => {
+    setShowWorkflowPanel((prev) => !prev);
+  }, []);
+
+  const handleBackToGraph = useCallback(() => {
+    selectWorkflow(null);
+  }, [selectWorkflow]);
+
   return (
     <div ref={containerRef} className="flex flex-col h-screen">
       <Toolbar
@@ -110,34 +131,51 @@ function AppInner() {
               }
             : undefined
         }
+        workflowCount={workflows.length}
         onLoad={handleLoad}
         onError={setError}
         onFitView={handleFitView}
+        onToggleWorkflows={handleToggleWorkflows}
       />
 
       <div className="flex-1 relative">
-        {/* Search bar overlay */}
-        <div className="absolute top-3 left-3 z-40">
-          <SearchBar
-            query={searchQuery}
-            results={searchResults}
-            activeKinds={activeKinds}
-            onSearch={doSearch}
-            onSelect={handleSearchSelect}
-            onToggleKind={toggleKind}
-          />
-        </div>
+        {/* Search bar overlay (only in graph view) */}
+        {viewMode === "graph" && (
+          <div className="absolute top-3 left-3 z-40">
+            <SearchBar
+              query={searchQuery}
+              results={searchResults}
+              activeKinds={activeKinds}
+              onSearch={doSearch}
+              onSelect={handleSearchSelect}
+              onToggleKind={toggleKind}
+            />
+          </div>
+        )}
 
         {schema ? (
           <>
-            <GraphCanvas
-              nodes={nodes}
-              edges={visibleEdges}
-              onNodeClick={handleNodeClick}
-              focusNodeId={focusNodeId}
-              highlightedNodeIds={highlightedNodeIds}
-            />
-            <Legend />
+            {viewMode === "workflow" && selectedWorkflow ? (
+              <>
+                <WorkflowView
+                  workflow={selectedWorkflow}
+                  components={schema.components}
+                  onBack={handleBackToGraph}
+                />
+                <Legend mode="workflow" />
+              </>
+            ) : (
+              <>
+                <GraphCanvas
+                  nodes={nodes}
+                  edges={visibleEdges}
+                  onNodeClick={handleNodeClick}
+                  focusNodeId={focusNodeId}
+                  highlightedNodeIds={highlightedNodeIds}
+                />
+                <Legend mode="graph" />
+              </>
+            )}
           </>
         ) : (
           <div className="flex items-center justify-center h-full">
@@ -159,8 +197,20 @@ function AppInner() {
           </div>
         )}
 
+        {/* Workflow panel */}
+        {showWorkflowPanel && schema && (
+          <WorkflowPanel
+            workflows={workflows}
+            selectedWorkflow={selectedWorkflow}
+            components={schema.components}
+            onSelectWorkflow={selectWorkflow}
+            onClose={() => setShowWorkflowPanel(false)}
+            onNavigateToComponent={handleNavigate}
+          />
+        )}
+
         {/* Detail panel */}
-        {selectedNode && (
+        {selectedNode && viewMode === "graph" && (
           <DetailPanel
             component={selectedNode}
             connectedComponents={connectedComponents}

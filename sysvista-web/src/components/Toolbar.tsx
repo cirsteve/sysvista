@@ -1,17 +1,19 @@
-import { Upload, Maximize, FolderOpen } from "lucide-react";
+import { Upload, Maximize, GitBranch } from "lucide-react";
 import { useRef } from "react";
 import type { SysVistaOutput } from "../types/schema";
-import { loadFromFile, loadFromUrl } from "../lib/loader";
+import { loadFromFile } from "../lib/loader";
 
 interface ToolbarProps {
   projectName?: string;
   stats?: { components: number; edges: number; files: number };
+  workflowCount?: number;
   onLoad: (data: SysVistaOutput) => void;
   onError: (message: string) => void;
   onFitView: () => void;
+  onToggleWorkflows?: () => void;
 }
 
-export function Toolbar({ projectName, stats, onLoad, onError, onFitView }: ToolbarProps) {
+export function Toolbar({ projectName, stats, workflowCount, onLoad, onError, onFitView, onToggleWorkflows }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -25,15 +27,6 @@ export function Toolbar({ projectName, stats, onLoad, onError, onFitView }: Tool
     }
     // Reset so the same file can be re-selected
     e.target.value = "";
-  };
-
-  const handleLoadSample = async () => {
-    try {
-      const data = await loadFromUrl("/sample-output.json");
-      onLoad(data);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to load sample");
-    }
   };
 
   return (
@@ -57,13 +50,18 @@ export function Toolbar({ projectName, stats, onLoad, onError, onFitView }: Tool
       </div>
 
       <div className="flex items-center gap-2">
-        <button
-          onClick={handleLoadSample}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors"
-        >
-          <FolderOpen className="h-3.5 w-3.5" />
-          Sample
-        </button>
+        {onToggleWorkflows && workflowCount !== undefined && workflowCount > 0 && (
+          <button
+            onClick={onToggleWorkflows}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors"
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            Workflows
+            <span className="bg-gray-700 text-gray-300 text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+              {workflowCount}
+            </span>
+          </button>
+        )}
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors"

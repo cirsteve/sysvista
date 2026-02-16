@@ -5,6 +5,7 @@ pub mod relationships;
 pub mod services;
 pub mod transforms;
 pub mod transports;
+pub mod workflows;
 
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -91,6 +92,24 @@ pub fn scan(root: &Path) -> SysVistaOutput {
         }
     }
 
+    // Infer call/dispatch edges and merge.
+    // Always allow calls/dispatches edges through (like payload edges).
+    let call_edges = relationships::infer_call_edges(&all_components, &file_contents);
+    let existing_pairs: HashSet<(String, String)> = edges
+        .iter()
+        .map(|e| (e.from_id.clone(), e.to_id.clone()))
+        .collect();
+    for ce in call_edges {
+        let is_call = ce.label.as_deref() == Some("calls")
+            || ce.label.as_deref() == Some("dispatches");
+        if is_call || !existing_pairs.contains(&(ce.from_id.clone(), ce.to_id.clone())) {
+            edges.push(ce);
+        }
+    }
+
+    // Infer workflows from components and edges
+    let workflows = workflows::infer_workflows(&all_components, &edges);
+
     let duration = start.elapsed();
 
     let project_name = root
@@ -110,6 +129,7 @@ pub fn scan(root: &Path) -> SysVistaOutput {
         detected_languages,
         components: all_components,
         edges,
+        workflows,
         scan_stats: ScanStats {
             files_scanned,
             files_skipped,

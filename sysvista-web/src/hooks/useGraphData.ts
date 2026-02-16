@@ -4,13 +4,16 @@ import type {
   SysVistaOutput,
   DetectedComponent,
   ComponentKind,
+  Workflow,
 } from "../types/schema";
 import { buildGraph, type GraphNode } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform"];
 
-const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces"]);
+const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
+
+export type ViewMode = "graph" | "workflow";
 
 export function useGraphData() {
   const [schema, setSchema] = useState<SysVistaOutput | null>(null);
@@ -22,6 +25,10 @@ export function useGraphData() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DetectedComponent[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("graph");
+
+  const workflows = useMemo(() => schema?.workflows ?? [], [schema]);
 
   const loadSchema = useCallback((data: SysVistaOutput) => {
     setSchema(data);
@@ -29,6 +36,8 @@ export function useGraphData() {
     setSelectedNode(null);
     setSearchQuery("");
     setSearchResults([]);
+    setSelectedWorkflow(null);
+    setViewMode("graph");
   }, []);
 
   const toggleKind = useCallback((kind: ComponentKind) => {
@@ -121,6 +130,11 @@ export function useGraphData() {
     return nodeIds.size > 1 ? nodeIds : null;
   }, [selectedNode, traceWorkflow]);
 
+  const selectWorkflow = useCallback((workflow: Workflow | null) => {
+    setSelectedWorkflow(workflow);
+    setViewMode(workflow ? "workflow" : "graph");
+  }, []);
+
   return {
     schema,
     nodes,
@@ -131,9 +145,14 @@ export function useGraphData() {
     searchResults,
     connectedComponents,
     highlightedNodeIds,
+    workflows,
+    selectedWorkflow,
+    viewMode,
     loadSchema,
     toggleKind,
     setSelectedNode,
     doSearch,
+    selectWorkflow,
+    setViewMode,
   };
 }

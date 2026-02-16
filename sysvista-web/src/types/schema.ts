@@ -29,6 +29,21 @@ export interface DetectedEdge {
   payload_type?: string;
 }
 
+export type StepType = "entry" | "call" | "persist" | "dispatch" | "response";
+
+export interface WorkflowStep {
+  component_id: string;
+  step_type: StepType;
+  order: number;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  entry_point_id: string;
+  steps: WorkflowStep[];
+}
+
 export interface ScanStats {
   files_scanned: number;
   files_skipped: number;
@@ -43,5 +58,6 @@ export interface SysVistaOutput {
   detected_languages: string[];
   components: DetectedComponent[];
   edges: DetectedEdge[];
+  workflows: Workflow[];
   scan_stats: ScanStats;
 }
