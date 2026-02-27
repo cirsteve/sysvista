@@ -174,11 +174,14 @@ pub fn infer_flow_edges(
         by_file.entry(comp.source.file.as_str()).or_default().push(comp);
     }
 
-    // Collect all model names for body scanning
-    let model_names: Vec<(&str, &str)> = components
+    // Collect all model names and precompile their word-boundary regexes once
+    let model_regexes: Vec<(&str, &str, Regex)> = components
         .iter()
         .filter(|c| c.kind == ComponentKind::Model && c.name.len() >= 3)
-        .map(|c| (c.id.as_str(), c.name.as_str()))
+        .filter_map(|c| {
+            let pattern = format!(r"\b{}\b", regex::escape(&c.name));
+            Regex::new(&pattern).ok().map(|re| (c.id.as_str(), c.name.as_str(), re))
+        })
         .collect();
 
     for (file, comps) in &by_file {
@@ -209,20 +212,14 @@ pub fn infer_flow_edges(
                 let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
                 let body = lines[start_idx..end_line].join("\n");
 
-                for &(model_id, model_name) in &model_names {
-                    if model_id == tp.id {
-                        continue;
-                    }
-                    let pattern = format!(r"\b{}\b", regex::escape(model_name));
-                    if let Ok(re) = Regex::new(&pattern) {
-                        if re.is_match(&body) {
-                            edges.push(DetectedEdge {
-                                from_id: tp.id.clone(),
-                                to_id: model_id.to_string(),
-                                label: Some("persists".to_string()),
-                                payload_type: Some(model_name.to_string()),
-                            });
-                        }
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != tp.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: tp.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("persists".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
                     }
                 }
             }
@@ -234,20 +231,14 @@ pub fn infer_flow_edges(
                 let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
                 let body = lines[start_idx..end_line].join("\n");
 
-                for &(model_id, model_name) in &model_names {
-                    if model_id == tf.id {
-                        continue;
-                    }
-                    let pattern = format!(r"\b{}\b", regex::escape(model_name));
-                    if let Ok(re) = Regex::new(&pattern) {
-                        if re.is_match(&body) {
-                            edges.push(DetectedEdge {
-                                from_id: tf.id.clone(),
-                                to_id: model_id.to_string(),
-                                label: Some("transforms".to_string()),
-                                payload_type: Some(model_name.to_string()),
-                            });
-                        }
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != tf.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: tf.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("transforms".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
                     }
                 }
             }
@@ -259,20 +250,14 @@ pub fn infer_flow_edges(
                 let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
                 let body = lines[start_idx..end_line].join("\n");
 
-                for &(model_id, model_name) in &model_names {
-                    if model_id == svc.id {
-                        continue;
-                    }
-                    let pattern = format!(r"\b{}\b", regex::escape(model_name));
-                    if let Ok(re) = Regex::new(&pattern) {
-                        if re.is_match(&body) {
-                            edges.push(DetectedEdge {
-                                from_id: svc.id.clone(),
-                                to_id: model_id.to_string(),
-                                label: Some("persists".to_string()),
-                                payload_type: Some(model_name.to_string()),
-                            });
-                        }
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != svc.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: svc.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("persists".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
                     }
                 }
             }
@@ -280,10 +265,9 @@ pub fn infer_flow_edges(
     }
 
     // Payload flow edges: match consumes/produces types to detected model names
-    // model_names is Vec<(id, name)>, we need name→id
-    let model_name_to_id: HashMap<&str, &str> = model_names
+    let model_name_to_id: HashMap<&str, &str> = model_regexes
         .iter()
-        .map(|&(id, name)| (name, id))
+        .map(|&(id, name, _)| (name, id))
         .collect();
 
     for comp in components {
@@ -337,9 +321,9 @@ static BACKGROUND_DISPATCH_PATTERN: LazyLock<Regex> =
 static AWAIT_CALL_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"await\s+(\w+)\s*\(").unwrap());
 
-// Python import: "from .foo import bar" or "from foo import bar"
+// Python import: "from .foo import bar", "from . import bar", "from foo import bar", "import bar"
 static PYTHON_IMPORT_ALIAS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^(?:from\s+\.?(\S+)\s+)?import\s+(\w+)(?:\s+as\s+(\w+))?").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^(?:from\s+(\.?\S+)\s+)?import\s+(\w+)(?:\s+as\s+(\w+))?").unwrap());
 
 /// Build a map from module alias to imported module path for a single file
 fn build_import_index(content: &str) -> HashMap<String, String> {
@@ -348,9 +332,16 @@ fn build_import_index(content: &str) -> HashMap<String, String> {
         let module_path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
         let imported_name = &cap[2];
         let alias = cap.get(3).map(|m| m.as_str()).unwrap_or(imported_name);
-        // Map alias to module path (e.g., "crud" -> "src.crud" or just "crud")
-        if !module_path.is_empty() {
-            index.insert(alias.to_string(), module_path.to_string());
+
+        // "from .foo import bar" → bar -> foo
+        // "from . import bar"   → bar -> bar  (bare-dot: imported name IS the module)
+        // "from foo import bar" → bar -> foo
+        // "import bar"          → bar -> bar
+        let is_bare_dot = module_path == "." || module_path == "..";
+        if !module_path.is_empty() && !is_bare_dot {
+            // Strip leading dot from relative imports (e.g., ".crud" → "crud")
+            let clean = module_path.trim_start_matches('.');
+            index.insert(alias.to_string(), clean.to_string());
         } else {
             index.insert(alias.to_string(), imported_name.to_string());
         }
@@ -868,6 +859,42 @@ class RelevanceFilter:
         let target_ids: Vec<&str> = persists.iter().map(|e| e.to_id.as_str()).collect();
         assert!(target_ids.contains(&"m1"));
         assert!(target_ids.contains(&"m2"));
+    }
+
+    #[test]
+    fn import_index_bare_dot_relative() {
+        let content = "from . import crud\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("crud").map(|s| s.as_str()), Some("crud"));
+    }
+
+    #[test]
+    fn import_index_bare_dot_with_alias() {
+        let content = "from . import crud as c\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("c").map(|s| s.as_str()), Some("crud"));
+        assert!(!index.contains_key("crud"));
+    }
+
+    #[test]
+    fn import_index_dotted_relative() {
+        let content = "from .services import handler\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("handler").map(|s| s.as_str()), Some("services"));
+    }
+
+    #[test]
+    fn import_index_absolute() {
+        let content = "from app.services import handler\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("handler").map(|s| s.as_str()), Some("app.services"));
+    }
+
+    #[test]
+    fn import_index_bare_import() {
+        let content = "import crud\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("crud").map(|s| s.as_str()), Some("crud"));
     }
 }
 

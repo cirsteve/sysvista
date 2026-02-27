@@ -76,38 +76,13 @@ pub fn scan(root: &Path) -> SysVistaOutput {
     // Infer edges
     let mut edges = relationships::infer_edges(&all_components, &file_contents);
 
-    // Infer flow edges (handles, persists, transforms, consumes, produces) and merge.
-    // Always keep flow edges — they carry semantic meaning for the flow view
-    // even when an import/reference edge already exists for the same pair.
-    let flow_edges = relationships::infer_flow_edges(&all_components, &file_contents);
-    let existing_pairs: HashSet<(String, String)> = edges
-        .iter()
-        .map(|e| (e.from_id.clone(), e.to_id.clone()))
-        .collect();
-    for fe in flow_edges {
-        let is_flow = matches!(
-            fe.label.as_deref(),
-            Some("consumes" | "produces" | "persists" | "transforms" | "handles")
-        );
-        if is_flow || !existing_pairs.contains(&(fe.from_id.clone(), fe.to_id.clone())) {
-            edges.push(fe);
-        }
-    }
+    // Merge flow edges (handles, persists, transforms, consumes, produces).
+    // These carry semantic meaning for the flow view even when an import/reference
+    // edge already exists for the same pair.
+    edges.extend(relationships::infer_flow_edges(&all_components, &file_contents));
 
-    // Infer call/dispatch edges and merge.
-    // Always allow calls/dispatches edges through (like payload edges).
-    let call_edges = relationships::infer_call_edges(&all_components, &file_contents);
-    let existing_pairs: HashSet<(String, String)> = edges
-        .iter()
-        .map(|e| (e.from_id.clone(), e.to_id.clone()))
-        .collect();
-    for ce in call_edges {
-        let is_call = ce.label.as_deref() == Some("calls")
-            || ce.label.as_deref() == Some("dispatches");
-        if is_call || !existing_pairs.contains(&(ce.from_id.clone(), ce.to_id.clone())) {
-            edges.push(ce);
-        }
-    }
+    // Merge call/dispatch edges.
+    edges.extend(relationships::infer_call_edges(&all_components, &file_contents));
 
     // Infer workflows from components and edges
     let workflows = workflows::infer_workflows(&all_components, &edges);
