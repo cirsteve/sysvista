@@ -164,3 +164,86 @@ pub fn detect_models(
 
     components
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(comps: &[DetectedComponent]) -> Vec<&str> {
+        comps.iter().map(|c| c.name.as_str()).collect()
+    }
+
+    #[test]
+    fn detects_dataclass_without_args() {
+        let content = "@dataclass\nclass Foo:\n    x: int\n";
+        let comps = detect_models(content, "python", "models.py");
+        assert_eq!(names(&comps), vec!["Foo"]);
+    }
+
+    #[test]
+    fn detects_dataclass_with_args() {
+        let content = "@dataclass(frozen=True, slots=True)\nclass Message:\n    text: str\n";
+        let comps = detect_models(content, "python", "config.py");
+        assert_eq!(names(&comps), vec!["Message"]);
+    }
+
+    #[test]
+    fn detects_dataclass_with_empty_parens() {
+        let content = "@dataclass()\nclass Empty:\n    pass\n";
+        let comps = detect_models(content, "python", "models.py");
+        assert_eq!(names(&comps), vec!["Empty"]);
+    }
+
+    #[test]
+    fn detects_typed_dict_plain() {
+        let content = "class ModeConfig(TypedDict):\n    name: str\n";
+        let comps = detect_models(content, "python", "config.py");
+        assert_eq!(names(&comps), vec!["ModeConfig"]);
+    }
+
+    #[test]
+    fn detects_typed_dict_with_extra_args() {
+        let content = "class EvalResponse(TypedDict, total=False):\n    score: float\n";
+        let comps = detect_models(content, "python", "filter.py");
+        assert_eq!(names(&comps), vec!["EvalResponse"]);
+    }
+
+    #[test]
+    fn detects_base_model() {
+        let content = "class User(BaseModel):\n    name: str\n";
+        let comps = detect_models(content, "python", "schemas.py");
+        assert_eq!(names(&comps), vec!["User"]);
+    }
+
+    #[test]
+    fn detects_base_model_with_extra_args() {
+        let content = "class User(BaseModel, table=True):\n    name: str\n";
+        let comps = detect_models(content, "python", "schemas.py");
+        assert_eq!(names(&comps), vec!["User"]);
+    }
+
+    #[test]
+    fn skips_plain_class() {
+        let content = "class MyService:\n    pass\n";
+        let comps = detect_models(content, "python", "service.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn detects_multiple_dataclasses_in_one_file() {
+        let content = r#"
+@dataclass(frozen=True, slots=True)
+class Message:
+    text: str
+
+@dataclass(frozen=True, slots=True)
+class Result:
+    score: float
+
+class Config(TypedDict):
+    name: str
+"#;
+        let comps = detect_models(content, "python", "types.py");
+        assert_eq!(names(&comps), vec!["Message", "Result", "Config"]);
+    }
+}

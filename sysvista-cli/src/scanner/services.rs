@@ -317,4 +317,105 @@ def public_func(x):
         let comps = detect_services(content, "javascript", "src/crud/helpers.js");
         assert!(comps.is_empty());
     }
+
+    // --- Python class heuristic tests ---
+
+    #[test]
+    fn detects_plain_python_class_as_service() {
+        let content = "class DiscordScanner:\n    pass\n";
+        let comps = detect_services(content, "python", "discord_client.py");
+        assert_eq!(comps.len(), 1);
+        assert_eq!(comps[0].name, "DiscordScanner");
+        assert_eq!(comps[0].kind, ComponentKind::Service);
+        assert_eq!(comps[0].metadata.get("detection").unwrap(), "class_heuristic");
+    }
+
+    #[test]
+    fn detects_python_class_with_non_model_base() {
+        let content = "class FarcasterScanner(SomeBase):\n    pass\n";
+        let comps = detect_services(content, "python", "farcaster.py");
+        assert_eq!(comps.len(), 1);
+        assert_eq!(comps[0].name, "FarcasterScanner");
+    }
+
+    #[test]
+    fn skips_dataclass_decorated_class() {
+        let content = "@dataclass(frozen=True)\nclass Message:\n    text: str\n";
+        let comps = detect_services(content, "python", "config.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn skips_typed_dict_class() {
+        let content = "class Config(TypedDict):\n    name: str\n";
+        let comps = detect_services(content, "python", "config.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn skips_typed_dict_with_extra_args() {
+        let content = "class EvalResponse(TypedDict, total=False):\n    score: float\n";
+        let comps = detect_services(content, "python", "filter.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn skips_base_model_class() {
+        let content = "class User(BaseModel):\n    name: str\n";
+        let comps = detect_services(content, "python", "schemas.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn skips_test_classes() {
+        let content = "class TestScanner:\n    def test_it(self): pass\n";
+        let comps = detect_services(content, "python", "test_scanner.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn skips_private_classes() {
+        let content = "class _Internal:\n    pass\n";
+        let comps = detect_services(content, "python", "utils.py");
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn detects_multiple_service_classes() {
+        let content = r#"
+class RelevanceFilter:
+    pass
+
+class CommentGenerator:
+    pass
+"#;
+        let comps = detect_services(content, "python", "pipeline.py");
+        let names: Vec<&str> = comps.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["RelevanceFilter", "CommentGenerator"]);
+    }
+
+    #[test]
+    fn mixed_file_only_detects_services() {
+        let content = r#"
+@dataclass
+class Message:
+    text: str
+
+class Config(TypedDict):
+    name: str
+
+class Scanner:
+    pass
+"#;
+        let comps = detect_services(content, "python", "mixed.py");
+        assert_eq!(comps.len(), 1);
+        assert_eq!(comps[0].name, "Scanner");
+    }
+
+    #[test]
+    fn class_heuristic_does_not_fire_for_non_python() {
+        let content = "class Scanner:\n    pass\n";
+        let comps = detect_services(content, "rust", "scanner.rs");
+        assert!(comps.is_empty());
+    }
 }
