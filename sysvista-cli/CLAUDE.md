@@ -86,10 +86,13 @@ static PATTERN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"...").unwrap());
 
 ### Body Window Scanning
 
-Relationship inference reads a fixed line window from each component's `line_start`:
-- Transports: 80 lines (handler bodies are short)
-- Services: 150 lines (class bodies are larger)
-- Transforms: 50 lines
+Relationship inference reads a fixed line window from each component's `line_start`. Window sizes differ by context:
+
+| Component | Call edges (`infer_call_edges`) | Flow edges (`infer_flow_edges`) |
+|---|---|---|
+| Transports | 80 lines | 50 lines |
+| Services | 150 lines | 150 lines |
+| Transforms | — | 50 lines |
 
 ### Service Detection Fallback Chain
 
@@ -130,6 +133,6 @@ Tests are co-located in `#[cfg(test)] mod tests` blocks within each module.
 ## Style
 
 - Iterator chains for linear transforms, imperative loops when accumulating multiple outputs or branching
-- `unwrap()` only in `LazyLock` regex compilation (provably infallible) and tests
+- `unwrap()` only where provably infallible: `LazyLock` regex compilation, `cap.get(0)` inside capture iterators (group 0 always exists), and tests
 - Graceful fallbacks with `unwrap_or()` / `unwrap_or_default()` in scan logic — never panic on bad input
 - Functions are pure where possible: take `&str`/`&[T]` inputs, return `Vec<T>` outputs

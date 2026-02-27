@@ -119,13 +119,21 @@ No Redux/Zustand. All state lives in the `useGraphData` custom hook, which retur
 - `schema` / `loadSchema()` — the loaded scan data
 - `activeKinds` / `toggleKind()` — which component kinds are visible
 - `searchResults` / `doSearch()` — fuzzy search matches
-- `selectedNode` / `selectNode()` — currently inspected component
+- `selectedNode` / `setSelectedNode()` — currently inspected component
 - `viewMode` / `toggleFlowView()` — "graph" or "flow"
 - `selectedWorkflow` / `selectWorkflow()` — highlighted workflow in flow mode
 
 Graph building (`buildGraph`/`buildFlowGraph`) runs inside `useMemo` — recomputes only when schema, activeKinds, or viewMode change.
 
-## Component Conventions
+## Code Style
+
+Bias toward `map`, `filter`, `reduce` pipelines over imperative `for` loops. Data transformations should be built from composable operations, not inline mutation.
+
+- **Default to pipelines.** Accumulate into Maps, Sets, and grouped structures via `reduce`. Store multiple accumulators as named fields in the reducer state — this is readable and makes each accumulation independently updatable.
+- **Extract named helpers** when a transform step is reusable or the pipeline gets long. Each helper should be independently testable.
+- **Loops are acceptable** for graph traversal (BFS/DFS with a queue) and for calling external imperative APIs (e.g., `dagre.setNode()`). These are genuinely stateful operations, not data transforms.
+
+
 
 - All components are functional `.tsx` with typed props interfaces
 - Styling is 100% Tailwind utility classes — no CSS modules, no styled-components
