@@ -184,6 +184,62 @@ pub fn detect_services(
         }
     }
 
+    // For Python: detect plain classes as services when not in a service directory.
+    // Excludes classes that would be detected as models (@dataclass, BaseModel, Schema, TypedDict).
+    if components.is_empty() && language == "python" && !is_service_dir(file) {
+        let class_re = LazyLock::force(&PYTHON_CLASS_PATTERN);
+        for cap in class_re.captures_iter(content) {
+            let name = cap[1].to_string();
+            // Skip private/dunder classes and test classes
+            if name.starts_with('_') || name.starts_with("Test") {
+                continue;
+            }
+            let match_start = cap.get(0).unwrap().start();
+
+            // Skip if preceded by @dataclass (those are models)
+            let before = &content[..match_start];
+            if let Some(last_line) = before.lines().last() {
+                if last_line.trim().starts_with("@dataclass") {
+                    continue;
+                }
+            }
+
+            // Skip if inheriting from model base classes
+            if let Some(bases) = cap.get(2) {
+                let bases_str = bases.as_str();
+                if MODEL_BASES.iter().any(|b| {
+                    bases_str.contains(b)
+                }) {
+                    continue;
+                }
+            }
+
+            let line_num = content[..match_start].lines().count() as u32 + 1;
+
+            components.push(DetectedComponent {
+                id: make_id("service", &name, file),
+                name,
+                kind: ComponentKind::Service,
+                language: language.to_string(),
+                source: SourceLocation {
+                    file: file.to_string(),
+                    line_start: Some(line_num),
+                    line_end: None,
+                },
+                metadata: HashMap::from([(
+                    "detection".to_string(),
+                    "class_heuristic".to_string(),
+                )]),
+                transport_protocol: None,
+                http_method: None,
+                http_path: None,
+                model_fields: None,
+                consumes: None,
+                produces: None,
+            });
+        }
+    }
+
     components
 }
 
@@ -192,6 +248,14 @@ static EXPORT_FUNC_PATTERN: LazyLock<Regex> =
 
 static PYTHON_FUNC_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?m)^(?:async\s+)?def\s+(\w+)\s*\(").unwrap());
+
+// Matches Python class declarations: `class Foo:` or `class Foo(Bar):`
+// Group 1 = class name, Group 2 (optional) = base classes
+static PYTHON_CLASS_PATTERN: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?m)^class\s+(\w+)(?:\(([^)]*)\))?\s*:").unwrap());
+
+// Base classes that indicate a model, not a service
+const MODEL_BASES: &[&str] = &["BaseModel", "Schema", "TypedDict"];
 
 #[cfg(test)]
 mod tests {

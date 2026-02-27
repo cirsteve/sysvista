@@ -43,12 +43,15 @@ static RUST_PATTERNS: LazyLock<Vec<ModelPattern>> = LazyLock::new(|| {
 
 static PYTHON_PATTERNS: LazyLock<Vec<ModelPattern>> = LazyLock::new(|| {
     vec![
+        // @dataclass with optional arguments: @dataclass, @dataclass(), @dataclass(frozen=True)
         ModelPattern {
-            regex: Regex::new(r"(?m)^@dataclass\s*\n\s*class\s+(\w+)").unwrap(),
+            regex: Regex::new(r"(?m)^@dataclass(?:\([^)]*\))?\s*\n\s*class\s+(\w+)").unwrap(),
             name_group: 1,
         },
+        // Classes inheriting from model base classes, with optional extra args:
+        // class Foo(BaseModel), class Foo(TypedDict, total=False), class Foo(Schema, table=True)
         ModelPattern {
-            regex: Regex::new(r"(?m)^class\s+(\w+)\((?:BaseModel|Schema|TypedDict)\)").unwrap(),
+            regex: Regex::new(r"(?m)^class\s+(\w+)\([^)]*\b(?:BaseModel|Schema|TypedDict)\b").unwrap(),
             name_group: 1,
         },
     ]
