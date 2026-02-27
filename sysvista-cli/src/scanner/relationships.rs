@@ -158,7 +158,7 @@ fn transport_payload(comp: &DetectedComponent) -> Option<String> {
 
 /// Infer flow edges that represent request-handling relationships:
 /// - handles: service → transport (route defined in same file as service)
-/// - persists: transport → model (handler body references model types)
+/// - persists: transport/service → model (body references model types)
 /// - transforms: transform → model (transform references model types)
 pub fn infer_flow_edges(
     components: &[DetectedComponent],
@@ -174,11 +174,14 @@ pub fn infer_flow_edges(
         by_file.entry(comp.source.file.as_str()).or_default().push(comp);
     }
 
-    // Collect all model names for body scanning
-    let model_names: Vec<(&str, &str)> = components
+    // Collect all model names and precompile their word-boundary regexes once
+    let model_regexes: Vec<(&str, &str, Regex)> = components
         .iter()
         .filter(|c| c.kind == ComponentKind::Model && c.name.len() >= 3)
-        .map(|c| (c.id.as_str(), c.name.as_str()))
+        .filter_map(|c| {
+            let pattern = format!(r"\b{}\b", regex::escape(&c.name));
+            Regex::new(&pattern).ok().map(|re| (c.id.as_str(), c.name.as_str(), re))
+        })
         .collect();
 
     for (file, comps) in &by_file {
@@ -209,20 +212,14 @@ pub fn infer_flow_edges(
                 let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
                 let body = lines[start_idx..end_line].join("\n");
 
-                for &(model_id, model_name) in &model_names {
-                    if model_id == tp.id {
-                        continue;
-                    }
-                    let pattern = format!(r"\b{}\b", regex::escape(model_name));
-                    if let Ok(re) = Regex::new(&pattern) {
-                        if re.is_match(&body) {
-                            edges.push(DetectedEdge {
-                                from_id: tp.id.clone(),
-                                to_id: model_id.to_string(),
-                                label: Some("persists".to_string()),
-                                payload_type: Some(model_name.to_string()),
-                            });
-                        }
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != tp.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: tp.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("persists".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
                     }
                 }
             }
@@ -234,20 +231,33 @@ pub fn infer_flow_edges(
                 let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
                 let body = lines[start_idx..end_line].join("\n");
 
-                for &(model_id, model_name) in &model_names {
-                    if model_id == tf.id {
-                        continue;
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != tf.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: tf.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("transforms".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
                     }
-                    let pattern = format!(r"\b{}\b", regex::escape(model_name));
-                    if let Ok(re) = Regex::new(&pattern) {
-                        if re.is_match(&body) {
-                            edges.push(DetectedEdge {
-                                from_id: tf.id.clone(),
-                                to_id: model_id.to_string(),
-                                label: Some("transforms".to_string()),
-                                payload_type: Some(model_name.to_string()),
-                            });
-                        }
+                }
+            }
+
+            // service --persists--> model (service body references model name)
+            for svc in &services {
+                let start_line = svc.source.line_start.unwrap_or(1) as usize;
+                let end_line = (start_line + 150).min(lines.len());
+                let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+                let body = lines[start_idx..end_line].join("\n");
+
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != svc.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: svc.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("persists".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
                     }
                 }
             }
@@ -255,10 +265,9 @@ pub fn infer_flow_edges(
     }
 
     // Payload flow edges: match consumes/produces types to detected model names
-    // model_names is Vec<(id, name)>, we need name→id
-    let model_name_to_id: HashMap<&str, &str> = model_names
+    let model_name_to_id: HashMap<&str, &str> = model_regexes
         .iter()
-        .map(|&(id, name)| (name, id))
+        .map(|&(id, name, _)| (name, id))
         .collect();
 
     for comp in components {
@@ -312,9 +321,9 @@ static BACKGROUND_DISPATCH_PATTERN: LazyLock<Regex> =
 static AWAIT_CALL_PATTERN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"await\s+(\w+)\s*\(").unwrap());
 
-// Python import: "from .foo import bar" or "from foo import bar"
+// Python import: "from .foo import bar", "from . import bar", "from foo import bar", "import bar"
 static PYTHON_IMPORT_ALIAS: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?m)^(?:from\s+\.?(\S+)\s+)?import\s+(\w+)(?:\s+as\s+(\w+))?").unwrap());
+    LazyLock::new(|| Regex::new(r"(?m)^(?:from\s+(\.?\S+)\s+)?import\s+(\w+)(?:\s+as\s+(\w+))?").unwrap());
 
 /// Build a map from module alias to imported module path for a single file
 fn build_import_index(content: &str) -> HashMap<String, String> {
@@ -323,9 +332,16 @@ fn build_import_index(content: &str) -> HashMap<String, String> {
         let module_path = cap.get(1).map(|m| m.as_str()).unwrap_or("");
         let imported_name = &cap[2];
         let alias = cap.get(3).map(|m| m.as_str()).unwrap_or(imported_name);
-        // Map alias to module path (e.g., "crud" -> "src.crud" or just "crud")
-        if !module_path.is_empty() {
-            index.insert(alias.to_string(), module_path.to_string());
+
+        // "from .foo import bar" → bar -> foo
+        // "from . import bar"   → bar -> bar  (bare-dot: imported name IS the module)
+        // "from foo import bar" → bar -> foo
+        // "import bar"          → bar -> bar
+        let is_bare_dot = module_path == "." || module_path == "..";
+        if !module_path.is_empty() && !is_bare_dot {
+            // Strip leading dot from relative imports (e.g., ".crud" → "crud")
+            let clean = module_path.trim_start_matches('.');
+            index.insert(alias.to_string(), clean.to_string());
         } else {
             index.insert(alias.to_string(), imported_name.to_string());
         }
@@ -333,8 +349,99 @@ fn build_import_index(content: &str) -> HashMap<String, String> {
     index
 }
 
-/// Infer call edges: transport → service function calls and dispatch edges.
-/// Scans handler bodies for module.function() calls, background task dispatches,
+/// Scan a component body for calls to other components using module.function(),
+/// background dispatch, and awaited function call patterns.
+fn scan_body_for_calls(
+    source: &DetectedComponent,
+    body: &str,
+    payload_type: Option<String>,
+    import_index: &HashMap<String, String>,
+    name_index: &HashMap<String, Vec<usize>>,
+    components: &[DetectedComponent],
+    stem_to_file: &HashMap<String, Vec<String>>,
+    by_file: &HashMap<&str, Vec<&DetectedComponent>>,
+) -> Vec<DetectedEdge> {
+    let mut edges = Vec::new();
+
+    // 1. Module function calls: module.function()
+    for cap in MODULE_CALL_PATTERN.captures_iter(body) {
+        let module_alias = &cap[1];
+        let func_name = &cap[2];
+
+        // Skip common non-module calls
+        if ["self", "cls", "db", "session", "response", "request", "app", "logger", "log"].contains(&module_alias) {
+            continue;
+        }
+
+        let resolved = import_index.get(module_alias);
+
+        let target = resolve_call_target(
+            func_name,
+            resolved.map(|s| s.as_str()),
+            module_alias,
+            name_index,
+            components,
+            stem_to_file,
+            by_file,
+        );
+
+        if let Some(target_id) = target {
+            if target_id != source.id {
+                edges.push(DetectedEdge {
+                    from_id: source.id.clone(),
+                    to_id: target_id,
+                    label: Some("calls".to_string()),
+                    payload_type: payload_type.clone(),
+                });
+            }
+        }
+    }
+
+    // 2. Background dispatch: background_tasks.add_task(func, ...)
+    for cap in BACKGROUND_DISPATCH_PATTERN.captures_iter(body) {
+        let func_name = &cap[1];
+        if let Some(targets) = name_index.get(func_name) {
+            for &idx in targets {
+                if components[idx].id != source.id {
+                    edges.push(DetectedEdge {
+                        from_id: source.id.clone(),
+                        to_id: components[idx].id.clone(),
+                        label: Some("dispatches".to_string()),
+                        payload_type: payload_type.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    // 3. Awaited calls: await function()
+    for cap in AWAIT_CALL_PATTERN.captures_iter(body) {
+        let func_name = &cap[1];
+
+        // Skip common awaited non-component calls
+        if ["fetch", "sleep", "gather", "wait", "commit", "execute", "flush", "refresh", "close"].contains(&func_name) {
+            continue;
+        }
+
+        if let Some(targets) = name_index.get(func_name) {
+            for &idx in targets {
+                if components[idx].id != source.id {
+                    edges.push(DetectedEdge {
+                        from_id: source.id.clone(),
+                        to_id: components[idx].id.clone(),
+                        label: Some("calls".to_string()),
+                        payload_type: payload_type.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    edges
+}
+
+/// Infer call edges: transport/service → other component function calls and dispatch edges.
+/// Scans handler/service bodies for module.function() calls, background task dispatches,
 /// and awaited function calls.
 pub fn infer_call_edges(
     components: &[DetectedComponent],
@@ -375,8 +482,11 @@ pub fn infer_call_edges(
         let transports: Vec<&&DetectedComponent> = comps.iter()
             .filter(|c| c.kind == ComponentKind::Transport)
             .collect();
+        let services: Vec<&&DetectedComponent> = comps.iter()
+            .filter(|c| c.kind == ComponentKind::Service)
+            .collect();
 
-        if transports.is_empty() {
+        if transports.is_empty() && services.is_empty() {
             continue;
         }
 
@@ -388,87 +498,30 @@ pub fn infer_call_edges(
         let import_index = build_import_index(content);
         let lines: Vec<&str> = content.lines().collect();
 
+        // Scan transport bodies (80-line window)
         for tp in &transports {
             let start_line = tp.source.line_start.unwrap_or(1) as usize;
             let end_line = (start_line + 80).min(lines.len());
             let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
             let body = lines[start_idx..end_line].join("\n");
 
-            // 1. Module function calls: module.function()
-            for cap in MODULE_CALL_PATTERN.captures_iter(&body) {
-                let module_alias = &cap[1];
-                let func_name = &cap[2];
+            edges.extend(scan_body_for_calls(
+                tp, &body, transport_payload(tp),
+                &import_index, &name_index, components, &stem_to_file, &by_file,
+            ));
+        }
 
-                // Skip common non-module calls
-                if ["self", "cls", "db", "session", "response", "request", "app", "logger", "log"].contains(&module_alias) {
-                    continue;
-                }
+        // Scan service bodies (150-line window)
+        for svc in &services {
+            let start_line = svc.source.line_start.unwrap_or(1) as usize;
+            let end_line = (start_line + 150).min(lines.len());
+            let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+            let body = lines[start_idx..end_line].join("\n");
 
-                // Try to resolve module via import index
-                let resolved = import_index.get(module_alias);
-
-                // Find target component by function name
-                let target = resolve_call_target(
-                    func_name,
-                    resolved.map(|s| s.as_str()),
-                    module_alias,
-                    &name_index,
-                    components,
-                    &stem_to_file,
-                    &by_file,
-                );
-
-                if let Some(target_id) = target {
-                    if target_id != tp.id {
-                        edges.push(DetectedEdge {
-                            from_id: tp.id.clone(),
-                            to_id: target_id,
-                            label: Some("calls".to_string()),
-                            payload_type: transport_payload(tp),
-                        });
-                    }
-                }
-            }
-
-            // 2. Background dispatch: background_tasks.add_task(func, ...)
-            for cap in BACKGROUND_DISPATCH_PATTERN.captures_iter(&body) {
-                let func_name = &cap[1];
-                if let Some(targets) = name_index.get(func_name) {
-                    for &idx in targets {
-                        if components[idx].id != tp.id {
-                            edges.push(DetectedEdge {
-                                from_id: tp.id.clone(),
-                                to_id: components[idx].id.clone(),
-                                label: Some("dispatches".to_string()),
-                                payload_type: transport_payload(tp),
-                            });
-                        }
-                    }
-                }
-            }
-
-            // 3. Awaited calls: await function()
-            for cap in AWAIT_CALL_PATTERN.captures_iter(&body) {
-                let func_name = &cap[1];
-
-                // Skip common awaited non-component calls
-                if ["fetch", "sleep", "gather", "wait", "commit", "execute", "flush", "refresh", "close"].contains(&func_name) {
-                    continue;
-                }
-
-                if let Some(targets) = name_index.get(func_name) {
-                    for &idx in targets {
-                        if components[idx].id != tp.id {
-                            edges.push(DetectedEdge {
-                                from_id: tp.id.clone(),
-                                to_id: components[idx].id.clone(),
-                                label: Some("calls".to_string()),
-                                payload_type: transport_payload(tp),
-                            });
-                        }
-                    }
-                }
-            }
+            edges.extend(scan_body_for_calls(
+                svc, &body, None,
+                &import_index, &name_index, components, &stem_to_file, &by_file,
+            ));
         }
     }
 
@@ -705,6 +758,143 @@ async def create_msg_route(body: MessageCreate):
         let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].payload_type, Some("MessageCreate".to_string()));
+    }
+
+    #[test]
+    fn service_calls_other_service() {
+        let svc1 = make_comp("svc1", "RelevanceFilter", ComponentKind::Service, "src/services/filter.py", 1);
+        let svc2 = make_comp("svc2", "generate_comment", ComponentKind::Service, "src/services/generator.py", 1);
+
+        let file_content = r#"from . import generator
+
+class RelevanceFilter:
+    async def run(self, data):
+        result = await generator.generate_comment(data)
+        return result
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/services/filter.py".to_string(), file_content.to_string());
+        file_contents.insert("src/services/generator.py".to_string(), String::new());
+
+        let components = vec![svc1, svc2];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].from_id, "svc1");
+        assert_eq!(calls[0].to_id, "svc2");
+        assert_eq!(calls[0].payload_type, None);
+    }
+
+    #[test]
+    fn service_calls_without_transports_in_file() {
+        // CLI tools have zero transports — services should still get call edges
+        let svc1 = make_comp("svc1", "Scout", ComponentKind::Service, "src/scout.py", 1);
+        let svc2 = make_comp("svc2", "filter_relevant", ComponentKind::Service, "src/filter.py", 1);
+
+        let file_content = r#"
+class Scout:
+    async def run(self):
+        results = await filter_relevant()
+        return results
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/scout.py".to_string(), file_content.to_string());
+        file_contents.insert("src/filter.py".to_string(), String::new());
+
+        let components = vec![svc1, svc2];
+        let edges = infer_call_edges(&components, &file_contents);
+
+        let calls: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("calls")).collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].from_id, "svc1");
+        assert_eq!(calls[0].to_id, "svc2");
+    }
+
+    #[test]
+    fn service_persists_model_reference() {
+        let svc = make_comp("svc1", "StateManager", ComponentKind::Service, "src/services/state.py", 1);
+        let model = make_comp("m1", "Message", ComponentKind::Model, "src/models.py", 1);
+
+        let file_content = r#"
+class StateManager:
+    def save(self, data):
+        msg = Message(content=data)
+        self.db.add(msg)
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/services/state.py".to_string(), file_content.to_string());
+
+        let components = vec![svc, model];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let persists: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("persists")).collect();
+        assert_eq!(persists.len(), 1);
+        assert_eq!(persists[0].from_id, "svc1");
+        assert_eq!(persists[0].to_id, "m1");
+        assert_eq!(persists[0].payload_type, Some("Message".to_string()));
+    }
+
+    #[test]
+    fn service_persists_multiple_models() {
+        let svc = make_comp("svc1", "RelevanceFilter", ComponentKind::Service, "src/services/filter.py", 1);
+        let model1 = make_comp("m1", "Message", ComponentKind::Model, "src/models.py", 1);
+        let model2 = make_comp("m2", "RelevanceResult", ComponentKind::Model, "src/models.py", 10);
+
+        let file_content = r#"
+class RelevanceFilter:
+    def filter(self, messages):
+        for msg in messages:
+            result = RelevanceResult(message=Message(content=msg))
+            self.results.append(result)
+"#;
+        let mut file_contents = HashMap::new();
+        file_contents.insert("src/services/filter.py".to_string(), file_content.to_string());
+
+        let components = vec![svc, model1, model2];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let persists: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("persists")).collect();
+        assert_eq!(persists.len(), 2);
+        let target_ids: Vec<&str> = persists.iter().map(|e| e.to_id.as_str()).collect();
+        assert!(target_ids.contains(&"m1"));
+        assert!(target_ids.contains(&"m2"));
+    }
+
+    #[test]
+    fn import_index_bare_dot_relative() {
+        let content = "from . import crud\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("crud").map(|s| s.as_str()), Some("crud"));
+    }
+
+    #[test]
+    fn import_index_bare_dot_with_alias() {
+        let content = "from . import crud as c\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("c").map(|s| s.as_str()), Some("crud"));
+        assert!(!index.contains_key("crud"));
+    }
+
+    #[test]
+    fn import_index_dotted_relative() {
+        let content = "from .services import handler\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("handler").map(|s| s.as_str()), Some("services"));
+    }
+
+    #[test]
+    fn import_index_absolute() {
+        let content = "from app.services import handler\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("handler").map(|s| s.as_str()), Some("app.services"));
+    }
+
+    #[test]
+    fn import_index_bare_import() {
+        let content = "import crud\n";
+        let index = build_import_index(content);
+        assert_eq!(index.get("crud").map(|s| s.as_str()), Some("crud"));
     }
 }
 
