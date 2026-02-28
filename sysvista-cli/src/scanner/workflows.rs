@@ -187,6 +187,7 @@ mod tests {
             http_method: Some("POST".to_string()),
             http_path: Some("/messages".to_string()),
             model_fields: None,
+            prompt_subtype: None,
             consumes: None,
             produces,
         }

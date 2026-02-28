@@ -20,7 +20,7 @@ const classifyOne = (comp: DetectedComponent): string => {
     }
   }
 
-  if (comp.kind === "model" || comp.kind === "transform" || comp.kind === "service") {
+  if (comp.kind === "model" || comp.kind === "transform" || comp.kind === "service" || comp.kind === "prompt") {
     const match = comp.name.match(/^([A-Z][a-z]+)/);
     if (match) return match[1];
   }

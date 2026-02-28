@@ -1,6 +1,6 @@
 import type { ComponentKind } from "../../types/schema";
 
-const KINDS: ComponentKind[] = ["model", "service", "transport", "transform"];
+const KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
 
 /** Solid bg classes for active chips (full saturation, not the /20 variants) */
 const KIND_SOLID_BG: Record<ComponentKind, string> = {
@@ -8,6 +8,7 @@ const KIND_SOLID_BG: Record<ComponentKind, string> = {
   service: "bg-green-500",
   transport: "bg-orange-500",
   transform: "bg-purple-500",
+  prompt: "bg-cyan-500",
 };
 
 interface FilterChipGroupProps {

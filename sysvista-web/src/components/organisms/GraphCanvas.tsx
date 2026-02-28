@@ -17,6 +17,7 @@ import { ModelNode } from "../nodes/ModelNode";
 import { ServiceNode } from "../nodes/ServiceNode";
 import { TransportNode } from "../nodes/TransportNode";
 import { TransformNode } from "../nodes/TransformNode";
+import { PromptNode } from "../nodes/PromptNode";
 import { GroupLabelNode } from "../nodes/GroupLabelNode";
 import { ClusterLabelNode } from "../nodes/ClusterLabelNode";
 
@@ -25,6 +26,7 @@ const nodeTypes: NodeTypes = {
   service: ServiceNode,
   transport: TransportNode,
   transform: TransformNode,
+  prompt: PromptNode,
   groupLabel: GroupLabelNode,
   clusterLabel: ClusterLabelNode,
 };

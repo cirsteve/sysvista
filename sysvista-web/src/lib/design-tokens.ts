@@ -35,6 +35,13 @@ export const KIND_COLORS: Record<ComponentKind, {
     dot: "bg-purple-400",
     hex: "#a855f7",
   },
+  prompt: {
+    bg: "bg-cyan-500/20",
+    text: "text-cyan-400",
+    border: "border-cyan-500/30",
+    dot: "bg-cyan-400",
+    hex: "#06b6d4",
+  },
 };
 
 export const STEP_TYPE_COLORS: Record<StepType, { text: string; bg: string; label: string }> = {
@@ -51,4 +58,5 @@ export const KIND_NODE_SIZE: Record<ComponentKind, { width: number; height: numb
   service:   { width: 180, height: 60 },
   transport: { width: 200, height: 60 },
   transform: { width: 180, height: 60 },
+  prompt:    { width: 200, height: 60 },
 };

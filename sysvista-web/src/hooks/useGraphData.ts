@@ -9,7 +9,7 @@ import type {
 import { buildGraph, buildFlowGraph, FLOW_LABELS } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
 
-const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform"];
+const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
 
 export type ViewMode = "graph" | "flow";
 

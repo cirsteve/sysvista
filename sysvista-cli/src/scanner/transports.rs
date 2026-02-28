@@ -216,6 +216,7 @@ pub fn detect_transports(
                 http_method: Some(method),
                 http_path: Some(path),
                 model_fields: None,
+                prompt_subtype: None,
                 consumes,
                 produces,
             });
@@ -243,6 +244,7 @@ pub fn detect_transports(
             http_method: None,
             http_path: None,
             model_fields: None,
+            prompt_subtype: None,
             consumes: None,
             produces: None,
         });
@@ -273,6 +275,7 @@ pub fn detect_transports(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });

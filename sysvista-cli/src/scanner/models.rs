@@ -156,6 +156,7 @@ pub fn detect_models(
                 http_method: None,
                 http_path: None,
                 model_fields,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });

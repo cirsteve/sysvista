@@ -188,6 +188,7 @@ pub fn infer_flow_edges(
         let services: Vec<&&DetectedComponent> = comps.iter().filter(|c| c.kind == ComponentKind::Service).collect();
         let transports: Vec<&&DetectedComponent> = comps.iter().filter(|c| c.kind == ComponentKind::Transport).collect();
         let transforms: Vec<&&DetectedComponent> = comps.iter().filter(|c| c.kind == ComponentKind::Transform).collect();
+        let prompts: Vec<&&DetectedComponent> = comps.iter().filter(|c| c.kind == ComponentKind::Prompt).collect();
 
         // service --handles--> transport (same file)
         for svc in &services {
@@ -237,6 +238,25 @@ pub fn infer_flow_edges(
                             from_id: tf.id.clone(),
                             to_id: model_id.to_string(),
                             label: Some("transforms".to_string()),
+                            payload_type: Some(model_name.to_string()),
+                        });
+                    }
+                }
+            }
+
+            // prompt --persists--> model (prompt body references model name)
+            for pr in &prompts {
+                let start_line = pr.source.line_start.unwrap_or(1) as usize;
+                let end_line = (start_line + 50).min(lines.len());
+                let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+                let body = lines[start_idx..end_line].join("\n");
+
+                for &(model_id, model_name, ref re) in &model_regexes {
+                    if model_id != pr.id && re.is_match(&body) {
+                        edges.push(DetectedEdge {
+                            from_id: pr.id.clone(),
+                            to_id: model_id.to_string(),
+                            label: Some("persists".to_string()),
                             payload_type: Some(model_name.to_string()),
                         });
                     }
@@ -485,8 +505,11 @@ pub fn infer_call_edges(
         let services: Vec<&&DetectedComponent> = comps.iter()
             .filter(|c| c.kind == ComponentKind::Service)
             .collect();
+        let prompts: Vec<&&DetectedComponent> = comps.iter()
+            .filter(|c| c.kind == ComponentKind::Prompt)
+            .collect();
 
-        if transports.is_empty() && services.is_empty() {
+        if transports.is_empty() && services.is_empty() && prompts.is_empty() {
             continue;
         }
 
@@ -523,6 +546,19 @@ pub fn infer_call_edges(
                 &import_index, &name_index, components, &stem_to_file, &by_file,
             ));
         }
+
+        // Scan prompt bodies (80-line window)
+        for pr in &prompts {
+            let start_line = pr.source.line_start.unwrap_or(1) as usize;
+            let end_line = (start_line + 80).min(lines.len());
+            let start_idx = if start_line > 0 { start_line - 1 } else { 0 };
+            let body = lines[start_idx..end_line].join("\n");
+
+            edges.extend(scan_body_for_calls(
+                pr, &body, None,
+                &import_index, &name_index, components, &stem_to_file, &by_file,
+            ));
+        }
     }
 
     // Deduplicate
@@ -549,6 +585,7 @@ mod tests {
             http_method: None,
             http_path: None,
             model_fields: None,
+            prompt_subtype: None,
             consumes: None,
             produces: None,
         }

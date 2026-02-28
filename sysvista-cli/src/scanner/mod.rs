@@ -1,6 +1,7 @@
 pub mod file_walker;
 pub mod language;
 pub mod models;
+pub mod prompts;
 pub mod relationships;
 pub mod services;
 pub mod transforms;
@@ -61,6 +62,11 @@ pub fn scan(root: &Path) -> SysVistaOutput {
             &walked.relative_path,
         ));
         components.extend(transforms::detect_transforms(
+            &content,
+            lang,
+            &walked.relative_path,
+        ));
+        components.extend(prompts::detect_prompts(
             &content,
             lang,
             &walked.relative_path,
