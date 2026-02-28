@@ -202,6 +202,23 @@ pub fn infer_flow_edges(
             }
         }
 
+        // service --invokes_prompt--> prompt (prompt defined within service body window)
+        for svc in &services {
+            let svc_start = svc.source.line_start.unwrap_or(1);
+            let svc_end = svc_start + 150;
+            for pr in &prompts {
+                let pr_line = pr.source.line_start.unwrap_or(0);
+                if pr_line >= svc_start && pr_line <= svc_end {
+                    edges.push(DetectedEdge {
+                        from_id: svc.id.clone(),
+                        to_id: pr.id.clone(),
+                        label: Some("invokes_prompt".to_string()),
+                        payload_type: None,
+                    });
+                }
+            }
+        }
+
         // transport --persists--> model (handler body references model name)
         if let Some(content) = file_contents.get(*file) {
             let lines: Vec<&str> = content.lines().collect();
@@ -932,6 +949,64 @@ class RelevanceFilter:
         let content = "import crud\n";
         let index = build_import_index(content);
         assert_eq!(index.get("crud").map(|s| s.as_str()), Some("crud"));
+    }
+
+    #[test]
+    fn service_invokes_prompt_same_file() {
+        let svc = make_comp("svc1", "CommentGenerator", ComponentKind::Service, "src/generator.py", 10);
+        let prompt = make_comp("pr1", "generate", ComponentKind::Prompt, "src/generator.py", 25);
+
+        let file_contents = HashMap::new();
+        let components = vec![svc, prompt];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let invokes: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("invokes_prompt")).collect();
+        assert_eq!(invokes.len(), 1);
+        assert_eq!(invokes[0].from_id, "svc1");
+        assert_eq!(invokes[0].to_id, "pr1");
+    }
+
+    #[test]
+    fn service_invokes_multiple_prompts() {
+        let svc = make_comp("svc1", "CommentGenerator", ComponentKind::Service, "src/generator.py", 10);
+        let pr1 = make_comp("pr1", "generate", ComponentKind::Prompt, "src/generator.py", 25);
+        let pr2 = make_comp("pr2", "revise", ComponentKind::Prompt, "src/generator.py", 60);
+
+        let file_contents = HashMap::new();
+        let components = vec![svc, pr1, pr2];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let invokes: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("invokes_prompt")).collect();
+        assert_eq!(invokes.len(), 2);
+        let target_ids: Vec<&str> = invokes.iter().map(|e| e.to_id.as_str()).collect();
+        assert!(target_ids.contains(&"pr1"));
+        assert!(target_ids.contains(&"pr2"));
+    }
+
+    #[test]
+    fn no_invokes_prompt_across_files() {
+        let svc = make_comp("svc1", "CommentGenerator", ComponentKind::Service, "src/generator.py", 10);
+        let prompt = make_comp("pr1", "generate", ComponentKind::Prompt, "src/prompts.py", 25);
+
+        let file_contents = HashMap::new();
+        let components = vec![svc, prompt];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let invokes: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("invokes_prompt")).collect();
+        assert!(invokes.is_empty());
+    }
+
+    #[test]
+    fn no_invokes_prompt_when_outside_body_window() {
+        let svc = make_comp("svc1", "CommentGenerator", ComponentKind::Service, "src/generator.py", 10);
+        let prompt = make_comp("pr1", "generate", ComponentKind::Prompt, "src/generator.py", 200);
+
+        let file_contents = HashMap::new();
+        let components = vec![svc, prompt];
+        let edges = infer_flow_edges(&components, &file_contents);
+
+        let invokes: Vec<_> = edges.iter().filter(|e| e.label.as_deref() == Some("invokes_prompt")).collect();
+        assert!(invokes.is_empty());
     }
 }
 
