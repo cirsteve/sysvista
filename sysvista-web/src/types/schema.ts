@@ -1,5 +1,6 @@
-export type ComponentKind = "model" | "service" | "transport" | "transform";
+export type ComponentKind = "model" | "service" | "transport" | "transform" | "prompt";
 export type TransportProtocol = "http" | "grpc" | "websocket" | "mq" | "graphql" | "unknown";
+export type PromptSubtype = "router" | "classifier" | "generator" | "extractor" | "summarizer" | "validator";
 
 export interface SourceLocation {
   file: string;
@@ -17,6 +18,7 @@ export interface DetectedComponent {
   transport_protocol?: TransportProtocol;
   http_method?: string;
   http_path?: string;
+  prompt_subtype?: PromptSubtype;
   model_fields?: string[];
   consumes?: string[];
   produces?: string[];

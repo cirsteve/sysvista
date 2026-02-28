@@ -48,6 +48,15 @@ export function DetailPanel({
         <div className="text-sm text-gray-300">{component.language}</div>
       </FieldGroup>
 
+      {/* Prompt subtype */}
+      {component.prompt_subtype && (
+        <FieldGroup label="Prompt Type" icon={Tag}>
+          <div className="text-sm text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 rounded-full px-2 py-0.5 inline-block">
+            {component.prompt_subtype}
+          </div>
+        </FieldGroup>
+      )}
+
       {/* Transport details */}
       {component.transport_protocol && (
         <FieldGroup label="Transport" icon={MapPin}>

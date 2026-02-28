@@ -1,4 +1,4 @@
-import { Database, Server, Globe, ArrowRightLeft } from "lucide-react";
+import { Database, Server, Globe, ArrowRightLeft, MessageSquare } from "lucide-react";
 import { KIND_COLORS } from "../../lib/design-tokens";
 import type { ComponentKind } from "../../types/schema";
 
@@ -7,6 +7,7 @@ const items: { kind: ComponentKind; label: string; Icon: typeof Database }[] = [
   { kind: "service", label: "Service", Icon: Server },
   { kind: "transport", label: "Transport", Icon: Globe },
   { kind: "transform", label: "Transform", Icon: ArrowRightLeft },
+  { kind: "prompt", label: "Prompt", Icon: MessageSquare },
 ];
 
 const edgeItems = [
