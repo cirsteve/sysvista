@@ -78,6 +78,7 @@ pub fn detect_services(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });
@@ -110,6 +111,7 @@ pub fn detect_services(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });
@@ -142,6 +144,7 @@ pub fn detect_services(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });
@@ -178,6 +181,7 @@ pub fn detect_services(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });
@@ -234,6 +238,7 @@ pub fn detect_services(
                 http_method: None,
                 http_path: None,
                 model_fields: None,
+                prompt_subtype: None,
                 consumes: None,
                 produces: None,
             });

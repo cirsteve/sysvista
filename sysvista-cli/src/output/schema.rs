@@ -8,6 +8,7 @@ pub enum ComponentKind {
     Service,
     Transport,
     Transform,
+    Prompt,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -43,6 +44,8 @@ pub struct DetectedComponent {
     pub http_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_fields: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_subtype: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consumes: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
