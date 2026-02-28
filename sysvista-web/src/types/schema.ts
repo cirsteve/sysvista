@@ -31,7 +31,7 @@ export interface DetectedEdge {
   payload_type?: string;
 }
 
-export type StepType = "entry" | "call" | "persist" | "dispatch" | "response";
+export type StepType = "entry" | "call" | "persist" | "dispatch" | "response" | "prompt";
 
 export interface WorkflowStep {
   component_id: string;

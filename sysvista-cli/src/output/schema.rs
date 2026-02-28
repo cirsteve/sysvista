@@ -70,6 +70,7 @@ pub enum StepType {
     Persist,
     Dispatch,
     Response,
+    Prompt,
 }
 
 #[derive(Debug, Clone, Serialize)]
