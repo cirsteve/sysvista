@@ -111,11 +111,16 @@ function clusterGridLayout(
   const groupGap = 60;
 
   // Group by cluster
-  const clusters = components.reduce((acc, c) => {
+  const clusters = new Map<string, DetectedComponent[]>();
+  for (const c of components) {
     const cluster = clusterMap.get(c.id) ?? "Other";
-    acc.set(cluster, [...(acc.get(cluster) ?? []), c]);
-    return acc;
-  }, new Map<string, DetectedComponent[]>());
+    let bucket = clusters.get(cluster);
+    if (!bucket) {
+      bucket = [];
+      clusters.set(cluster, bucket);
+    }
+    bucket.push(c);
+  }
 
   // Sort clusters: largest first, "Other" last; sort members by degree desc
   const sortedClusters = [...clusters.entries()]
@@ -128,35 +133,37 @@ function clusterGridLayout(
       (hubMap.get(b.id)?.degree ?? 0) - (hubMap.get(a.id)?.degree ?? 0),
     )] as [string, DetectedComponent[]]);
 
-  // Lay out each cluster sequentially, accumulating Y offset
-  return sortedClusters
-    .filter(([, comps]) => comps.length > 0)
-    .reduce(
-      (acc, [clusterName, comps]) => {
-        const rows = Math.ceil(comps.length / cols);
+  // Lay out each cluster sequentially, accumulating Y offset.
+  // Mutate accumulators in place — this runs on dense graphs (>2000 edges)
+  // where repeated Map/Array spreading would be expensive.
+  const positions = new Map<string, { x: number; y: number }>();
+  const headerNodes: Node<ClusterLabelData>[] = [];
+  let offsetY = 0;
 
-        const headerNode: Node<ClusterLabelData> = {
-          id: `cluster-${clusterName}`,
-          type: "clusterLabel",
-          position: { x: 0, y: acc.offsetY },
-          data: { label: clusterName, count: comps.length },
-          selectable: false,
-          draggable: false,
-        };
+  for (const [clusterName, comps] of sortedClusters) {
+    if (comps.length === 0) continue;
+    const rows = Math.ceil(comps.length / cols);
 
-        const clusterPositions = comps.map((comp, i) => [
-          comp.id,
-          { x: (i % cols) * cellW, y: acc.offsetY + headerH + Math.floor(i / cols) * cellH },
-        ] as [string, { x: number; y: number }]);
+    headerNodes.push({
+      id: `cluster-${clusterName}`,
+      type: "clusterLabel",
+      position: { x: 0, y: offsetY },
+      data: { label: clusterName, count: comps.length },
+      selectable: false,
+      draggable: false,
+    });
 
-        return {
-          positions: new Map([...acc.positions, ...clusterPositions]),
-          headerNodes: [...acc.headerNodes, headerNode],
-          offsetY: acc.offsetY + headerH + rows * cellH + groupGap,
-        };
-      },
-      { positions: new Map<string, { x: number; y: number }>(), headerNodes: [] as Node<ClusterLabelData>[], offsetY: 0 },
-    );
+    for (let i = 0; i < comps.length; i++) {
+      positions.set(comps[i].id, {
+        x: (i % cols) * cellW,
+        y: offsetY + headerH + Math.floor(i / cols) * cellH,
+      });
+    }
+
+    offsetY += headerH + rows * cellH + groupGap;
+  }
+
+  return { positions, headerNodes };
 }
 
 function dagreLayout(
