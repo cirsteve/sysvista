@@ -93,8 +93,9 @@ const edgeStroke = ({ isPayload, isCalls, isDispatches, isFlow }: ReturnType<typ
 
 const formatEdgeLabel = (e: MergedEdge): string | undefined => {
   const base = e.labels.join(", ");
-  if (!base) return undefined;
-  return e.payload_types.length > 0 ? `${base} [${e.payload_types.join(", ")}]` : base;
+  const payload = e.payload_types.length > 0 ? `[${e.payload_types.join(", ")}]` : "";
+  if (!base) return payload || undefined;
+  return payload ? `${base} ${payload}` : base;
 };
 
 // --- Layout ---
@@ -129,9 +130,10 @@ function clusterGridLayout(
       if (b[0] === "Other") return -1;
       return b[1].length - a[1].length;
     })
-    .map(([name, comps]) => [name, [...comps].sort((a, b) =>
-      (hubMap.get(b.id)?.degree ?? 0) - (hubMap.get(a.id)?.degree ?? 0),
-    )] as [string, DetectedComponent[]]);
+    .map(([name, comps]) => {
+      comps.sort((a, b) => (hubMap.get(b.id)?.degree ?? 0) - (hubMap.get(a.id)?.degree ?? 0));
+      return [name, comps] as [string, DetectedComponent[]];
+    });
 
   // Lay out each cluster sequentially, accumulating Y offset.
   // Mutate accumulators in place — this runs on dense graphs (>2000 edges)

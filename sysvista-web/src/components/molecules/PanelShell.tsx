@@ -22,6 +22,7 @@ export function PanelShell({ side, title, onClose, children, headerExtra }: Pane
           {headerExtra}
           <button
             onClick={onClose}
+            aria-label="Close panel"
             className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200"
           >
             <X className="h-4 w-4" />
