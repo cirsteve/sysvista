@@ -6,7 +6,7 @@ import type {
   ComponentKind,
   Workflow,
 } from "../types/schema";
-import { buildGraph, buildFlowGraph, FLOW_LABELS, type GraphNode } from "../lib/graph-adapter";
+import { buildGraph, buildFlowGraph, FLOW_LABELS } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform"];
@@ -84,11 +84,11 @@ export function useGraphData() {
 
   const connectedComponents = useMemo(() => {
     if (!schema || !selectedNode) return [];
-    const connectedIds = new Set<string>();
-    for (const edge of schema.edges) {
-      if (edge.from_id === selectedNode.id) connectedIds.add(edge.to_id);
-      if (edge.to_id === selectedNode.id) connectedIds.add(edge.from_id);
-    }
+    const connectedIds = schema.edges.reduce((acc, edge) => {
+      if (edge.from_id === selectedNode.id) acc.add(edge.to_id);
+      if (edge.to_id === selectedNode.id) acc.add(edge.from_id);
+      return acc;
+    }, new Set<string>());
     return schema.components.filter((c) => connectedIds.has(c.id));
   }, [schema, selectedNode]);
 

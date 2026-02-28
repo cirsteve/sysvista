@@ -1,4 +1,4 @@
-export interface ClusterLabelData {
+export interface ClusterLabelData extends Record<string, unknown> {
   label: string;
   count: number;
 }

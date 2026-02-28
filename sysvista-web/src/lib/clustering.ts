@@ -8,56 +8,44 @@ import type { DetectedComponent, DetectedEdge } from "../types/schema";
  * - Fallback: source directory name
  * - Fold clusters with <3 members into "Other"
  */
+
+const classifyOne = (comp: DetectedComponent): string => {
+  if (comp.kind === "transport" && comp.http_path) {
+    const segments = comp.http_path
+      .split("/")
+      .filter((s) => s && !s.startsWith("{") && !s.startsWith(":"));
+    if (segments.length > 0) {
+      const seg = segments[0];
+      return seg.charAt(0).toUpperCase() + seg.slice(1);
+    }
+  }
+
+  if (comp.kind === "model" || comp.kind === "transform" || comp.kind === "service") {
+    const match = comp.name.match(/^([A-Z][a-z]+)/);
+    if (match) return match[1];
+  }
+
+  // Fallback: source directory name
+  const parts = comp.source.file.split("/");
+  return parts.length >= 2 ? parts[parts.length - 2] : "Other";
+};
+
 export function classifyComponents(
   components: DetectedComponent[],
 ): Map<string, string> {
-  const clusterMap = new Map<string, string>();
-
-  for (const comp of components) {
-    let cluster: string | null = null;
-
-    if (comp.kind === "transport" && comp.http_path) {
-      // Extract first meaningful path segment: "/sessions/{id}" -> "Sessions"
-      const segments = comp.http_path
-        .split("/")
-        .filter((s) => s && !s.startsWith("{") && !s.startsWith(":"));
-      if (segments.length > 0) {
-        const seg = segments[0];
-        cluster = seg.charAt(0).toUpperCase() + seg.slice(1);
-      }
-    }
-
-    if (!cluster && (comp.kind === "model" || comp.kind === "transform" || comp.kind === "service")) {
-      // CamelCase first word: "SessionPeerConfig" -> "Session"
-      const match = comp.name.match(/^([A-Z][a-z]+)/);
-      if (match) {
-        cluster = match[1];
-      }
-    }
-
-    if (!cluster) {
-      // Fallback: source directory name
-      const parts = comp.source.file.split("/");
-      if (parts.length >= 2) {
-        cluster = parts[parts.length - 2];
-      }
-    }
-
-    clusterMap.set(comp.id, cluster ?? "Other");
-  }
+  const raw = new Map(components.map((c) => [c.id, classifyOne(c)]));
 
   // Fold clusters with <3 members into "Other"
-  const clusterCounts = new Map<string, number>();
-  for (const c of clusterMap.values()) {
-    clusterCounts.set(c, (clusterCounts.get(c) ?? 0) + 1);
-  }
-  for (const [id, cluster] of clusterMap) {
-    if ((clusterCounts.get(cluster) ?? 0) < 3) {
-      clusterMap.set(id, "Other");
-    }
-  }
+  const counts = [...raw.values()].reduce(
+    (acc, c) => acc.set(c, (acc.get(c) ?? 0) + 1),
+    new Map<string, number>(),
+  );
 
-  return clusterMap;
+  return new Map(
+    [...raw.entries()].map(([id, cluster]) =>
+      [id, (counts.get(cluster) ?? 0) < 3 ? "Other" : cluster],
+    ),
+  );
 }
 
 export interface HubInfo {
@@ -75,35 +63,27 @@ export function detectHubs(
   components: DetectedComponent[],
   edges: DetectedEdge[],
 ): Map<string, HubInfo> {
-  const degreeMap = new Map<string, number>();
-  for (const comp of components) {
-    degreeMap.set(comp.id, 0);
-  }
-  for (const e of edges) {
-    degreeMap.set(e.from_id, (degreeMap.get(e.from_id) ?? 0) + 1);
-    degreeMap.set(e.to_id, (degreeMap.get(e.to_id) ?? 0) + 1);
-  }
+  const baseDegrees = new Map(components.map((c) => [c.id, 0]));
+
+  const degreeMap = edges.reduce((acc, e) => {
+    acc.set(e.from_id, (acc.get(e.from_id) ?? 0) + 1);
+    acc.set(e.to_id, (acc.get(e.to_id) ?? 0) + 1);
+    return acc;
+  }, baseDegrees);
 
   const degrees = [...degreeMap.values()];
-  if (degrees.length === 0) {
-    return new Map();
-  }
+  if (degrees.length === 0) return new Map();
 
   const mean = degrees.reduce((a, b) => a + b, 0) / degrees.length;
-  const variance =
-    degrees.reduce((sum, d) => sum + (d - mean) ** 2, 0) / degrees.length;
+  const variance = degrees.reduce((sum, d) => sum + (d - mean) ** 2, 0) / degrees.length;
   const stddev = Math.sqrt(variance);
 
-  const hubMap = new Map<string, HubInfo>();
-  for (const [id, degree] of degreeMap) {
-    let tier: HubInfo["tier"] = "normal";
-    if (degree > mean + 2 * stddev) {
-      tier = "high";
-    } else if (degree > mean + stddev) {
-      tier = "medium";
-    }
-    hubMap.set(id, { tier, degree });
-  }
+  const assignTier = (degree: number): HubInfo["tier"] =>
+    degree > mean + 2 * stddev ? "high"
+    : degree > mean + stddev ? "medium"
+    : "normal";
 
-  return hubMap;
+  return new Map(
+    [...degreeMap.entries()].map(([id, degree]) => [id, { tier: assignTier(degree), degree }]),
+  );
 }

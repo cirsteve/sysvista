@@ -1,15 +1,12 @@
 import { Database, Server, Globe, ArrowRightLeft } from "lucide-react";
+import { KIND_COLORS } from "../../lib/design-tokens";
+import type { ComponentKind } from "../../types/schema";
 
-const items = [
-  { kind: "model", label: "Model", color: "text-blue-400", Icon: Database },
-  { kind: "service", label: "Service", color: "text-green-400", Icon: Server },
-  { kind: "transport", label: "Transport", color: "text-orange-400", Icon: Globe },
-  {
-    kind: "transform",
-    label: "Transform",
-    color: "text-purple-400",
-    Icon: ArrowRightLeft,
-  },
+const items: { kind: ComponentKind; label: string; Icon: typeof Database }[] = [
+  { kind: "model", label: "Model", Icon: Database },
+  { kind: "service", label: "Service", Icon: Server },
+  { kind: "transport", label: "Transport", Icon: Globe },
+  { kind: "transform", label: "Transform", Icon: ArrowRightLeft },
 ];
 
 const edgeItems = [
@@ -33,9 +30,9 @@ export function Legend({ mode = "graph" }: LegendProps) {
   return (
     <div className="absolute bottom-4 left-14 bg-gray-900/90 backdrop-blur border border-gray-700 rounded-lg px-3 py-2 z-10">
       <div className="flex items-center gap-4">
-        {items.map(({ kind, label, color, Icon }) => (
+        {items.map(({ kind, label, Icon }) => (
           <div key={kind} className="flex items-center gap-1.5">
-            <Icon className={`h-3.5 w-3.5 ${color}`} />
+            <Icon className={`h-3.5 w-3.5 ${KIND_COLORS[kind].text}`} />
             <span className="text-xs text-gray-400">{label}</span>
           </div>
         ))}
