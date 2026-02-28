@@ -341,6 +341,67 @@ mod tests {
     }
 
     #[test]
+    fn transport_chains_through_nested_calls() {
+        let components = vec![
+            make_comp("tp1", "create_route", ComponentKind::Transport, None),
+            make_comp("svc1", "handler", ComponentKind::Service, None),
+            make_comp("svc2", "worker", ComponentKind::Service, None),
+            make_comp("m1", "Result", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "svc1", "calls"),
+            make_edge("svc1", "svc2", "calls"),
+            make_edge("svc2", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+
+        let wf = &workflows[0];
+        assert_eq!(wf.steps.len(), 4);
+        assert_eq!(wf.steps[0].step_type, StepType::Entry);
+        assert_eq!(wf.steps[0].component_id, "tp1");
+        assert_eq!(wf.steps[1].step_type, StepType::Call);
+        assert_eq!(wf.steps[1].component_id, "svc1");
+        assert_eq!(wf.steps[2].step_type, StepType::Call);
+        assert_eq!(wf.steps[2].component_id, "svc2");
+        assert_eq!(wf.steps[3].step_type, StepType::Persist);
+        assert_eq!(wf.steps[3].component_id, "m1");
+    }
+
+    #[test]
+    fn transport_chains_with_prompts() {
+        let components = vec![
+            make_comp("tp1", "route", ComponentKind::Transport, None),
+            make_comp("svc1", "service", ComponentKind::Service, None),
+            make_comp("p1", "prompt", ComponentKind::Prompt, None),
+            make_comp("m1", "Model", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "svc1", "calls"),
+            make_edge("svc1", "p1", "invokes_prompt"),
+            make_edge("svc1", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+
+        let wf = &workflows[0];
+        assert_eq!(wf.steps.len(), 4);
+        assert_eq!(wf.steps[0].step_type, StepType::Entry);
+        assert_eq!(wf.steps[0].component_id, "tp1");
+        // BFS: transport has no prompts, emits calls first
+        assert_eq!(wf.steps[1].step_type, StepType::Call);
+        assert_eq!(wf.steps[1].component_id, "svc1");
+        // Then BFS pops svc1, emits its prompt
+        assert_eq!(wf.steps[2].step_type, StepType::Prompt);
+        assert_eq!(wf.steps[2].component_id, "p1");
+        // Persists collected at the end
+        assert_eq!(wf.steps[3].step_type, StepType::Persist);
+        assert_eq!(wf.steps[3].component_id, "m1");
+    }
+
+    #[test]
     fn includes_dispatch_steps() {
         let components = vec![
             make_comp("tp1", "create_route", ComponentKind::Transport, None),
