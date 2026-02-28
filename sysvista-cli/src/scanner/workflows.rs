@@ -62,31 +62,32 @@ pub fn infer_workflows(
         queue.push_back(comp.id.as_str());
 
         while let Some(current_id) = queue.pop_front() {
-            let current_edges = outgoing.get(current_id).cloned().unwrap_or_default();
-
-            // Emit invokes_prompt → Prompt steps
-            for (to_id, label) in &current_edges {
-                if *label == "invokes_prompt" && seen.insert(to_id.to_string()) {
-                    steps.push(WorkflowStep {
-                        component_id: to_id.to_string(),
-                        step_type: StepType::Prompt,
-                        order,
-                    });
-                    order += 1;
+            if let Some(current_edges) = outgoing.get(current_id) {
+                // Emit invokes_prompt → Prompt steps
+                for (to_id, label) in current_edges {
+                    if *label == "invokes_prompt" && seen.insert(to_id.to_string()) {
+                        steps.push(WorkflowStep {
+                            component_id: to_id.to_string(),
+                            step_type: StepType::Prompt,
+                            order,
+                        });
+                        order += 1;
+                        visited.push(*to_id);
+                    }
                 }
-            }
 
-            // Follow calls → Call steps, queue targets for deeper traversal
-            for (to_id, label) in &current_edges {
-                if *label == "calls" && seen.insert(to_id.to_string()) {
-                    steps.push(WorkflowStep {
-                        component_id: to_id.to_string(),
-                        step_type: StepType::Call,
-                        order,
-                    });
-                    order += 1;
-                    queue.push_back(*to_id);
-                    visited.push(*to_id);
+                // Follow calls → Call steps, queue targets for deeper traversal
+                for (to_id, label) in current_edges {
+                    if *label == "calls" && seen.insert(to_id.to_string()) {
+                        steps.push(WorkflowStep {
+                            component_id: to_id.to_string(),
+                            step_type: StepType::Call,
+                            order,
+                        });
+                        order += 1;
+                        queue.push_back(*to_id);
+                        visited.push(*to_id);
+                    }
                 }
             }
         }
@@ -208,36 +209,37 @@ pub fn infer_workflows(
         queue.push_back(comp.id.as_str());
 
         while let Some(current_id) = queue.pop_front() {
-            let current_edges = outgoing.get(current_id).cloned().unwrap_or_default();
-
-            // Emit invokes_prompt → Prompt steps
-            for (to_id, label) in &current_edges {
-                if *label == "invokes_prompt" && seen.insert(to_id.to_string()) {
-                    steps.push(WorkflowStep {
-                        component_id: to_id.to_string(),
-                        step_type: StepType::Prompt,
-                        order,
-                    });
-                    order += 1;
+            if let Some(current_edges) = outgoing.get(current_id) {
+                // Emit invokes_prompt → Prompt steps
+                for (to_id, label) in current_edges {
+                    if *label == "invokes_prompt" && seen.insert(to_id.to_string()) {
+                        steps.push(WorkflowStep {
+                            component_id: to_id.to_string(),
+                            step_type: StepType::Prompt,
+                            order,
+                        });
+                        order += 1;
+                        visited_services.push(*to_id);
+                    }
                 }
-            }
 
-            // Follow calls → Call steps, queue targets for further traversal
-            for (to_id, label) in &current_edges {
-                if *label == "calls" && seen.insert(to_id.to_string()) {
-                    steps.push(WorkflowStep {
-                        component_id: to_id.to_string(),
-                        step_type: StepType::Call,
-                        order,
-                    });
-                    order += 1;
-                    queue.push_back(*to_id);
-                    visited_services.push(*to_id);
+                // Follow calls → Call steps, queue targets for further traversal
+                for (to_id, label) in current_edges {
+                    if *label == "calls" && seen.insert(to_id.to_string()) {
+                        steps.push(WorkflowStep {
+                            component_id: to_id.to_string(),
+                            step_type: StepType::Call,
+                            order,
+                        });
+                        order += 1;
+                        queue.push_back(*to_id);
+                        visited_services.push(*to_id);
+                    }
                 }
             }
         }
 
-        // Collect persists/transforms from all visited services → Persist steps
+        // Collect persists/transforms from all visited components → Persist steps
         for source_id in &visited_services {
             if let Some(source_edges) = outgoing.get(*source_id) {
                 for (to_id, label) in source_edges {
@@ -647,6 +649,54 @@ mod tests {
         assert_eq!(wf.steps[2].step_type, StepType::Prompt);   // p1
         assert_eq!(wf.steps[3].step_type, StepType::Call);     // c
         assert_eq!(wf.steps[4].step_type, StepType::Prompt);   // p2
+    }
+
+    #[test]
+    fn transport_workflow_includes_persists_from_prompts() {
+        let components = vec![
+            make_comp("tp1", "route", ComponentKind::Transport, None),
+            make_comp("svc1", "service", ComponentKind::Service, None),
+            make_comp("p1", "generate", ComponentKind::Prompt, None),
+            make_comp("m1", "Result", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("tp1", "svc1", "calls"),
+            make_edge("svc1", "p1", "invokes_prompt"),
+            make_edge("p1", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+
+        let wf = &workflows[0];
+        let step_types: Vec<_> = wf.steps.iter().map(|s| &s.step_type).collect();
+        assert!(step_types.contains(&&StepType::Persist), "prompt's persists edge should produce a Persist step");
+        assert_eq!(wf.steps.last().unwrap().component_id, "m1");
+    }
+
+    #[test]
+    fn service_entry_workflow_includes_persists_from_prompts() {
+        let components = vec![
+            make_comp("svc1", "Pipeline", ComponentKind::Service, None),
+            make_comp("p1", "generate", ComponentKind::Prompt, None),
+            make_comp("m1", "Output", ComponentKind::Model, None),
+        ];
+        let edges = vec![
+            make_edge("svc1", "p1", "invokes_prompt"),
+            make_edge("p1", "m1", "persists"),
+        ];
+
+        let workflows = infer_workflows(&components, &edges);
+        assert_eq!(workflows.len(), 1);
+
+        let wf = &workflows[0];
+        assert_eq!(wf.steps.len(), 3);
+        assert_eq!(wf.steps[0].step_type, StepType::Entry);
+        assert_eq!(wf.steps[0].component_id, "svc1");
+        assert_eq!(wf.steps[1].step_type, StepType::Prompt);
+        assert_eq!(wf.steps[1].component_id, "p1");
+        assert_eq!(wf.steps[2].step_type, StepType::Persist);
+        assert_eq!(wf.steps[2].component_id, "m1");
     }
 
     #[test]

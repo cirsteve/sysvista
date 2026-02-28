@@ -451,7 +451,7 @@ pub fn detect_prompts(
         }
 
         components.push(DetectedComponent {
-            id: make_id("prompt", &name, file),
+            id: make_id("prompt", &format!("{name}:{line_num}"), file),
             name,
             kind: ComponentKind::Prompt,
             language: language.to_string(),
@@ -514,7 +514,7 @@ pub fn detect_prompts(
         }
 
         components.push(DetectedComponent {
-            id: make_id("prompt", &name, file),
+            id: make_id("prompt", &format!("{name}:{line_num}"), file),
             name,
             kind: ComponentKind::Prompt,
             language: language.to_string(),
@@ -557,7 +557,7 @@ pub fn detect_prompts(
             metadata.insert("detection".to_string(), "framework".to_string());
 
             components.push(DetectedComponent {
-                id: make_id("prompt", &name, file),
+                id: make_id("prompt", &format!("{name}:{line_num}"), file),
                 name,
                 kind: ComponentKind::Prompt,
                 language: language.to_string(),
@@ -998,6 +998,49 @@ class ContentClassifier:
             comps[0].metadata.get("detection").unwrap(),
             "sdk_structural"
         );
+    }
+
+    #[test]
+    fn two_api_calls_in_same_function_get_distinct_ids() {
+        // Calls must be >20 lines apart to avoid the covered_lines overlap
+        // that prevents double-detection of the same call site.
+        let content = r#"
+class DualGenerator:
+    async def generate(self, text):
+        first = await self.client.messages.create(
+            model=self.model,
+            max_tokens=300,
+            messages=[{"role": "user", "content": text}],
+        )
+        summary = first.content[0].text
+        step_a = do_something(summary)
+        step_b = do_more(step_a)
+        step_c = transform(step_b)
+        step_d = validate(step_c)
+        step_e = enrich(step_d)
+        step_f = format_output(step_e)
+        step_g = finalize(step_f)
+        step_h = post_process(step_g)
+        step_i = clean(step_h)
+        step_j = prepare(step_i)
+        step_k = augment(step_j)
+        step_l = normalize(step_k)
+        refined = step_l
+
+        second = await self.client.messages.create(
+            model=self.model,
+            max_tokens=300,
+            messages=[{"role": "user", "content": refined}],
+        )
+        return second.content[0].text
+"#;
+        let comps = detect_prompts(content, "python", "dual_generator.py");
+        assert_eq!(comps.len(), 2, "both API calls should be detected");
+        // Both should share the same enclosing function name
+        assert_eq!(comps[0].name, "generate");
+        assert_eq!(comps[1].name, "generate");
+        // But their IDs must differ (line number disambiguates)
+        assert_ne!(comps[0].id, comps[1].id);
     }
 
     #[test]
