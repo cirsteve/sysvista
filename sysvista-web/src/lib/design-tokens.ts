@@ -50,6 +50,7 @@ export const STEP_TYPE_COLORS: Record<StepType, { text: string; bg: string; labe
   persist:  { text: "text-blue-400",   bg: "bg-blue-500/20",   label: "Persist" },
   dispatch: { text: "text-amber-400",  bg: "bg-amber-500/20",  label: "Dispatch" },
   response: { text: "text-cyan-400",   bg: "bg-cyan-500/20",   label: "Response" },
+  prompt:   { text: "text-pink-400",   bg: "bg-pink-500/20",   label: "Prompt" },
 };
 
 /** Node sizing config for graph layout (used by graph-adapter) */
