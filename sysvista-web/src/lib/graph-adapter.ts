@@ -2,6 +2,7 @@ import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind } from "../types/schema";
 import { classifyComponents, detectHubs, type HubInfo } from "./clustering";
+import { KIND_NODE_SIZE } from "./design-tokens";
 import type { ClusterLabelData } from "../components/nodes/ClusterLabelNode";
 
 export interface GraphNode extends Record<string, unknown> {
@@ -19,12 +20,7 @@ export interface GroupLabelNode extends Record<string, unknown> {
   kind: ComponentKind;
 }
 
-const KIND_CONFIG: Record<ComponentKind, { color: string; width: number; height: number }> = {
-  model:     { color: "#3b82f6", width: 180, height: 60 },
-  service:   { color: "#22c55e", width: 180, height: 60 },
-  transport: { color: "#f97316", width: 200, height: 60 },
-  transform: { color: "#a855f7", width: 180, height: 60 },
-};
+const KIND_CONFIG = KIND_NODE_SIZE;
 
 export const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
 const PAYLOAD_LABELS = new Set(["consumes", "produces"]);

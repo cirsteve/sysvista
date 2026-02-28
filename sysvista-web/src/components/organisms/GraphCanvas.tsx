@@ -10,14 +10,15 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useCallback, useEffect, useMemo } from "react";
-import type { DetectedComponent } from "../types/schema";
-import type { GraphNode } from "../lib/graph-adapter";
-import { ModelNode } from "./nodes/ModelNode";
-import { ServiceNode } from "./nodes/ServiceNode";
-import { TransportNode } from "./nodes/TransportNode";
-import { TransformNode } from "./nodes/TransformNode";
-import { GroupLabelNode } from "./nodes/GroupLabelNode";
-import { ClusterLabelNode } from "./nodes/ClusterLabelNode";
+import type { DetectedComponent } from "../../types/schema";
+import type { GraphNode } from "../../lib/graph-adapter";
+import { KIND_COLORS } from "../../lib/design-tokens";
+import { ModelNode } from "../nodes/ModelNode";
+import { ServiceNode } from "../nodes/ServiceNode";
+import { TransportNode } from "../nodes/TransportNode";
+import { TransformNode } from "../nodes/TransformNode";
+import { GroupLabelNode } from "../nodes/GroupLabelNode";
+import { ClusterLabelNode } from "../nodes/ClusterLabelNode";
 
 const nodeTypes: NodeTypes = {
   model: ModelNode,
@@ -109,13 +110,8 @@ function GraphCanvasInner({
           if (data?.hubTier === "high") return "#f59e0b";
           if (data?.hubTier === "medium") return "#d97706";
 
-          const colors: Record<string, string> = {
-            model: "#3b82f6",
-            service: "#22c55e",
-            transport: "#f97316",
-            transform: "#a855f7",
-          };
-          return colors[node.type ?? ""] ?? "#6b7280";
+          const kind = node.type as string;
+          return KIND_COLORS[kind as keyof typeof KIND_COLORS]?.hex ?? "#6b7280";
         }}
         maskColor="rgba(0,0,0,0.7)"
         position="bottom-right"

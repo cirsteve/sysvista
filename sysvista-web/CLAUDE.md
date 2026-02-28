@@ -32,6 +32,7 @@ src/
 ├── types/
 │   └── schema.ts                 # TypeScript mirrors of CLI output: SysVistaOutput, DetectedComponent, DetectedEdge, Workflow
 ├── lib/
+│   ├── design-tokens.ts          # Centralized color palette: KIND_COLORS, STEP_TYPE_COLORS, KIND_NODE_SIZE
 │   ├── graph-adapter.ts          # buildGraph() + buildFlowGraph() — JSON → React Flow nodes/edges
 │   ├── graph-adapter.test.ts     # Edge styling, filtering, dedup tests
 │   ├── clustering.ts             # classifyComponents() + detectHubs() — grouping and hub tiers
@@ -42,19 +43,30 @@ src/
 ├── hooks/
 │   └── useGraphData.ts           # Central state hook — schema, search, selection, view mode
 └── components/
-    ├── GraphCanvas.tsx            # React Flow wrapper — renders nodes/edges, handles interactions
-    ├── Toolbar.tsx                # File loading, view toggle, fit controls
-    ├── SearchBar.tsx              # Fuzzy search + component kind filter chips
-    ├── DetailPanel.tsx            # Right sidebar — selected component info, connected components
-    ├── WorkflowPanel.tsx          # Left sidebar (flow mode) — workflow list, step highlighting
-    ├── Legend.tsx                  # Edge/node color key
-    └── nodes/
-        ├── ModelNode.tsx           # Blue — data structures
-        ├── ServiceNode.tsx         # Green — business logic
-        ├── TransportNode.tsx       # Orange — HTTP/gRPC/WS routes
-        ├── TransformNode.tsx       # Purple — data transforms
-        ├── ClusterLabelNode.tsx    # Cluster group header
-        └── GroupLabelNode.tsx      # Kind group header (grid layout)
+    ├── atoms/                     # Smallest reusable UI primitives
+    │   ├── Badge.tsx              # Labeled pill — variants: kind, count, type, step, field
+    │   ├── KindDot.tsx            # Colored dot/square indicator for component kinds
+    │   ├── IconButton.tsx         # Button with lucide icon + optional text + optional count badge
+    │   └── SectionHeader.tsx      # Icon + label divider used in detail sections
+    ├── molecules/                 # Composed atom groups
+    │   ├── FilterChipGroup.tsx    # Row of kind toggle chips
+    │   ├── ListItem.tsx           # Clickable row: KindDot + name + subtext + chevron
+    │   ├── PanelShell.tsx         # Sidebar container — position, scroll, bg, close button
+    │   └── FieldGroup.tsx         # Label + icon + children (detail sections)
+    ├── organisms/                 # Full feature sections composed from atoms + molecules
+    │   ├── SearchBar.tsx          # Input + FilterChipGroup + dropdown of ListItems
+    │   ├── DetailPanel.tsx        # PanelShell + component info sections
+    │   ├── WorkflowPanel.tsx      # PanelShell + workflow list/detail views
+    │   ├── Toolbar.tsx            # Top bar — file load, view toggle, fit controls
+    │   ├── Legend.tsx             # Edge/node color key
+    │   └── GraphCanvas.tsx        # React Flow wrapper — nodes, edges, highlight logic
+    └── nodes/                     # React Flow custom node types (outside atomic hierarchy)
+        ├── ModelNode.tsx          # Blue — data structures
+        ├── ServiceNode.tsx        # Green — business logic
+        ├── TransportNode.tsx      # Orange — HTTP/gRPC/WS routes
+        ├── TransformNode.tsx      # Purple — data transforms
+        ├── ClusterLabelNode.tsx   # Cluster group header
+        └── GroupLabelNode.tsx     # Kind group header (grid layout)
 ```
 
 ## Data Flow
@@ -124,6 +136,24 @@ No Redux/Zustand. All state lives in the `useGraphData` custom hook, which retur
 - `selectedWorkflow` / `selectWorkflow()` — highlighted workflow in flow mode
 
 Graph building (`buildGraph`/`buildFlowGraph`) runs inside `useMemo` — recomputes only when schema, activeKinds, or viewMode change.
+
+## Component Architecture (Atomic Design)
+
+Components follow atomic design principles with three tiers:
+
+- **Atoms** (`components/atoms/`) — Smallest reusable UI primitives. No business logic, no state. Accept simple props and render a single visual element. Examples: `Badge`, `KindDot`, `IconButton`, `SectionHeader`.
+- **Molecules** (`components/molecules/`) — Compositions of 2+ atoms into a reusable UI group. May have minimal local state (e.g. toggle). Examples: `PanelShell`, `ListItem`, `FilterChipGroup`, `FieldGroup`.
+- **Organisms** (`components/organisms/`) — Full feature sections that compose atoms + molecules with business logic and props from the app. These are what `App.tsx` renders. Examples: `SearchBar`, `DetailPanel`, `WorkflowPanel`, `Toolbar`, `Legend`, `GraphCanvas`.
+- **Nodes** (`components/nodes/`) — React Flow custom node types. These sit outside the atomic hierarchy because they're tightly coupled to React Flow's `NodeProps`/`Handle` system and only exist in the graph context.
+
+### Design Tokens (`lib/design-tokens.ts`)
+
+Centralized color palette consumed across all layers:
+- `KIND_COLORS` — bg, text, border, dot (Tailwind classes) + hex (for React Flow/MiniMap) per component kind
+- `STEP_TYPE_COLORS` — text, bg, label per workflow step type
+- `KIND_NODE_SIZE` — width/height per kind for Dagre layout
+
+When adding a new component, classify it into the appropriate tier. If you're unsure, ask: "Does it render a single element?" (atom), "Does it compose atoms?" (molecule), or "Does it implement a feature?" (organism).
 
 ## Code Style
 

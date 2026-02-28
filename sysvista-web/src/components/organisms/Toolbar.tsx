@@ -1,8 +1,9 @@
 import { Upload, Maximize, GitBranch, Workflow } from "lucide-react";
 import { useRef } from "react";
-import type { SysVistaOutput } from "../types/schema";
-import type { ViewMode } from "../hooks/useGraphData";
-import { loadFromFile } from "../lib/loader";
+import type { SysVistaOutput } from "../../types/schema";
+import type { ViewMode } from "../../hooks/useGraphData";
+import { loadFromFile } from "../../lib/loader";
+import { IconButton } from "../atoms/IconButton";
 
 interface ToolbarProps {
   projectName?: string;
@@ -57,49 +58,33 @@ export function Toolbar({ projectName, stats, viewMode, flowEdgeCount, workflowC
 
       <div className="flex items-center gap-2">
         {flowEdgeCount > 0 && (
-          <button
+          <IconButton
+            icon={Workflow}
+            label="Flow View"
+            badge={flowEdgeCount}
             onClick={onToggleFlowView}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-              isFlowActive
-                ? "bg-cyan-900/60 text-cyan-200 border-cyan-600 hover:bg-cyan-800/60"
-                : "bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-700"
-            }`}
-          >
-            <Workflow className="h-3.5 w-3.5" />
-            Flow View
-            <span className={`text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center ${
-              isFlowActive ? "bg-cyan-800 text-cyan-200" : "bg-gray-700 text-gray-300"
-            }`}>
-              {flowEdgeCount}
-            </span>
-          </button>
+            variant={isFlowActive ? "active" : "default"}
+            badgeColorClass={isFlowActive ? "bg-cyan-800 text-cyan-200" : undefined}
+          />
         )}
         {isFlowActive && onToggleWorkflows && workflowCount > 0 && (
-          <button
+          <IconButton
+            icon={GitBranch}
+            label="Workflows"
+            badge={workflowCount}
             onClick={onToggleWorkflows}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors"
-          >
-            <GitBranch className="h-3.5 w-3.5" />
-            Workflows
-            <span className="bg-gray-700 text-gray-300 text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
-              {workflowCount}
-            </span>
-          </button>
+          />
         )}
-        <button
+        <IconButton
+          icon={Upload}
+          label="Load JSON"
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors"
-        >
-          <Upload className="h-3.5 w-3.5" />
-          Load JSON
-        </button>
-        <button
+        />
+        <IconButton
+          icon={Maximize}
+          label="Fit"
           onClick={onFitView}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition-colors"
-        >
-          <Maximize className="h-3.5 w-3.5" />
-          Fit
-        </button>
+        />
         <input
           ref={fileInputRef}
           type="file"

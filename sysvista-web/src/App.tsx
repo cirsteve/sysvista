@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import { useGraphData } from "./hooks/useGraphData";
-import { GraphCanvas } from "./components/GraphCanvas";
-import { DetailPanel } from "./components/DetailPanel";
-import { SearchBar } from "./components/SearchBar";
-import { Toolbar } from "./components/Toolbar";
-import { Legend } from "./components/Legend";
-import { WorkflowPanel } from "./components/WorkflowPanel";
+import { GraphCanvas } from "./components/organisms/GraphCanvas";
+import { DetailPanel } from "./components/organisms/DetailPanel";
+import { SearchBar } from "./components/organisms/SearchBar";
+import { Toolbar } from "./components/organisms/Toolbar";
+import { Legend } from "./components/organisms/Legend";
+import { WorkflowPanel } from "./components/organisms/WorkflowPanel";
 import { setupDropZone } from "./lib/loader";
 import type { DetectedComponent } from "./types/schema";
 
