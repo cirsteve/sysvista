@@ -17,3 +17,5 @@ sysvista-web/dist/
 .vscode/
 *.swp
 *.swo
+comms/
+
