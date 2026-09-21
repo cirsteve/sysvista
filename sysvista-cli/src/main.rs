@@ -22,6 +22,12 @@ enum Commands {
         #[arg(short, long, default_value = "sysvista-output.json")]
         output: PathBuf,
     },
+    /// Write the canonical v2 JSON Schema
+    Schema {
+        /// Output path (defaults to schema/sysvista-v2.schema.json at the repository root)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() {
@@ -53,6 +59,14 @@ fn main() {
             });
 
             eprintln!("Output written to {}", output.display());
+        }
+        Commands::Schema { output } => {
+            let output = output.unwrap_or_else(output::v2::default_schema_path);
+            output::v2::write_schema(&output).unwrap_or_else(|e| {
+                eprintln!("Error writing v2 schema to '{}': {e}", output.display());
+                std::process::exit(1);
+            });
+            eprintln!("Schema written to {}", output.display());
         }
     }
 }
