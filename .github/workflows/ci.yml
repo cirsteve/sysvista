@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, epic/drill-down-ui]
   pull_request:
     branches: [main, epic/drill-down-ui]
 
@@ -31,7 +31,8 @@ jobs:
         with:
           workspaces: sysvista-cli
       - run: cargo build
-      - run: cargo test
+      # The corpus runs once, below, where its per-kind report is printed.
+      - run: cargo test -- --skip labeled_corpus_meets_relationship_floors
       - run: ../scripts/validate-corpus.sh
 
   web-tests:
@@ -48,7 +49,8 @@ jobs:
           cache: npm
           cache-dependency-path: sysvista-web/package-lock.json
       - run: npm ci
-      - run: npx tsc --noEmit
+      # `tsc -b` covers the app, test and node configs; the root tsconfig lists no files.
+      - run: npm run build
       - run: npm test
       - run: npx vitest run src/lib/projection/project.test.ts --maxWorkers=1
         env:
