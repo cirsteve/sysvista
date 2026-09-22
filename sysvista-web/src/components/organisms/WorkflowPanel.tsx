@@ -1,64 +1,54 @@
-import type { Workflow, DetectedComponent } from "../../types/schema";
-import { STEP_TYPE_COLORS } from "../../lib/design-tokens";
+import type { DetectedComponent } from "../../types/schema";
+import type { Claim } from "../../types/v2";
 import { PanelShell } from "../molecules/PanelShell";
 import { ListItem } from "../molecules/ListItem";
-import { Badge } from "../atoms/Badge";
 
 interface WorkflowPanelProps {
-  workflows: Workflow[];
-  selectedWorkflow: Workflow | null;
+  claims: Claim[];
+  selectedClaim: Claim | null;
   components: DetectedComponent[];
-  onSelectWorkflow: (workflow: Workflow | null) => void;
+  onSelectClaim: (claim: Claim | null) => void;
   onClose: () => void;
   onNavigateToComponent: (component: DetectedComponent) => void;
 }
 
 export function WorkflowPanel({
-  workflows,
-  selectedWorkflow,
+  claims,
+  selectedClaim,
   components,
-  onSelectWorkflow,
+  onSelectClaim,
   onClose,
   onNavigateToComponent,
 }: WorkflowPanelProps) {
-  const compMap = new Map(components.map((c) => [c.id, c]));
-
-  // Sort by step count descending
-  const sorted = [...workflows].sort((a, b) => b.steps.length - a.steps.length);
-
-  const title = selectedWorkflow ? "Workflow Trace" : "Workflows";
+  const componentById = new Map(components.map((component) => [component.id, component]));
+  const sorted = [...claims].sort(
+    (a, b) => b.object.entity_ids.length - a.object.entity_ids.length,
+  );
 
   return (
-    <PanelShell side="left" title={title} onClose={onClose}>
-      {selectedWorkflow ? (
+    <PanelShell side="left" title={selectedClaim ? "Workflow Members" : "Workflows"} onClose={onClose}>
+      {selectedClaim ? (
         <div>
           <button
-            onClick={() => onSelectWorkflow(null)}
+            onClick={() => onSelectClaim(null)}
             className="text-xs text-gray-400 hover:text-gray-200 mb-3 flex items-center gap-1"
           >
             &larr; All workflows
           </button>
-          <h3 className="text-sm font-semibold text-gray-200 mb-3">
-            {selectedWorkflow.name}
+          <h3 className="text-sm font-semibold text-gray-200 mb-1">
+            {selectedClaim.object.name}
           </h3>
+          <p className="text-xs text-gray-500 mb-3">Members are unordered in legacy scan data.</p>
           <div className="space-y-1">
-            {selectedWorkflow.steps.map((step) => {
-              const comp = compMap.get(step.component_id);
-              const config = STEP_TYPE_COLORS[step.step_type];
+            {selectedClaim.object.entity_ids.map((entityId) => {
+              const component = componentById.get(entityId);
               return (
                 <ListItem
-                  key={`${step.order}-${step.component_id}`}
-                  label={comp?.name ?? step.component_id}
-                  sublabel={config.label}
-                  onClick={() => comp && onNavigateToComponent(comp)}
-                  showChevron
-                  leading={
-                    <Badge
-                      label={String(step.order)}
-                      variant="step"
-                      stepType={step.step_type}
-                    />
-                  }
+                  key={entityId}
+                  label={component?.name ?? entityId}
+                  kind={component?.kind}
+                  onClick={() => component && onNavigateToComponent(component)}
+                  showChevron={Boolean(component)}
                 />
               );
             })}
@@ -68,16 +58,14 @@ export function WorkflowPanel({
         <div className="space-y-1">
           {sorted.length === 0 ? (
             <p className="text-sm text-gray-500">No workflows detected</p>
-          ) : (
-            sorted.map((wf) => (
-              <ListItem
-                key={wf.id}
-                label={wf.name}
-                sublabel={`${wf.steps.length} steps`}
-                onClick={() => onSelectWorkflow(wf)}
-              />
-            ))
-          )}
+          ) : sorted.map((claim) => (
+            <ListItem
+              key={claim.id}
+              label={claim.object.name}
+              sublabel={`${claim.object.entity_ids.length} unordered members`}
+              onClick={() => onSelectClaim(claim)}
+            />
+          ))}
         </div>
       )}
     </PanelShell>

@@ -1,16 +1,13 @@
 import Ajv2020, { type ErrorObject } from "ajv/dist/2020";
 import schema from "../../../../schema/sysvista-v2.schema.json";
 import type { Snapshot } from "../../types/v2";
+import type { Result } from "../result";
 
 export interface ValidationError {
   instancePath: string;
   keyword: string;
   message: string;
 }
-
-export type Result<T, E> =
-  | { ok: true; value: T }
-  | { ok: false; errors: E };
 
 const ajv = new Ajv2020({ allErrors: true });
 ajv.addFormat("uint32", {
@@ -39,6 +36,6 @@ export function validateSnapshot(
 
   return {
     ok: false,
-    errors: (validate.errors ?? []).map(toValidationError),
+    error: (validate.errors ?? []).map(toValidationError),
   };
 }

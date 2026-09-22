@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
 import { useGraphData } from "./hooks/useGraphData";
 import { GraphCanvas } from "./components/organisms/GraphCanvas";
@@ -25,14 +25,14 @@ function AppInner() {
     connectedComponents,
     highlightedNodeIds,
     highlightedFlowNodeIds,
-    workflows,
-    selectedWorkflow,
+    traversalClaims,
+    selectedTraversal,
     viewMode,
     loadSchema,
     toggleKind,
     setSelectedNode,
     doSearch,
-    selectWorkflow,
+    selectTraversal,
     toggleFlowView,
     setViewMode,
   } = useGraphData();
@@ -105,15 +105,6 @@ function AppInner() {
   const activeNodes = viewMode === "flow" ? flowNodes : nodes;
   const activeEdges = viewMode === "flow" ? flowEdges : edges;
 
-  // For large graphs, only show edges connected to the selected node
-  const visibleEdges = useMemo(() => {
-    if (activeEdges.length <= 500) return activeEdges;
-    if (!selectedNode) return [];
-    return activeEdges.filter(
-      (e) => e.source === selectedNode.id || e.target === selectedNode.id,
-    );
-  }, [activeEdges, selectedNode]);
-
   // Combine highlight sources: transport trace (graph mode) or workflow highlight (flow mode)
   const activeHighlightedNodeIds = viewMode === "flow"
     ? highlightedFlowNodeIds
@@ -142,7 +133,7 @@ function AppInner() {
         }
         viewMode={viewMode}
         flowEdgeCount={flowEdges.length}
-        workflowCount={workflows.length}
+        workflowCount={traversalClaims.length}
         onLoad={handleLoad}
         onError={setError}
         onFitView={handleFitView}
@@ -167,7 +158,7 @@ function AppInner() {
           <>
             <GraphCanvas
               nodes={activeNodes}
-              edges={visibleEdges}
+              edges={activeEdges}
               onNodeClick={handleNodeClick}
               focusNodeId={focusNodeId}
               highlightedNodeIds={activeHighlightedNodeIds}
@@ -197,10 +188,10 @@ function AppInner() {
         {/* Workflow panel */}
         {showWorkflowPanel && schema && (
           <WorkflowPanel
-            workflows={workflows}
-            selectedWorkflow={selectedWorkflow}
+            claims={traversalClaims}
+            selectedClaim={selectedTraversal}
             components={schema.components}
-            onSelectWorkflow={selectWorkflow}
+            onSelectClaim={selectTraversal}
             onClose={() => setShowWorkflowPanel(false)}
             onNavigateToComponent={handleNavigate}
           />

@@ -62,9 +62,19 @@ export type UnresolvedReference = Omit<
   span: SourceSpan;
 };
 
-export type Claim = Omit<Generated.Claim, "subject"> & {
+export interface HeuristicTraversalClaimObject {
+  name: string;
+  entity_ids: EntityId[];
+  relationship_ids: RelationshipId[];
+}
+
+export interface Claim {
+  evidence_ids?: string[];
+  id: string;
+  object: HeuristicTraversalClaimObject;
+  predicate: "HeuristicTraversal";
   subject: EntityId;
-};
+}
 
 export type PayloadContract = Omit<
   Generated.PayloadContract,

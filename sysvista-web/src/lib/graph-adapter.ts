@@ -1,32 +1,80 @@
 import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind } from "../types/schema";
-import { classifyComponents, detectHubs, type HubInfo } from "./clustering";
 import { KIND_NODE_SIZE } from "./design-tokens";
-import type { ClusterLabelData } from "../components/nodes/ClusterLabelNode";
+import type { Manifest, Snapshot } from "../types/v2";
+import type { ProjectedScope } from "./projection/types";
+
+interface HubInfo { tier: "high" | "medium" | "normal"; degree: number }
+
+const detectHubs = (components: DetectedComponent[], edges: DetectedEdge[]): Map<string, HubInfo> => {
+  const degrees = new Map(components.map(({ id }) => [id, 0]));
+  for (const edge of edges) {
+    degrees.set(edge.from_id, (degrees.get(edge.from_id) ?? 0) + 1);
+    degrees.set(edge.to_id, (degrees.get(edge.to_id) ?? 0) + 1);
+  }
+  const values = [...degrees.values()];
+  const mean = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+  const variance = values.length ? values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length : 0;
+  const deviation = Math.sqrt(variance);
+  return new Map([...degrees].map(([id, degree]) => [id, { degree, tier: degree > mean + 2 * deviation ? "high" : degree > mean + deviation ? "medium" : "normal" }]));
+};
+
+const COMPONENT_KINDS = new Set<ComponentKind>(["model", "service", "transport", "transform", "prompt"]);
+
+export function projectedScopeToGraphInput(snapshot: Snapshot, projection: ProjectedScope): SysVistaOutput {
+  const manifest = snapshot.manifest as Manifest;
+  const visible = new Set(projection.children.map(({ id }) => id));
+  const childComponents = (snapshot.entities ?? []).filter(({ id, declaration_kind }) =>
+    visible.has(id) && COMPONENT_KINDS.has(declaration_kind as ComponentKind)).map((entity) => {
+      const legacy = entity.attributes as Partial<DetectedComponent> | undefined;
+      const file = snapshot.source_files?.find(({ id }) => id === entity.file_id);
+      return {
+        ...(legacy ?? {}), id: entity.id, name: String(entity.name),
+        kind: entity.declaration_kind as ComponentKind,
+        language: legacy?.language ?? String(file?.language ?? "unknown"),
+        source: legacy?.source ?? { file: String(file?.path ?? entity.file_id), line_start: Number(entity.span.start_line), line_end: Number(entity.span.end_line) },
+        metadata: legacy?.metadata ?? {},
+      };
+    });
+  const boundaryByTarget = new Map(
+    projection.boundaryNodes.map((boundary) => [boundary.externalTargetId, boundary.id]),
+  );
+  const boundaryComponents: DetectedComponent[] = projection.boundaryNodes.map((boundary) => ({
+    id: boundary.id,
+    name: boundary.name,
+    kind: "service",
+    language: "external",
+    source: { file: String(boundary.externalTargetId) },
+    metadata: { projection_boundary: "true", external_target_id: boundary.externalTargetId },
+  }));
+  const components = [...childComponents, ...boundaryComponents];
+  return {
+    version: String(manifest.schema_version), scanned_at: String(manifest.scanned_at),
+    root_dir: String(manifest.root), project_name: String(manifest.repository),
+    detected_languages: [...new Set(components.map(({ language }) => language))], components,
+    edges: projection.relationships.map((relationship) => ({
+      from_id: boundaryByTarget.get(relationship.source) ?? relationship.source,
+      to_id: boundaryByTarget.get(relationship.target) ?? relationship.target,
+      label: String(relationship.kind),
+    })),
+    workflows: [],
+    scan_stats: { files_scanned: snapshot.source_files?.length ?? 0, files_skipped: 0, scan_duration_ms: 0 },
+  };
+}
 
 export interface GraphNode extends Record<string, unknown> {
   component: DetectedComponent;
   hubTier: HubInfo["tier"];
   degree: number;
-  cluster: string;
   highlighted?: boolean;
   direction?: "TB" | "LR";
-}
-
-export interface GroupLabelNode extends Record<string, unknown> {
-  label: string;
-  count: number;
-  kind: ComponentKind;
 }
 
 const KIND_CONFIG = KIND_NODE_SIZE;
 
 export const FLOW_LABELS = new Set(["handles", "persists", "transforms", "consumes", "produces", "calls", "dispatches"]);
 const PAYLOAD_LABELS = new Set(["consumes", "produces"]);
-
-// Dagre can't handle dense graphs — fall back to cluster grid layout above this threshold
-const MAX_DAGRE_EDGES = 2000;
 
 // --- Shared helpers ---
 
@@ -59,19 +107,17 @@ const toComponentNode = (
   comp: DetectedComponent,
   position: { x: number; y: number },
   hubMap: Map<string, HubInfo>,
-  clusterMap: Map<string, string>,
   direction?: "TB" | "LR",
 ): Node<GraphNode> => {
   const hub = hubMap.get(comp.id) ?? { tier: "normal" as const, degree: 0 };
   return {
     id: comp.id,
-    type: comp.kind,
+    type: comp.metadata.projection_boundary === "true" ? "boundary" : comp.kind,
     position,
     data: {
       component: comp,
       hubTier: hub.tier,
       degree: hub.degree,
-      cluster: clusterMap.get(comp.id) ?? "Other",
       ...(direction && { direction }),
     },
   };
@@ -99,74 +145,6 @@ const formatEdgeLabel = (e: MergedEdge): string | undefined => {
 };
 
 // --- Layout ---
-
-function clusterGridLayout(
-  components: DetectedComponent[],
-  clusterMap: Map<string, string>,
-  hubMap: Map<string, HubInfo>,
-): { positions: Map<string, { x: number; y: number }>; headerNodes: Node<ClusterLabelData>[] } {
-  const cols = Math.max(4, Math.ceil(Math.sqrt(components.length / 2)));
-  const cellW = 240;
-  const cellH = 100;
-  const headerH = 50;
-  const groupGap = 60;
-
-  // Group by cluster
-  const clusters = new Map<string, DetectedComponent[]>();
-  for (const c of components) {
-    const cluster = clusterMap.get(c.id) ?? "Other";
-    let bucket = clusters.get(cluster);
-    if (!bucket) {
-      bucket = [];
-      clusters.set(cluster, bucket);
-    }
-    bucket.push(c);
-  }
-
-  // Sort clusters: largest first, "Other" last; sort members by degree desc
-  const sortedClusters = [...clusters.entries()]
-    .sort((a, b) => {
-      if (a[0] === "Other") return 1;
-      if (b[0] === "Other") return -1;
-      return b[1].length - a[1].length;
-    })
-    .map(([name, comps]) => {
-      comps.sort((a, b) => (hubMap.get(b.id)?.degree ?? 0) - (hubMap.get(a.id)?.degree ?? 0));
-      return [name, comps] as [string, DetectedComponent[]];
-    });
-
-  // Lay out each cluster sequentially, accumulating Y offset.
-  // Mutate accumulators in place — this runs on dense graphs (>2000 edges)
-  // where repeated Map/Array spreading would be expensive.
-  const positions = new Map<string, { x: number; y: number }>();
-  const headerNodes: Node<ClusterLabelData>[] = [];
-  let offsetY = 0;
-
-  for (const [clusterName, comps] of sortedClusters) {
-    if (comps.length === 0) continue;
-    const rows = Math.ceil(comps.length / cols);
-
-    headerNodes.push({
-      id: `cluster-${clusterName}`,
-      type: "clusterLabel",
-      position: { x: 0, y: offsetY },
-      data: { label: clusterName, count: comps.length },
-      selectable: false,
-      draggable: false,
-    });
-
-    for (let i = 0; i < comps.length; i++) {
-      positions.set(comps[i].id, {
-        x: (i % cols) * cellW,
-        y: offsetY + headerH + Math.floor(i / cols) * cellH,
-      });
-    }
-
-    offsetY += headerH + rows * cellH + groupGap;
-  }
-
-  return { positions, headerNodes };
-}
 
 function dagreLayout(
   components: DetectedComponent[],
@@ -201,30 +179,19 @@ export function buildGraph(
   data: SysVistaOutput,
   activeKinds: Set<ComponentKind>,
 ): { nodes: Node[]; edges: Edge[] } {
-  const filteredComponents = data.components.filter((c) => activeKinds.has(c.kind));
+  const filteredComponents = data.components.filter(
+    (component) => component.metadata.projection_boundary === "true" || activeKinds.has(component.kind),
+  );
   const visibleIds = new Set(filteredComponents.map((c) => c.id));
   const filteredEdges = data.edges.filter((e) => visibleIds.has(e.from_id) && visibleIds.has(e.to_id));
   const uniqueEdges = deduplicateEdges(filteredEdges);
 
-  const clusterMap = classifyComponents(filteredComponents);
   const hubMap = detectHubs(filteredComponents, filteredEdges);
 
-  let componentNodes: Node[];
-
-  if (uniqueEdges.length > MAX_DAGRE_EDGES) {
-    const { positions, headerNodes } = clusterGridLayout(filteredComponents, clusterMap, hubMap);
-    componentNodes = [
-      ...headerNodes,
-      ...filteredComponents.map((comp) =>
-        toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, clusterMap),
-      ),
-    ];
-  } else {
-    const positions = dagreLayout(filteredComponents, uniqueEdges, "TB", 60, 80);
-    componentNodes = filteredComponents.map((comp) =>
-      toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, clusterMap),
-    );
-  }
+  const positions = dagreLayout(filteredComponents, uniqueEdges, "TB", 60, 80);
+  const componentNodes: Node[] = filteredComponents.map((comp) =>
+    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap),
+  );
 
   const edges: Edge[] = uniqueEdges
     .map((e, i) => {
@@ -282,10 +249,9 @@ export function buildFlowGraph(
   const positions = dagreLayout(connectedComponents, uniqueEdges, "LR", 50, 100);
   const visibleFlowEdges = flowEdges.filter((e) => visibleIds.has(e.from_id) && visibleIds.has(e.to_id));
   const hubMap = detectHubs(connectedComponents, visibleFlowEdges);
-  const clusterMap = classifyComponents(connectedComponents);
 
   const nodes: Node<GraphNode>[] = connectedComponents.map((comp) =>
-    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, clusterMap, "LR"),
+    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, "LR"),
   );
 
   const edges: Edge[] = uniqueEdges

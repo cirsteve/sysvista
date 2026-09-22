@@ -1,0 +1,22 @@
+{
+  "snapshot": {
+    "manifest": {"schema_version":"2","repository":"fixture","scanned_at":"2026-09-21T00:00:00Z","root":"/fixture","tool_version":"test","inventory":{"included":3,"excluded":0,"unsupported":0,"unreadable":0,"failed":0}},
+    "source_files": [{"id":"f","path":"fixture.ts","analysis":{"kind":"none"}}],
+    "entities": [
+      {"id":"a","name":"A","qualified_name":"A","declaration_kind":"service","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":1,"start_column":1,"end_line":1,"end_column":1}},
+      {"id":"b","name":"B","qualified_name":"B","declaration_kind":"model","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":2,"start_column":1,"end_line":2,"end_column":1}},
+      {"id":"c","name":"C","qualified_name":"C","declaration_kind":"transport","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":3,"start_column":1,"end_line":3,"end_column":1}},
+      {"id":"a1","name":"A1","qualified_name":"A.A1","declaration_kind":"service","file_id":"f","scope_id":"a-scope","owner_id":"a","span":{"file_id":"f","start_line":4,"start_column":1,"end_line":4,"end_column":1}},
+      {"id":"a2","name":"A2","qualified_name":"A.A2","declaration_kind":"model","file_id":"f","scope_id":"a-scope","owner_id":"a","span":{"file_id":"f","start_line":5,"start_column":1,"end_line":5,"end_column":1}},
+      {"id":"b1","name":"B1","qualified_name":"B.B1","declaration_kind":"model","file_id":"f","scope_id":"b-scope","owner_id":"b","span":{"file_id":"f","start_line":6,"start_column":1,"end_line":6,"end_column":1}},
+      {"id":"outside","name":"Outside","qualified_name":"Outside","declaration_kind":"service","file_id":"f","scope_id":"elsewhere","span":{"file_id":"f","start_line":7,"start_column":1,"end_line":7,"end_column":1}}
+    ],
+    "relationships": [
+      {"id":"r-internal","kind":"calls","source":"a1","target":"a2","origin":"analyzer"},
+      {"id":"r-ab-1","kind":"calls","source":"a1","target":"b1","origin":"analyzer"},
+      {"id":"r-ab-2","kind":"calls","source":"a2","target":"b1","origin":"analyzer"},
+      {"id":"r-external","kind":"references","source":"a1","target":"outside","origin":"heuristic"}
+    ]
+  },
+  "index": {"scopes":[{"scope_id":"root","child_ids":["a","b","c"],"owner_map":{"a1":"a","a2":"a","b1":"b"},"crossing_relationship_ids":["r-ab-1","r-ab-2","r-external"]}]}
+}

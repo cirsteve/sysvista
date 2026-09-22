@@ -1,5 +1,5 @@
 export type ComponentKind = "model" | "service" | "transport" | "transform" | "prompt";
-export type TransportProtocol = "http" | "grpc" | "websocket" | "mq" | "graphql" | "unknown";
+export type TransportProtocol = "http" | "grpc" | "websocket" | "unknown";
 export type PromptSubtype = "router" | "classifier" | "generator" | "extractor" | "summarizer" | "validator";
 
 export interface SourceLocation {

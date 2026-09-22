@@ -1,20 +1,22 @@
 import { useState, useCallback, useMemo } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import type {
-  SysVistaOutput,
   DetectedComponent,
   ComponentKind,
-  Workflow,
 } from "../types/schema";
-import { buildGraph, buildFlowGraph, FLOW_LABELS } from "../lib/graph-adapter";
+import { buildGraph, buildFlowGraph, FLOW_LABELS, projectedScopeToGraphInput } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
+import type { LoadedSnapshot } from "../lib/loader";
+import { indexSnapshot, rootScopeId } from "../lib/projection/children";
+import { projectScope } from "../lib/projection/project";
+import type { Claim } from "../types/v2";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
 
 export type ViewMode = "graph" | "flow";
 
 export function useGraphData() {
-  const [schema, setSchema] = useState<SysVistaOutput | null>(null);
+  const [loaded, setLoaded] = useState<LoadedSnapshot | null>(null);
   const [activeKinds, setActiveKinds] = useState<Set<ComponentKind>>(
     new Set(ALL_KINDS),
   );
@@ -23,18 +25,33 @@ export function useGraphData() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DetectedComponent[]>([]);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+  const [selectedTraversal, setSelectedTraversal] = useState<Claim | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("graph");
 
-  const workflows = useMemo(() => schema?.workflows ?? [], [schema]);
+  const schema = useMemo(() => {
+    if (!loaded) return null;
+    const index = indexSnapshot(loaded.snapshot);
+    const root = rootScopeId(loaded.snapshot);
+    return projectedScopeToGraphInput(loaded.snapshot, projectScope(loaded.snapshot, index, root));
+  }, [loaded]);
 
-  const loadSchema = useCallback((data: SysVistaOutput) => {
-    setSchema(data);
-    initSearch(data.components);
+  const traversalClaims = useMemo(() => (loaded?.snapshot.claims ?? []).filter((claim) => {
+    const object = claim.object as unknown as Record<string, unknown>;
+    return claim.predicate === "HeuristicTraversal" &&
+      typeof object.name === "string" &&
+      Array.isArray(object.entity_ids) &&
+      Array.isArray(object.relationship_ids);
+  }), [loaded]);
+
+  const loadSchema = useCallback((data: LoadedSnapshot) => {
+    setLoaded(data);
+    const index = indexSnapshot(data.snapshot);
+    const root = rootScopeId(data.snapshot);
+    initSearch(projectedScopeToGraphInput(data.snapshot, projectScope(data.snapshot, index, root)).components);
     setSelectedNode(null);
     setSearchQuery("");
     setSearchResults([]);
-    setSelectedWorkflow(null);
+    setSelectedTraversal(null);
     setViewMode("graph");
   }, []);
 
@@ -142,14 +159,14 @@ export function useGraphData() {
     return nodeIds.size > 1 ? nodeIds : null;
   }, [selectedNode, traceWorkflow]);
 
-  // In flow mode, when a workflow is selected, highlight its step component IDs
+  // Traversal claims intentionally carry unordered entity sets.
   const highlightedFlowNodeIds = useMemo((): Set<string> | null => {
-    if (viewMode !== "flow" || !selectedWorkflow) return null;
-    return new Set(selectedWorkflow.steps.map((s) => s.component_id));
-  }, [viewMode, selectedWorkflow]);
+    if (viewMode !== "flow" || !selectedTraversal) return null;
+    return new Set(selectedTraversal.object.entity_ids);
+  }, [viewMode, selectedTraversal]);
 
-  const selectWorkflow = useCallback((workflow: Workflow | null) => {
-    setSelectedWorkflow(workflow);
+  const selectTraversal = useCallback((claim: Claim | null) => {
+    setSelectedTraversal(claim);
   }, []);
 
   const toggleFlowView = useCallback(() => {
@@ -176,14 +193,14 @@ export function useGraphData() {
     connectedComponents,
     highlightedNodeIds,
     highlightedFlowNodeIds,
-    workflows,
-    selectedWorkflow,
+    traversalClaims,
+    selectedTraversal,
     viewMode,
     loadSchema,
     toggleKind,
     setSelectedNode,
     doSearch,
-    selectWorkflow,
+    selectTraversal,
     toggleFlowView,
     setViewMode,
   };
