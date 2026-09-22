@@ -92,11 +92,96 @@ fn extract() -> Result<PathBuf, AnalyzerError> {
         .map(PathBuf::from)
         .unwrap_or_else(env::temp_dir)
         .join("sysvista");
-    fs::create_dir_all(&base).map_err(|error| AnalyzerError::Unavailable(error.to_string()))?;
+    secure_cache_directory(&base)?;
     let path = base.join(format!("analyzer-{}.js", env!("CARGO_PKG_VERSION")));
-    if fs::read(&path).ok().as_deref() != Some(ANALYZER) {
-        fs::write(&path, ANALYZER)
-            .map_err(|error| AnalyzerError::Unavailable(error.to_string()))?;
+    if path.exists() {
+        verify_cached_file(&path)?;
     }
+    if fs::read(&path).ok().as_deref() != Some(ANALYZER) {
+        atomic_install(&base, &path)?;
+    }
+    verify_cached_file(&path)?;
     Ok(path)
+}
+
+#[cfg(unix)]
+fn secure_cache_directory(path: &std::path::Path) -> Result<(), AnalyzerError> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    fs::create_dir_all(path).map_err(unavailable)?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(unavailable)?;
+    let metadata = fs::symlink_metadata(path).map_err(unavailable)?;
+    if !metadata.file_type().is_dir()
+        || metadata.file_type().is_symlink()
+        || metadata.uid() != unsafe { libc::geteuid() }
+        || metadata.mode() & 0o077 != 0
+    {
+        return Err(AnalyzerError::Unavailable(format!(
+            "analyzer cache directory is not private and user-owned: {}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn secure_cache_directory(path: &std::path::Path) -> Result<(), AnalyzerError> {
+    fs::create_dir_all(path).map_err(unavailable)
+}
+
+#[cfg(unix)]
+fn verify_cached_file(path: &std::path::Path) -> Result<(), AnalyzerError> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let metadata = fs::symlink_metadata(path).map_err(unavailable)?;
+    if !metadata.file_type().is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.uid() != unsafe { libc::geteuid() }
+    {
+        return Err(AnalyzerError::Unavailable(format!(
+            "analyzer cache file is not private and user-owned: {}",
+            path.display()
+        )));
+    }
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(unavailable)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_cached_file(path: &std::path::Path) -> Result<(), AnalyzerError> {
+    let metadata = fs::symlink_metadata(path).map_err(unavailable)?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err(AnalyzerError::Unavailable(format!(
+            "analyzer cache file is not regular: {}",
+            path.display()
+        )));
+    }
+    Ok(())
+}
+
+fn atomic_install(
+    directory: &std::path::Path,
+    destination: &std::path::Path,
+) -> Result<(), AnalyzerError> {
+    use std::fs::OpenOptions;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let temporary = directory.join(format!(".analyzer-{}-{nonce}.tmp", std::process::id()));
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&temporary).map_err(unavailable)?;
+    file.write_all(ANALYZER).map_err(unavailable)?;
+    file.sync_all().map_err(unavailable)?;
+    drop(file);
+    fs::rename(&temporary, destination).map_err(unavailable)
+}
+
+fn unavailable(error: std::io::Error) -> AnalyzerError {
+    AnalyzerError::Unavailable(error.to_string())
 }

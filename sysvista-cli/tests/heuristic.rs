@@ -69,11 +69,24 @@ fn traversal_claim_has_sets_without_order_or_steps() {
         !traversal_claims.is_empty(),
         "fixture must exercise workflow traversal"
     );
+    let emitted_relationship_ids: std::collections::HashSet<_> = analysis
+        .relationships
+        .iter()
+        .map(|relationship| {
+            serde_json::to_value(relationship).unwrap()["id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
     for claim in traversal_claims {
         let json = serde_json::to_string(claim).unwrap();
         assert!(!json.contains("\"order\""));
         assert!(!json.contains("\"steps\""));
         assert!(json.contains("entity_ids"));
         assert!(json.contains("relationship_ids"));
+        for id in claim.object["relationship_ids"].as_array().unwrap() {
+            assert!(emitted_relationship_ids.contains(id.as_str().unwrap()));
+        }
     }
 }

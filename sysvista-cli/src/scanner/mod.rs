@@ -15,17 +15,15 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
+#[cfg(test)]
+use crate::output::schema::ComponentKind;
 use crate::output::schema::{DetectedComponent, ScanStats, SysVistaOutput};
 use crate::{
     discovery::{Config, Inventory, InventoryOutcome},
-    output::{
-        v2::{
-            self, AnalysisStatus, Diagnostic, InventoryCounts, Manifest, Snapshot, SourceFile,
-        },
+    output::v2::{
+        self, AnalysisStatus, Diagnostic, InventoryCounts, Manifest, Snapshot, SourceFile,
     },
 };
-#[cfg(test)]
-use crate::output::schema::ComponentKind;
 
 /// Create a deterministic ID from kind + name + file
 pub fn make_id(kind: &str, name: &str, file: &str) -> String {
@@ -206,7 +204,13 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                         id,
                         path: entry.path.clone(),
                         language: Some(language.clone()),
-                        analysis: AnalysisStatus::Parsed { analyzer: if language == "typescript" || language == "javascript" { "typescript-compiler-api".into() } else { "builtin-heuristic".into() } },
+                        analysis: if language == "typescript" || language == "javascript" {
+                            AnalysisStatus::None
+                        } else {
+                            AnalysisStatus::Parsed {
+                                analyzer: "builtin-heuristic".into(),
+                            }
+                        },
                     }),
                     Err(error) => {
                         let message = error.to_string();
@@ -235,7 +239,11 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     // The legacy detectors are exposed as one explicit stage. Keep the source-file
     // accounting above, but use the stage output for all v2 graph values.
     let heuristic = crate::heuristic::analyze(root, &repository, &inventory, config);
-    let analyzer_files: Vec<_> = source_files.iter().filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript"))).map(|file| file.path.clone()).collect();
+    let analyzer_files: Vec<_> = source_files
+        .iter()
+        .filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript")))
+        .map(|file| file.path.clone())
+        .collect();
     let mut analyzer_versions = std::collections::BTreeMap::new();
     let mut analyzer_response = None;
     if !analyzer_files.is_empty() {
@@ -246,12 +254,54 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             tsconfig: None,
         };
         match crate::analyzer::analyze(&request) {
-            Ok(response) => { analyzer_versions.insert("typescript".into(), response.analyzer_version.clone()); analyzer_response = Some(response); }
-            Err(crate::analyzer::AnalyzerError::ContractMismatch { expected, actual }) => diagnostics.push(Diagnostic::AnalyzerContractMismatch { message: format!("analyzer contract mismatch: expected {expected}, got {actual}"), severity: "error".into() }),
-            Err(error) => diagnostics.push(Diagnostic::AnalyzerUnavailable { message: error.to_string(), severity: "error".into() }),
+            Ok(response) => {
+                mark_typescript_analysis(
+                    &mut source_files,
+                    AnalysisStatus::Parsed {
+                        analyzer: "typescript-compiler-api".into(),
+                    },
+                );
+                analyzer_versions.insert("typescript".into(), response.analyzer_version.clone());
+                analyzer_response = Some(response);
+            }
+            Err(crate::analyzer::AnalyzerError::ContractMismatch { expected, actual }) => {
+                let message =
+                    format!("analyzer contract mismatch: expected {expected}, got {actual}");
+                mark_typescript_analysis(
+                    &mut source_files,
+                    AnalysisStatus::Failed {
+                        message: message.clone(),
+                    },
+                );
+                diagnostics.push(Diagnostic::AnalyzerContractMismatch {
+                    message,
+                    severity: "error".into(),
+                });
+            }
+            Err(error) => {
+                let message = error.to_string();
+                mark_typescript_analysis(
+                    &mut source_files,
+                    AnalysisStatus::Failed {
+                        message: message.clone(),
+                    },
+                );
+                diagnostics.push(Diagnostic::AnalyzerUnavailable {
+                    message,
+                    severity: "error".into(),
+                });
+            }
         }
     }
-    let response = analyzer_response.unwrap_or(crate::analyzer::AnalyzeResponse { contract_version: crate::analyzer::CONTRACT_VERSION, analyzer_version: "unavailable".into(), entities: Vec::new(), relationships: Vec::new(), unresolved: Vec::new(), diagnostics: Vec::new(), payloads: Vec::new() });
+    let response = analyzer_response.unwrap_or(crate::analyzer::AnalyzeResponse {
+        contract_version: crate::analyzer::CONTRACT_VERSION,
+        analyzer_version: "unavailable".into(),
+        entities: Vec::new(),
+        relationships: Vec::new(),
+        unresolved: Vec::new(),
+        diagnostics: Vec::new(),
+        payloads: Vec::new(),
+    });
     let merged = crate::analyzer::merge(&repository, response, heuristic);
     diagnostics.extend(merged.diagnostics);
     let counts = inventory_counts(&inventory);
@@ -278,6 +328,15 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         projections: Vec::new(),
         findings: Vec::new(),
     })
+}
+
+fn mark_typescript_analysis(source_files: &mut [SourceFile], status: AnalysisStatus) {
+    for file in source_files
+        .iter_mut()
+        .filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript")))
+    {
+        file.analysis = status.clone();
+    }
 }
 
 #[cfg(test)]

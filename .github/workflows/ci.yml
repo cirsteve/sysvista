@@ -23,7 +23,9 @@ jobs:
           cache-dependency-path: sysvista-analyzer/package-lock.json
       - run: npm ci
         working-directory: sysvista-analyzer
-      - run: npm run build
+      - run: npm run typecheck
+        working-directory: sysvista-analyzer
+      - run: npm test
         working-directory: sysvista-analyzer
       - uses: Swatinem/rust-cache@v2
         with:

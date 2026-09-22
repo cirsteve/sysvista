@@ -228,14 +228,16 @@ pub fn analyze(
                     && entity_set.contains(edge.to_id.as_str())
             })
             .filter_map(|edge| {
-                let source = old_to_new.get(&edge.from_id)?;
+                let kind = relationship_kind(edge.label.as_deref());
+                let source = if kind == "imports" {
+                    component_files
+                        .get(&edge.from_id)
+                        .and_then(|file| module_ids.get(file))
+                } else {
+                    old_to_new.get(&edge.from_id)
+                }?;
                 let target = old_to_new.get(&edge.to_id)?;
-                Some(v2::relationship_id(
-                    source,
-                    target,
-                    relationship_kind(edge.label.as_deref()),
-                    "heuristic",
-                ))
+                Some(v2::relationship_id(source, target, kind, "heuristic"))
             })
             .collect();
         let Some(subject) = old_to_new.get(&workflow.entry_point_id).cloned() else {
