@@ -55,11 +55,6 @@ fn main() {
 
             eprintln!("Scanning {}...", root.display());
 
-            let config = discovery::Config::load(&root).unwrap_or_else(|e| {
-                eprintln!("Error loading sysvista.toml: {e}");
-                std::process::exit(1);
-            });
-
             match format {
                 OutputFormat::V1 => {
                     let output = output.unwrap_or_else(|| PathBuf::from("sysvista-output.json"));
@@ -71,6 +66,10 @@ fn main() {
                     eprintln!("Output written to {}", output.display());
                 }
                 OutputFormat::V2 => {
+                    let config = discovery::Config::load(&root).unwrap_or_else(|e| {
+                        eprintln!("Error loading sysvista.toml: {e}");
+                        std::process::exit(1);
+                    });
                     let output = output.unwrap_or_else(|| PathBuf::from("sysvista-output"));
                     let snapshot = scanner::scan_v2(&root, &config).unwrap_or_else(|e| {
                         eprintln!("Error scanning project: {e}");

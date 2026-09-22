@@ -4,6 +4,7 @@ mod unix_tests {
         fs,
         os::unix::fs::{PermissionsExt, symlink},
         path::{Path, PathBuf},
+        process::Command,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -60,6 +61,9 @@ mod unix_tests {
         let outside = temp.0.join("outside.rs");
         fs::write(&outside, "pub struct Outside;").unwrap();
         symlink(&outside, root.join("outside-link.rs")).unwrap();
+        fs::write(root.join(".hidden.rs"), "pub struct Hidden;").unwrap();
+        fs::write(root.join("ignored-by-git.rs"), "pub struct IgnoredByGit;").unwrap();
+        fs::write(root.join(".gitignore"), "ignored-by-git.rs\n").unwrap();
 
         let config = Config::load(&root).unwrap();
         let snapshot = scanner::scan_v2(&root, &config).unwrap();
@@ -81,6 +85,20 @@ mod unix_tests {
                             rule: "symlink".into()
                         })
         );
+        assert!(snapshot.manifest.inventory_entries.iter().any(|entry| {
+            entry.path == ".hidden.rs"
+                && entry.outcome
+                    == InventoryOutcome::Excluded {
+                        rule: "hidden".into(),
+                    }
+        }));
+        assert!(snapshot.manifest.inventory_entries.iter().any(|entry| {
+            entry.path == "ignored-by-git.rs"
+                && entry.outcome
+                    == InventoryOutcome::Excluded {
+                        rule: "gitignore".into(),
+                    }
+        }));
         assert!(
             snapshot
                 .manifest
@@ -120,5 +138,30 @@ mod unix_tests {
         )
         .unwrap();
         assert!(Config::load(&temp.0).is_err());
+    }
+
+    #[test]
+    fn invalid_v2_config_does_not_block_explicit_v1_scan() {
+        let temp = TempDir::new();
+        fs::write(
+            temp.0.join("sysvista.toml"),
+            "[discovery]\ninclude = ['[']\n",
+        )
+        .unwrap();
+        fs::write(temp.0.join("model.rs"), "pub struct Model;").unwrap();
+        let output = temp.0.join("legacy.json");
+        let status = Command::new(env!("CARGO_BIN_EXE_sysvista-cli"))
+            .args([
+                "scan",
+                temp.0.to_str().unwrap(),
+                "--format",
+                "v1",
+                "--output",
+            ])
+            .arg(&output)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert!(output.is_file());
     }
 }

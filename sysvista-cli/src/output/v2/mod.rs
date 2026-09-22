@@ -78,10 +78,7 @@ pub struct Snapshot {
 }
 
 pub fn default_schema_path() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("sysvista-cli must have a repository parent")
-        .join("schema/sysvista-v2.schema.json")
+    PathBuf::from("schema/sysvista-v2.schema.json")
 }
 
 pub fn write_schema(path: &Path) -> io::Result<()> {
@@ -113,6 +110,14 @@ mod tests {
                 assert_literal_kind(variant, name);
             }
         }
+    }
+
+    #[test]
+    fn schema_default_is_relative_to_runtime_directory() {
+        assert_eq!(
+            default_schema_path(),
+            PathBuf::from("schema/sysvista-v2.schema.json")
+        );
     }
 
     fn assert_literal_kind(variant: &Value, name: &str) {

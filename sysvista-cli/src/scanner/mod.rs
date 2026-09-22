@@ -283,6 +283,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                 kind_name(&b.kind),
             ))
     });
+    assign_scan_component_ids(&mut components);
     let file_ids: HashMap<_, _> = source_files
         .iter()
         .map(|file| (file.path.clone(), file.id.clone()))
@@ -302,9 +303,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             let ordinal = sibling_ordinals.entry(key).or_default();
             let id = v2::entity_id(&file_id, &component.name, &declaration_kind, *ordinal);
             *ordinal += 1;
-            old_to_new
-                .entry(component.id.clone())
-                .or_insert_with(|| id.clone());
+            old_to_new.insert(component.id.clone(), id.clone());
             let line = component.source.line_start.unwrap_or(1);
             Some(CodeEntity {
                 id,
@@ -387,6 +386,20 @@ fn detect_components(content: &str, language: &str, file: &str) -> Vec<DetectedC
     components
 }
 
+fn assign_scan_component_ids(components: &mut [DetectedComponent]) {
+    for (index, component) in components.iter_mut().enumerate() {
+        component.id = v2::stable_id(
+            "scan_component",
+            &[
+                &component.source.file,
+                kind_name(&component.kind),
+                &component.name,
+                &index.to_string(),
+            ],
+        );
+    }
+}
+
 fn kind_name(kind: &ComponentKind) -> &'static str {
     match kind {
         ComponentKind::Model => "model",
@@ -412,6 +425,21 @@ fn component_attributes(
     }
     if let Some(value) = &component.http_path {
         attributes.insert("http_path".into(), value.clone().into());
+    }
+    if let Some(value) = &component.model_fields {
+        attributes.insert("model_fields".into(), serde_json::json!(value));
+    }
+    if let Some(value) = &component.transport_protocol {
+        attributes.insert(
+            "transport_protocol".into(),
+            serde_json::to_value(value).expect("transport protocol is serializable"),
+        );
+    }
+    if let Some(value) = &component.consumes {
+        attributes.insert("consumes".into(), serde_json::json!(value));
+    }
+    if let Some(value) = &component.produces {
+        attributes.insert("produces".into(), serde_json::json!(value));
     }
     attributes
 }
@@ -529,4 +557,63 @@ fn normalize_remote(remote: &str) -> String {
         value = rest.to_owned();
     }
     value.trim_start_matches('/').to_owned()
+}
+
+#[cfg(test)]
+mod v2_conversion_tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::output::schema::{SourceLocation, TransportProtocol};
+
+    fn component(line: u32) -> DetectedComponent {
+        DetectedComponent {
+            id: "legacy-collision".into(),
+            name: "Widget".into(),
+            kind: ComponentKind::Transport,
+            language: "typescript".into(),
+            source: SourceLocation {
+                file: "src/widget.ts".into(),
+                line_start: Some(line),
+                line_end: None,
+            },
+            metadata: HashMap::from([("detection".into(), "fixture".into())]),
+            transport_protocol: Some(TransportProtocol::Http),
+            http_method: Some("POST".into()),
+            http_path: Some("/widgets".into()),
+            model_fields: Some(vec!["name".into()]),
+            prompt_subtype: Some("generator".into()),
+            consumes: Some(vec!["WidgetInput".into()]),
+            produces: Some(vec!["Widget".into()]),
+        }
+    }
+
+    #[test]
+    fn scan_component_ids_disambiguate_legacy_collisions_without_using_lines() {
+        let mut original = vec![component(10), component(20)];
+        let mut shifted = vec![component(11), component(21)];
+        assign_scan_component_ids(&mut original);
+        assign_scan_component_ids(&mut shifted);
+        assert_ne!(original[0].id, original[1].id);
+        assert_eq!(original[0].id, shifted[0].id);
+        assert_eq!(original[1].id, shifted[1].id);
+    }
+
+    #[test]
+    fn component_attributes_preserve_detector_metadata() {
+        let attributes = component_attributes(&component(10));
+        for key in [
+            "detection",
+            "transport_protocol",
+            "http_method",
+            "http_path",
+            "model_fields",
+            "prompt_subtype",
+            "consumes",
+            "produces",
+        ] {
+            assert!(attributes.contains_key(key), "missing {key}");
+        }
+        assert_eq!(attributes["transport_protocol"], "http");
+    }
 }

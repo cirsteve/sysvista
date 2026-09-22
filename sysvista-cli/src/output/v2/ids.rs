@@ -38,12 +38,16 @@ string_id!(ScopeId);
 
 pub fn stable_id(namespace: &str, parts: &[&str]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(namespace.as_bytes());
+    update_framed(&mut hasher, namespace.as_bytes());
     for part in parts {
-        hasher.update([0]);
-        hasher.update(part.as_bytes());
+        update_framed(&mut hasher, part.as_bytes());
     }
     format!("{namespace}:{}", &format!("{:x}", hasher.finalize())[..24])
+}
+
+fn update_framed(hasher: &mut Sha256, bytes: &[u8]) {
+    hasher.update((bytes.len() as u64).to_be_bytes());
+    hasher.update(bytes);
 }
 
 pub fn file_id(repository: &str, normalized_path: &str) -> FileId {
@@ -96,5 +100,10 @@ mod tests {
             entity_id(&file, "Thing", "model", 0),
             entity_id(&file, "Thing", "model", 1)
         );
+    }
+
+    #[test]
+    fn id_parts_use_unambiguous_length_framing() {
+        assert_ne!(stable_id("test", &["a\0b"]), stable_id("test", &["a", "b"]));
     }
 }

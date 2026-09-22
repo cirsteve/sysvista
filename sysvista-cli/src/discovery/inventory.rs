@@ -1,10 +1,10 @@
 use std::{
     fs, io,
-    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
 };
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +36,7 @@ impl Inventory {
     pub fn discover(root: &Path, config: &Config) -> io::Result<Self> {
         let includes = compile(&config.discovery.include)?;
         let excludes = compile(&config.discovery.exclude)?;
+        let mut ignore_rules = IgnoreRules::new(root)?;
         let mut entries = Vec::new();
         walk(
             root,
@@ -43,6 +44,7 @@ impl Inventory {
             config,
             includes.as_ref(),
             excludes.as_ref(),
+            &mut ignore_rules,
             &mut entries,
         )?;
         entries.sort_by(|a, b| a.path.cmp(&b.path));
@@ -52,6 +54,71 @@ impl Inventory {
     pub fn absolute_path(root: &Path, entry: &InventoryEntry) -> PathBuf {
         root.join(&entry.path)
     }
+}
+
+struct IgnoreRules {
+    global: Gitignore,
+    stack: Vec<Gitignore>,
+}
+
+impl IgnoreRules {
+    fn new(root: &Path) -> io::Result<Self> {
+        let (global, error) = GitignoreBuilder::new(root).build_global();
+        if let Some(error) = error {
+            return Err(io::Error::other(error));
+        }
+        Ok(Self {
+            global,
+            stack: vec![build_directory_ignore(root, true)?],
+        })
+    }
+
+    fn is_ignored(&self, path: &Path, is_dir: bool) -> bool {
+        for matcher in self.stack.iter().rev() {
+            let matched = matcher.matched(path, is_dir);
+            if !matched.is_none() {
+                return matched.is_ignore();
+            }
+        }
+        self.global.matched(path, is_dir).is_ignore()
+    }
+}
+
+fn build_directory_ignore(directory: &Path, repository_root: bool) -> io::Result<Gitignore> {
+    let mut builder = GitignoreBuilder::new(directory);
+    for name in [".gitignore", ".ignore"] {
+        let path = directory.join(name);
+        if path.is_file() {
+            if let Some(error) = builder.add(&path) {
+                return Err(io::Error::other(error));
+            }
+        }
+    }
+    if repository_root {
+        if let Some(exclude) = git_exclude_path(directory) {
+            if exclude.is_file() {
+                if let Some(error) = builder.add(&exclude) {
+                    return Err(io::Error::other(error));
+                }
+            }
+        }
+    }
+    builder.build().map_err(io::Error::other)
+}
+
+fn git_exclude_path(root: &Path) -> Option<PathBuf> {
+    let dot_git = root.join(".git");
+    if dot_git.is_dir() {
+        return Some(dot_git.join("info/exclude"));
+    }
+    let pointer = fs::read_to_string(dot_git).ok()?;
+    let git_dir = pointer.trim().strip_prefix("gitdir:")?.trim();
+    let git_dir = Path::new(git_dir);
+    Some(if git_dir.is_absolute() {
+        git_dir.join("info/exclude")
+    } else {
+        root.join(git_dir).join("info/exclude")
+    })
 }
 
 fn compile(patterns: &[String]) -> io::Result<Option<GlobSet>> {
@@ -75,10 +142,32 @@ fn walk(
     config: &Config,
     includes: Option<&GlobSet>,
     excludes: Option<&GlobSet>,
+    ignore_rules: &mut IgnoreRules,
     entries: &mut Vec<InventoryEntry>,
 ) -> io::Result<()> {
     let mut children = match fs::read_dir(directory) {
-        Ok(children) => children.filter_map(Result::ok).collect::<Vec<_>>(),
+        Ok(children) => {
+            let mut collected = Vec::new();
+            for child in children {
+                match child {
+                    Ok(child) => collected.push(child),
+                    Err(error) => {
+                        let path = relative(root, directory);
+                        entries.push(InventoryEntry {
+                            path: if path.is_empty() {
+                                ".".into()
+                            } else {
+                                path.clone()
+                            },
+                            outcome: InventoryOutcome::Failed {
+                                diagnostic_id: diagnostic_id("failed", &path, &error.to_string()),
+                            },
+                        });
+                    }
+                }
+            }
+            collected
+        }
         Err(error) if directory == root => return Err(error),
         Err(error) => {
             let path = relative(root, directory);
@@ -118,11 +207,29 @@ fn walk(
             });
             continue;
         }
+        if child.file_name().to_string_lossy().starts_with('.') {
+            entries.push(InventoryEntry {
+                path: relative_path,
+                outcome: InventoryOutcome::Excluded {
+                    rule: "hidden".into(),
+                },
+            });
+            continue;
+        }
         if default_excluded(&relative_path) {
             entries.push(InventoryEntry {
                 path: relative_path,
                 outcome: InventoryOutcome::Excluded {
                     rule: "default".into(),
+                },
+            });
+            continue;
+        }
+        if ignore_rules.is_ignored(&path, file_type.is_dir()) {
+            entries.push(InventoryEntry {
+                path: relative_path,
+                outcome: InventoryOutcome::Excluded {
+                    rule: "gitignore".into(),
                 },
             });
             continue;
@@ -144,7 +251,19 @@ fn walk(
             continue;
         }
         if file_type.is_dir() {
-            walk(root, &path, config, includes, excludes, entries)?;
+            ignore_rules
+                .stack
+                .push(build_directory_ignore(&path, false)?);
+            walk(
+                root,
+                &path,
+                config,
+                includes,
+                excludes,
+                ignore_rules,
+                entries,
+            )?;
+            ignore_rules.stack.pop();
             continue;
         }
         if !file_type.is_file() {
@@ -165,7 +284,7 @@ fn walk(
         }
         if child
             .metadata()
-            .is_ok_and(|metadata| metadata.permissions().mode() & 0o444 == 0)
+            .is_ok_and(|metadata| lacks_read_bits(&metadata))
         {
             entries.push(InventoryEntry {
                 path: relative_path,
@@ -186,6 +305,17 @@ fn walk(
         });
     }
     Ok(())
+}
+
+#[cfg(unix)]
+fn lacks_read_bits(metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    metadata.permissions().mode() & 0o444 == 0
+}
+
+#[cfg(not(unix))]
+fn lacks_read_bits(_metadata: &fs::Metadata) -> bool {
+    false
 }
 
 fn relative(root: &Path, path: &Path) -> String {
