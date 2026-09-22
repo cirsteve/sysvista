@@ -1,0 +1,4 @@
+{
+  "name": "@fixture/core",
+  "types": "src/index.ts"
+}

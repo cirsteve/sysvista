@@ -1,0 +1,43 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "a.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "b.ts",
+          "qualified_name": "bValue",
+          "declaration_kind": "variable"
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "b.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "a.ts",
+          "qualified_name": "aValue",
+          "declaration_kind": "variable"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}
