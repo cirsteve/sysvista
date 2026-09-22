@@ -342,11 +342,13 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         diagnostics,
         projections: Vec::new(),
         findings: Vec::new(),
+        forbidden_dependencies: Vec::new(),
     };
     crate::hierarchy::derive(&mut snapshot, &inventory, config);
     let validation = crate::validate::validate(&snapshot);
     snapshot.manifest.validation = crate::validate::summary(&validation);
     snapshot.diagnostics.extend(validation);
+    snapshot.findings = crate::findings::derive(&snapshot);
     Ok(snapshot)
 }
 

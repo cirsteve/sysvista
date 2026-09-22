@@ -8,6 +8,7 @@ use crate::{
 };
 
 pub fn derive(snapshot: &mut Snapshot, inventory: &Inventory, config: &Config) {
+    snapshot.forbidden_dependencies = config.forbidden_dependencies.iter().map(|rule| crate::output::v2::ForbiddenDependencyRule { from: rule.from.clone(), to: rule.to.clone() }).collect();
     snapshot.projections = physical::derive(
         &snapshot.manifest.repository,
         inventory,

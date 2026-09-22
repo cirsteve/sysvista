@@ -16,6 +16,7 @@ struct Graph<'a> {
     payload_contracts: &'a [super::PayloadContract],
     projections: &'a [super::Projection],
     findings: &'a [super::Finding],
+    forbidden_dependencies: &'a [super::ForbiddenDependencyRule],
 }
 
 pub fn write_bundle(snapshot: &Snapshot, output: &Path) -> io::Result<()> {
@@ -36,6 +37,7 @@ pub fn write_bundle(snapshot: &Snapshot, output: &Path) -> io::Result<()> {
             payload_contracts: &snapshot.payload_contracts,
             projections: &snapshot.projections,
             findings: &snapshot.findings,
+            forbidden_dependencies: &snapshot.forbidden_dependencies,
         },
     )?;
     write_json(&output.join("diagnostics.json"), &snapshot.diagnostics)?;

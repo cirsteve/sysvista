@@ -1,0 +1,14 @@
+[repository]
+name = "fixture/findings"
+
+[[modules]]
+name = "ui"
+selectors = ["a.ts", "b.ts"]
+
+[[modules]]
+name = "db"
+selectors = ["c.ts"]
+
+[[forbidden_dependencies]]
+from = "ui"
+to = "db"
