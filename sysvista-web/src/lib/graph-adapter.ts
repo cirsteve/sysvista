@@ -1,6 +1,6 @@
 import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
-import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind, StepType, Workflow } from "../types/schema";
+import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind } from "../types/schema";
 import { KIND_NODE_SIZE } from "./design-tokens";
 import type { Manifest, Snapshot } from "../types/v2";
 import type { ProjectedScope } from "./projection/types";
@@ -22,37 +22,10 @@ const detectHubs = (components: DetectedComponent[], edges: DetectedEdge[]): Map
 
 const COMPONENT_KINDS = new Set<ComponentKind>(["model", "service", "transport", "transform", "prompt"]);
 
-const toStepType = (kind: string | undefined): StepType => {
-  switch (kind) {
-    case "persists": return "persist";
-    case "dispatches": return "dispatch";
-    case "invokes_prompt": return "prompt";
-    default: return "call";
-  }
-};
-
-const claimsToWorkflows = (snapshot: Snapshot): Workflow[] => (snapshot.claims ?? [])
-  .filter(({ predicate }) => predicate === "HeuristicTraversal")
-  .map((claim) => ({
-    id: claim.id,
-    name: claim.object.name,
-    entry_point_id: claim.subject,
-    steps: claim.object.entity_ids.map((componentId, order) => {
-      const incoming = (snapshot.relationships ?? []).find(({ target }) => target === componentId);
-      return {
-        component_id: componentId,
-        step_type: componentId === claim.subject
-          ? "entry"
-          : toStepType(incoming ? String(incoming.kind) : undefined),
-        order,
-      };
-    }),
-  }));
-
 export function projectedScopeToGraphInput(snapshot: Snapshot, projection: ProjectedScope): SysVistaOutput {
   const manifest = snapshot.manifest as Manifest;
   const visible = new Set(projection.children.map(({ id }) => id));
-  const components = (snapshot.entities ?? []).filter(({ id, declaration_kind }) =>
+  const childComponents = (snapshot.entities ?? []).filter(({ id, declaration_kind }) =>
     visible.has(id) && COMPONENT_KINDS.has(declaration_kind as ComponentKind)).map((entity) => {
       const legacy = entity.attributes as Partial<DetectedComponent> | undefined;
       const file = snapshot.source_files?.find(({ id }) => id === entity.file_id);
@@ -64,12 +37,28 @@ export function projectedScopeToGraphInput(snapshot: Snapshot, projection: Proje
         metadata: legacy?.metadata ?? {},
       };
     });
+  const boundaryByTarget = new Map(
+    projection.boundaryNodes.map((boundary) => [boundary.externalTargetId, boundary.id]),
+  );
+  const boundaryComponents: DetectedComponent[] = projection.boundaryNodes.map((boundary) => ({
+    id: boundary.id,
+    name: boundary.name,
+    kind: "service",
+    language: "external",
+    source: { file: String(boundary.externalTargetId) },
+    metadata: { projection_boundary: "true", external_target_id: boundary.externalTargetId },
+  }));
+  const components = [...childComponents, ...boundaryComponents];
   return {
     version: String(manifest.schema_version), scanned_at: String(manifest.scanned_at),
     root_dir: String(manifest.root), project_name: String(manifest.repository),
     detected_languages: [...new Set(components.map(({ language }) => language))], components,
-    edges: projection.relationships.map((relationship) => ({ from_id: relationship.source, to_id: relationship.target, label: String(relationship.kind) })),
-    workflows: claimsToWorkflows(snapshot),
+    edges: projection.relationships.map((relationship) => ({
+      from_id: boundaryByTarget.get(relationship.source) ?? relationship.source,
+      to_id: boundaryByTarget.get(relationship.target) ?? relationship.target,
+      label: String(relationship.kind),
+    })),
+    workflows: [],
     scan_stats: { files_scanned: snapshot.source_files?.length ?? 0, files_skipped: 0, scan_duration_ms: 0 },
   };
 }
@@ -123,7 +112,7 @@ const toComponentNode = (
   const hub = hubMap.get(comp.id) ?? { tier: "normal" as const, degree: 0 };
   return {
     id: comp.id,
-    type: comp.kind,
+    type: comp.metadata.projection_boundary === "true" ? "boundary" : comp.kind,
     position,
     data: {
       component: comp,
@@ -190,7 +179,9 @@ export function buildGraph(
   data: SysVistaOutput,
   activeKinds: Set<ComponentKind>,
 ): { nodes: Node[]; edges: Edge[] } {
-  const filteredComponents = data.components.filter((c) => activeKinds.has(c.kind));
+  const filteredComponents = data.components.filter(
+    (component) => component.metadata.projection_boundary === "true" || activeKinds.has(component.kind),
+  );
   const visibleIds = new Set(filteredComponents.map((c) => c.id));
   const filteredEdges = data.edges.filter((e) => visibleIds.has(e.from_id) && visibleIds.has(e.to_id));
   const uniqueEdges = deduplicateEdges(filteredEdges);

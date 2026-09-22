@@ -40,7 +40,43 @@ const parse = (text: string): Result<LoadedSnapshot, LoadError> => {
 };
 
 export async function loadFromFile(file: File): Promise<Result<LoadedSnapshot, LoadError>> {
-  return parse(await file.text());
+  try {
+    return parse(await file.text());
+  } catch (cause) {
+    return failure({ kind: "parse", message: cause instanceof Error ? cause.message : "Failed to read file" });
+  }
+}
+
+const bundlePart = (files: File[], suffix: string) =>
+  files.find((file) => file.name === suffix || file.webkitRelativePath.endsWith(`/${suffix}`));
+
+export async function loadFromFiles(files: Iterable<File>): Promise<Result<LoadedSnapshot, LoadError>> {
+  const items = [...files];
+  if (items.length === 1) return loadFromFile(items[0]);
+  const manifest = bundlePart(items, "manifest.json");
+  const graph = bundlePart(items, "graph.json");
+  const diagnostics = bundlePart(items, "diagnostics.json");
+  const scopes = bundlePart(items, "scopes.json");
+  const missing = [
+    ["manifest.json", manifest], ["graph.json", graph],
+    ["diagnostics.json", diagnostics], ["index/scopes.json", scopes],
+  ].filter(([, file]) => !file).map(([name]) => name);
+  if (missing.length > 0) {
+    return failure({ kind: "format", message: `Incomplete SysVista v2 bundle: missing ${missing.join(", ")}` });
+  }
+  if (!manifest || !graph || !diagnostics || !scopes) {
+    return failure({ kind: "format", message: "Incomplete SysVista v2 bundle" });
+  }
+  try {
+    const [manifestValue, graphValue, diagnosticsValue, scopeIndex] = await Promise.all(
+      [manifest, graph, diagnostics, scopes].map(async (file) => JSON.parse(await file.text())),
+    );
+    const result = validate({ manifest: manifestValue, graph: graphValue, diagnostics: diagnosticsValue });
+    if (result.ok) result.value.snapshot.scope_index = scopeIndex;
+    return result;
+  } catch (cause) {
+    return failure({ kind: "parse", message: cause instanceof Error ? cause.message : "Failed to read v2 bundle" });
+  }
 }
 
 export async function loadFromUrl(url: string): Promise<Result<LoadedSnapshot, LoadError>> {
@@ -67,7 +103,7 @@ export function setupDropZone(element: HTMLElement, onLoad: (data: LoadedSnapsho
     const file = event.dataTransfer?.files[0];
     if (!file) return;
     if (!file.name.endsWith(".json")) { onError("Please drop a .json file"); return; }
-    const result = await loadFromFile(file);
+    const result = await loadFromFiles(event.dataTransfer?.files ?? [file]);
     if (result.ok) onLoad(result.value); else onError(formatLoadError(result.error));
   };
   element.addEventListener("dragenter", enter); element.addEventListener("dragover", over);

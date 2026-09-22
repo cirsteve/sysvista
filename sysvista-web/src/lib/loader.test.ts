@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import sample from "../test/fixtures/v1/sample-output.json";
-import { validate } from "./loader";
+import { loadFromFile, loadFromFiles, validate } from "./loader";
 
 const manifest = { schema_version: "2", repository: "example/repo", scanned_at: "2026-09-21T00:00:00Z", root: "/repo", tool_version: "0.1.0", inventory: { included: 1, excluded: 0, unsupported: 0, unreadable: 0, failed: 0 } };
+const jsonFile = (name: string, value: unknown, relativePath = name) => ({
+  name,
+  webkitRelativePath: relativePath,
+  text: async () => JSON.stringify(value),
+}) as File;
 
 describe("loader validate", () => {
   it("adapts v1 and supplies one legacy diagnostic with unknown coverage", () => {
@@ -26,6 +31,23 @@ describe("loader validate", () => {
   it("accepts a v2 bundle", () => {
     const result = validate({ manifest, graph: { entities: [], relationships: [] }, diagnostics: [] });
     expect(result.ok && result.value.origin).toBe("v2");
+  });
+  it("loads the four files emitted by the v2 CLI", async () => {
+    const result = await loadFromFiles([
+      jsonFile("manifest.json", manifest),
+      jsonFile("graph.json", { entities: [], relationships: [] }),
+      jsonFile("diagnostics.json", []),
+      jsonFile("scopes.json", { scopes: [] }, "bundle/index/scopes.json"),
+    ]);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.origin).toBe("v2");
+      expect(result.value.snapshot.scope_index).toEqual({ scopes: [] });
+    }
+  });
+  it("returns a load error when reading a file rejects", async () => {
+    const file = { name: "broken.json", text: async () => { throw new Error("read failed"); } } as unknown as File;
+    await expect(loadFromFile(file)).resolves.toEqual({ ok: false, error: { kind: "parse", message: "read failed" } });
   });
   it("reports the relationship ID for a dangling v2 target", () => {
     const result = validate({ manifest, source_files: [{ id: "f", path: "a.ts", analysis: { kind: "none" } }], entities: [{ id: "a", name: "a", qualified_name: "a", declaration_kind: "service", file_id: "f", scope_id: "s", span: { file_id: "f", start_line: 1, start_column: 1, end_line: 1, end_column: 1 } }], relationships: [{ id: "rel-dangling", kind: "calls", source: "a", target: "missing", origin: "test" }] });

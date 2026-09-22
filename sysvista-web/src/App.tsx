@@ -25,14 +25,14 @@ function AppInner() {
     connectedComponents,
     highlightedNodeIds,
     highlightedFlowNodeIds,
-    workflows,
-    selectedWorkflow,
+    traversalClaims,
+    selectedTraversal,
     viewMode,
     loadSchema,
     toggleKind,
     setSelectedNode,
     doSearch,
-    selectWorkflow,
+    selectTraversal,
     toggleFlowView,
     setViewMode,
   } = useGraphData();
@@ -133,7 +133,7 @@ function AppInner() {
         }
         viewMode={viewMode}
         flowEdgeCount={flowEdges.length}
-        workflowCount={workflows.length}
+        workflowCount={traversalClaims.length}
         onLoad={handleLoad}
         onError={setError}
         onFitView={handleFitView}
@@ -188,10 +188,10 @@ function AppInner() {
         {/* Workflow panel */}
         {showWorkflowPanel && schema && (
           <WorkflowPanel
-            workflows={workflows}
-            selectedWorkflow={selectedWorkflow}
+            claims={traversalClaims}
+            selectedClaim={selectedTraversal}
             components={schema.components}
-            onSelectWorkflow={selectWorkflow}
+            onSelectClaim={selectTraversal}
             onClose={() => setShowWorkflowPanel(false)}
             onNavigateToComponent={handleNavigate}
           />

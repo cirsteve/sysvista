@@ -3,13 +3,13 @@ import type { Node, Edge } from "@xyflow/react";
 import type {
   DetectedComponent,
   ComponentKind,
-  Workflow,
 } from "../types/schema";
 import { buildGraph, buildFlowGraph, FLOW_LABELS, projectedScopeToGraphInput } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
 import type { LoadedSnapshot } from "../lib/loader";
 import { indexSnapshot, rootScopeId } from "../lib/projection/children";
 import { projectScope } from "../lib/projection/project";
+import type { Claim } from "../types/v2";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
 
@@ -25,7 +25,7 @@ export function useGraphData() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DetectedComponent[]>([]);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+  const [selectedTraversal, setSelectedTraversal] = useState<Claim | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("graph");
 
   const schema = useMemo(() => {
@@ -35,7 +35,13 @@ export function useGraphData() {
     return projectedScopeToGraphInput(loaded.snapshot, projectScope(loaded.snapshot, index, root));
   }, [loaded]);
 
-  const workflows = useMemo(() => schema?.workflows ?? [], [schema]);
+  const traversalClaims = useMemo(() => (loaded?.snapshot.claims ?? []).filter((claim) => {
+    const object = claim.object as unknown as Record<string, unknown>;
+    return claim.predicate === "HeuristicTraversal" &&
+      typeof object.name === "string" &&
+      Array.isArray(object.entity_ids) &&
+      Array.isArray(object.relationship_ids);
+  }), [loaded]);
 
   const loadSchema = useCallback((data: LoadedSnapshot) => {
     setLoaded(data);
@@ -45,7 +51,7 @@ export function useGraphData() {
     setSelectedNode(null);
     setSearchQuery("");
     setSearchResults([]);
-    setSelectedWorkflow(null);
+    setSelectedTraversal(null);
     setViewMode("graph");
   }, []);
 
@@ -153,14 +159,14 @@ export function useGraphData() {
     return nodeIds.size > 1 ? nodeIds : null;
   }, [selectedNode, traceWorkflow]);
 
-  // In flow mode, when a workflow is selected, highlight its step component IDs
+  // Traversal claims intentionally carry unordered entity sets.
   const highlightedFlowNodeIds = useMemo((): Set<string> | null => {
-    if (viewMode !== "flow" || !selectedWorkflow) return null;
-    return new Set(selectedWorkflow.steps.map((s) => s.component_id));
-  }, [viewMode, selectedWorkflow]);
+    if (viewMode !== "flow" || !selectedTraversal) return null;
+    return new Set(selectedTraversal.object.entity_ids);
+  }, [viewMode, selectedTraversal]);
 
-  const selectWorkflow = useCallback((workflow: Workflow | null) => {
-    setSelectedWorkflow(workflow);
+  const selectTraversal = useCallback((claim: Claim | null) => {
+    setSelectedTraversal(claim);
   }, []);
 
   const toggleFlowView = useCallback(() => {
@@ -187,14 +193,14 @@ export function useGraphData() {
     connectedComponents,
     highlightedNodeIds,
     highlightedFlowNodeIds,
-    workflows,
-    selectedWorkflow,
+    traversalClaims,
+    selectedTraversal,
     viewMode,
     loadSchema,
     toggleKind,
     setSelectedNode,
     doSearch,
-    selectWorkflow,
+    selectTraversal,
     toggleFlowView,
     setViewMode,
   };

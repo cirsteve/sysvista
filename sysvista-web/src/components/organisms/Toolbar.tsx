@@ -1,8 +1,8 @@
-import { Upload, Maximize, GitBranch, Workflow } from "lucide-react";
-import { useRef } from "react";
+import { Upload, FolderOpen, Maximize, GitBranch, Workflow } from "lucide-react";
+import { useEffect, useRef } from "react";
 import type { LoadedSnapshot } from "../../lib/loader";
 import type { ViewMode } from "../../hooks/useGraphData";
-import { formatLoadError, loadFromFile } from "../../lib/loader";
+import { formatLoadError, loadFromFiles } from "../../lib/loader";
 import { IconButton } from "../atoms/IconButton";
 
 interface ToolbarProps {
@@ -20,12 +20,17 @@ interface ToolbarProps {
 
 export function Toolbar({ projectName, stats, viewMode, flowEdgeCount, workflowCount, onLoad, onError, onFitView, onToggleFlowView, onToggleWorkflows }: ToolbarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const bundleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    bundleInputRef.current?.setAttribute("webkitdirectory", "");
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     try {
-      const data = await loadFromFile(file);
+      const data = await loadFromFiles(files);
       if (data.ok) onLoad(data.value);
       else onError(formatLoadError(data.error));
     } catch (err) {
@@ -82,6 +87,11 @@ export function Toolbar({ projectName, stats, viewMode, flowEdgeCount, workflowC
           onClick={() => fileInputRef.current?.click()}
         />
         <IconButton
+          icon={FolderOpen}
+          label="Load v2 Bundle"
+          onClick={() => bundleInputRef.current?.click()}
+        />
+        <IconButton
           icon={Maximize}
           label="Fit"
           onClick={onFitView}
@@ -90,6 +100,14 @@ export function Toolbar({ projectName, stats, viewMode, flowEdgeCount, workflowC
           ref={fileInputRef}
           type="file"
           accept=".json"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <input
+          ref={bundleInputRef}
+          type="file"
+          accept=".json"
+          multiple
           onChange={handleFileChange}
           className="hidden"
         />

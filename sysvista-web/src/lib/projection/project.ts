@@ -11,12 +11,22 @@ export function projectScope(snapshot: Snapshot, index: ScopeIndex, scopeId: Sco
   const children = selectChildren(snapshot, index, scopeId);
   const ownerByEntity = mapDescendantsToOwners(snapshot.entities ?? [], children, slice?.owner_map);
   const scopedIds = new Set(slice?.crossing_relationship_ids ?? []);
-  const relationships = (snapshot.relationships ?? []).filter((relationship) =>
-    scopedIds.size === 0 || scopedIds.has(relationship.id) || ownerByEntity.has(relationship.source) || ownerByEntity.has(relationship.target));
+  const relationships = slice
+    ? (snapshot.relationships ?? []).filter((relationship) =>
+        scopedIds.has(relationship.id) ||
+        (ownerByEntity.has(relationship.source) && ownerByEntity.has(relationship.target)))
+    : [];
   const aggregated = aggregateCrossingRelationships(scopeId, relationships, ownerByEntity);
+  const internal = summarizeInternalRelationships(relationships, ownerByEntity);
+  const internalIds = relationships
+    .filter((relationship) => {
+      const sourceOwner = ownerByEntity.get(relationship.source);
+      return sourceOwner !== undefined && sourceOwner === ownerByEntity.get(relationship.target);
+    })
+    .map(({ id }) => id);
   const boundaries = boundaryNodes(scopeId, children, aggregated);
   const visibleIds = new Set([...ownerByEntity.keys(), ...children.map(({ id }) => id)]);
   return { scopeId, children, ownerByEntity, relationships: aggregated,
-    internalRelationships: summarizeInternalRelationships(relationships, ownerByEntity),
-    boundaryNodes: boundaries, hidden: hiddenCounts(snapshot, visibleIds, aggregated) };
+    internalRelationships: internal,
+    boundaryNodes: boundaries, hidden: hiddenCounts(snapshot, visibleIds, aggregated, internalIds) };
 }

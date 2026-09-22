@@ -2,10 +2,12 @@ import { describe, it, expect } from "vitest";
 import { buildGraph, buildFlowGraph, projectedScopeToGraphInput } from "./graph-adapter";
 import type { SysVistaOutput, ComponentKind } from "../types/schema";
 import sample from "../test/fixtures/v1/sample-output.json";
+import projectionFixture from "../test/fixtures/projection/root-with-three-scopes.json";
 import { validate } from "./loader";
 import { indexSnapshot } from "./projection/children";
 import { projectScope } from "./projection/project";
-import type { ScopeId } from "../types/v2";
+import type { ScopeId, Snapshot } from "../types/v2";
+import type { ScopeIndex } from "./projection/types";
 
 function makeScan(overrides: Partial<SysVistaOutput> = {}): SysVistaOutput {
   return {
@@ -109,6 +111,14 @@ describe("buildGraph edge styling", () => {
 });
 
 describe("buildGraph filtering", () => {
+  it("renders namespaced boundary nodes and their crossing edges", () => {
+    const snapshot = projectionFixture.snapshot as unknown as Snapshot;
+    const projected = projectScope(snapshot, projectionFixture.index as unknown as ScopeIndex, "root" as ScopeId);
+    const data = projectedScopeToGraphInput(snapshot, projected);
+    const graph = buildGraph(data, new Set<ComponentKind>(["model", "service", "transport", "transform", "prompt"]));
+    expect(graph.nodes.map(({ id }) => id)).toContain("proj:root:outside");
+    expect(graph.edges).toContainEqual(expect.objectContaining({ source: "a", target: "proj:root:outside" }));
+  });
   it("keeps the legacy component node set when rendering its root projection", () => {
     const loaded = validate(sample);
     expect(loaded.ok).toBe(true);
@@ -119,9 +129,6 @@ describe("buildGraph filtering", () => {
     const graph = buildGraph(data, new Set<ComponentKind>(["model", "service", "transport", "transform", "prompt"]));
     const expected = loaded.value.snapshot.entities?.filter(({ declaration_kind }) => declaration_kind !== "file").map(({ id }) => id).sort();
     expect(graph.nodes.map(({ id }) => id).sort()).toEqual(expected);
-    expect(data.workflows).toHaveLength(1);
-    expect(data.workflows[0]).toMatchObject({ name: "Save user", entry_point_id: "legacy-entity:route" });
-    expect(data.workflows[0].steps).toHaveLength(3);
   });
   it("filters by active kinds", () => {
     const data = makeScan({

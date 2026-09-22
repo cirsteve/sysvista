@@ -17,7 +17,17 @@ describe("projectScope", () => {
   it("namespaces boundary nodes and retains the external target", () => {
     expect(projected.boundaryNodes).toContainEqual({ id: "proj:root:outside", kind: "boundary", name: "outside", externalTargetId: "outside" });
   });
-  it("reports hidden counts", () => { expect(projected.hidden.entities).toBeGreaterThan(0); });
+  it("does not count summarized internal relationships as hidden", () => {
+    expect(projected.hidden.entities).toBeGreaterThan(0);
+    expect(projected.hidden.relationships).toBe(0);
+  });
+
+  it("does not expose unrelated relationships for a scope with no crossings", () => {
+    const index = { scopes: [{ scope_id: "empty", child_ids: [], owner_map: {}, crossing_relationship_ids: [] }] } as unknown as ScopeIndex;
+    const result = projectScope(fixture.snapshot as unknown as Snapshot, index, "empty" as ScopeId);
+    expect(result.relationships).toEqual([]);
+    expect(result.boundaryNodes).toEqual([]);
+  });
 
   it("warn-benchmarks a warm 250k relationship scope", () => {
     const snapshot = fixture.snapshot as unknown as Snapshot;

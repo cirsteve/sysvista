@@ -18,6 +18,7 @@ import { ServiceNode } from "../nodes/ServiceNode";
 import { TransportNode } from "../nodes/TransportNode";
 import { TransformNode } from "../nodes/TransformNode";
 import { PromptNode } from "../nodes/PromptNode";
+import { BoundaryNode } from "../nodes/BoundaryNode";
 
 const nodeTypes: NodeTypes = {
   model: ModelNode,
@@ -25,6 +26,7 @@ const nodeTypes: NodeTypes = {
   transport: TransportNode,
   transform: TransformNode,
   prompt: PromptNode,
+  boundary: BoundaryNode,
 };
 
 interface GraphCanvasProps {
