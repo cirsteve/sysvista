@@ -3,6 +3,8 @@ import type {
   FileId,
   ScopeId,
   Snapshot,
+  SourceFile,
+  SourceSpan,
 } from "../../types/v2";
 import type { ProjectedScope, ScopeIndex } from "../projection/types";
 
@@ -21,12 +23,48 @@ export interface PresentationRegistration {
   detailSchema: readonly DetailField[];
 }
 
-export interface DiagramNode {
+interface DiagramNodeBase<P extends Exclude<PresentationType, "aggregate-edge">, D> {
   id: string;
-  presentation: Exclude<PresentationType, "aggregate-edge">;
+  presentation: P;
   label: string;
   deferredChildKey?: string;
-  details: Record<string, unknown>;
+  details: D;
+}
+
+export interface ModuleDetails {
+  name: string;
+  fileIds: string[];
+  entityIds: string[];
+}
+
+export interface FileDetails {
+  path: string;
+  language: string;
+  analysis: SourceFile["analysis"];
+}
+
+export interface SymbolDetails {
+  name: string;
+  qualifiedName: string;
+  declarationKind: string;
+  fileId: FileId;
+  span: SourceSpan;
+}
+
+export interface BoundaryDetails { externalTargetId: EntityId }
+
+export type DiagramNode =
+  | DiagramNodeBase<"module", ModuleDetails>
+  | DiagramNodeBase<"file", FileDetails>
+  | DiagramNodeBase<"symbol", SymbolDetails>
+  | DiagramNodeBase<"boundary", BoundaryDetails>;
+
+export interface AggregateEdgeDetails {
+  kind: string;
+  origin: string;
+  origins?: string[];
+  count: number;
+  relationshipIds: string[];
 }
 
 export interface DiagramEdge {
@@ -35,7 +73,7 @@ export interface DiagramEdge {
   source: string;
   target: string;
   label: string;
-  details: Record<string, unknown>;
+  details: AggregateEdgeDetails;
 }
 
 export interface DiagramSpec {
@@ -50,6 +88,15 @@ export interface ScopeProjection {
   snapshot: Snapshot;
   index: ScopeIndex;
   projected: ProjectedScope;
+}
+
+/** Opaque outside lib/livid: only the adapter constructs this Livid render model. */
+export type RenderedDiagram = object;
+
+export interface ScopeRenderResult {
+  spec: DiagramSpec;
+  diagram: RenderedDiagram | null;
+  diagnostic?: import("../../types/v2").Diagnostic;
 }
 
 export type ScopeRendererEvent =
@@ -73,6 +120,7 @@ export type ScopeRendererListener = (event: ScopeRendererEvent) => void;
 export interface ScopeRenderer {
   registerPresentationTypes(): readonly PresentationRegistration[];
   toDiagramSpec(projection: ScopeProjection): DiagramSpec;
+  render(projection: ScopeProjection): Promise<ScopeRenderResult>;
   subscribe(listener: ScopeRendererListener): () => void;
   select(id: EntityId | FileId | string | null): void;
   descend(scopeId: ScopeId, deferredChildKey: string): void;
@@ -80,6 +128,6 @@ export interface ScopeRenderer {
   replace(snapshotId: string, scopeId: ScopeId, spec: DiagramSpec): void;
 }
 
-export const DEPENDENCY_SEMANTICS_PROFILE = "sysvista-dependency-v1";
+export const DEPENDENCY_SEMANTICS_PROFILE = "dependency";
 
 export const deferredChildKey = (scopeId: ScopeId): string => `scope:${scopeId}`;

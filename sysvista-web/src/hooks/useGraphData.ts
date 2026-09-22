@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LoadedSnapshot } from "../lib/loader";
 import type { Manifest, ScopeId } from "../types/v2";
 import type { Viewport } from "../lib/livid/types";
@@ -16,6 +16,7 @@ export function useGraphData() {
   const [loaded, setLoaded] = useState<LoadedSnapshot | null>(null);
   const [renderer, setRenderer] = useState<ScopeRenderer>(() => new FakeScopeRenderer());
   const [rendererNotice, setRendererNotice] = useState<string>();
+  const reportedDiagnostics = useRef(new Set<string>());
   const view = useViewStore((state) => state.view);
   const replaceView = useViewStore((state) => state.replaceView);
   const navigateScope = useViewStore((state) => state.navigateScope);
@@ -32,6 +33,14 @@ export function useGraphData() {
       }
     });
   }, [addDiagnostic]);
+
+  useEffect(() => {
+    const current = slice?.diagnostic;
+    if (current && !reportedDiagnostics.current.has(current.message)) {
+      reportedDiagnostics.current.add(current.message);
+      addDiagnostic(current);
+    }
+  }, [addDiagnostic, slice?.diagnostic]);
 
   const load = useCallback((data: LoadedSnapshot) => {
     setLoaded(data);
@@ -58,12 +67,12 @@ export function useGraphData() {
   }, [addDiagnostic, replaceView, view]);
 
   const descend = useCallback((key: string) => navigateScope(key.replace(/^scope:/, "") as ScopeId), [navigateScope]);
-  const select = useCallback((id: string | null) => updateView({ selection: id }), [updateView]);
+  const select = useCallback((id: string | null) => updateView({ selection: id }, false), [updateView]);
   const setViewport = useCallback((viewport: Viewport) => updateView({ viewport }, false), [updateView]);
   const setQuery = useCallback((query: string) => updateView({ filters: { ...view.filters, query } }, false), [updateView, view.filters]);
   const results = useMemo(() => loaded ? searchSnapshot(loaded.snapshot, view.filters.query) : [], [loaded, view.filters.query]);
   const selectedItem = useMemo(() => slice?.spec.nodes.find(({ id }) => id === view.selection) ?? slice?.spec.edges.find(({ id }) => id === view.selection) ?? null, [slice, view.selection]);
   const counts = useMemo(() => slice ? selectCounts(slice.spec, view) : { visible: 0, total: 0 }, [slice, view]);
 
-  return { loaded, rendererNotice, view, slice, results, selectedItem, counts, load, descend, select, setViewport, setQuery, navigateScope };
+  return { loaded, rendererNotice: slice?.diagnostic?.message ?? rendererNotice, view, slice, results, selectedItem, counts, load, descend, select, setViewport, setQuery, navigateScope };
 }

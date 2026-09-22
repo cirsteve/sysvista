@@ -9,6 +9,6 @@ describe("review selectors", () => {
   });
 
   it("counts aggregate-edge evidence by origin", () => {
-    expect(selectEvidenceComposition({ id: "e", presentation: "aggregate-edge", source: "a", target: "b", label: "calls", details: { origins: ["analyzer", "analyzer", "heuristic"] } })).toEqual({ analyzer: 2, heuristic: 1 });
+    expect(selectEvidenceComposition({ id: "e", presentation: "aggregate-edge", source: "a", target: "b", label: "calls", details: { kind: "calls", origin: "analyzer", origins: ["analyzer", "analyzer", "heuristic"], count: 3, relationshipIds: [] } })).toEqual({ analyzer: 2, heuristic: 1 });
   });
 });

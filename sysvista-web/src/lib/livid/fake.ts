@@ -29,6 +29,9 @@ export class FakeScopeRenderer implements ScopeRenderer {
 
   registerPresentationTypes() { return PRESENTATION_TYPES; }
   toDiagramSpec(projection: ScopeProjection) { return toDiagramSpec(projection); }
+  async render(projection: ScopeProjection) {
+    return { spec: this.toDiagramSpec(projection), diagram: null };
+  }
   subscribe(listener: ScopeRendererListener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

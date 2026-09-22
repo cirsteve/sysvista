@@ -57,12 +57,3 @@ export const STEP_TYPE_COLORS: Record<StepType, { text: string; bg: string; labe
   response: { text: "text-cyan-400",   bg: "bg-cyan-500/20",   label: "Response" },
   prompt:   { text: "text-pink-400",   bg: "bg-pink-500/20",   label: "Prompt" },
 };
-
-/** Node sizing config for graph layout (used by graph-adapter) */
-export const KIND_NODE_SIZE: Record<ComponentKind, { width: number; height: number }> = {
-  model:     { width: 180, height: 60 },
-  service:   { width: 180, height: 60 },
-  transport: { width: 200, height: 60 },
-  transform: { width: 180, height: 60 },
-  prompt:    { width: 200, height: 60 },
-};

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createFixtureRenderer, fixtureProjection } from "./fake";
+import { LividScopeRenderer } from "./adapter";
 import { toDiagramSpec } from "./spec";
+import type { DiagramSpec } from "./types";
+import type { Relationship, ScopeId, Snapshot } from "../../types/v2";
+import { indexSnapshot } from "../projection/children";
+import { projectScope } from "../projection/project";
 
 const GOLDEN = {
   nodes: [
@@ -36,5 +41,41 @@ describe("toDiagramSpec", () => {
     renderer.focus("a", { x: 1, y: 2, zoom: 1.5 });
     renderer.replace("snapshot", spec.scopeId, spec);
     expect(events).toEqual(["select", "descend", "focus", "replace"]);
+  });
+
+  it("round-trips the fixture through real Livid validation and layout", async () => {
+    const result = await new LividScopeRenderer().render(fixtureProjection());
+    expect(result.diagnostic).toBeUndefined();
+    expect(result.diagram).not.toBeNull();
+    expect(JSON.stringify(result.diagram)).toContain("scope:a-scope");
+  });
+
+  it("accepts fan-out and a cycle under dependency semantics", async () => {
+    const snapshot = structuredClone(fixtureProjection().snapshot) as Snapshot;
+    snapshot.relationships?.push({
+      id: "r-cycle", kind: "calls", origin: "analyzer", source: "a2", target: "a1",
+    } as unknown as Relationship);
+    const index = indexSnapshot(snapshot);
+    const scopeId = "a-scope" as ScopeId;
+    const result = await new LividScopeRenderer().render({
+      snapshot,
+      index,
+      projected: projectScope(snapshot, index, scopeId),
+    });
+    expect(result.diagnostic).toBeUndefined();
+    expect(result.diagram).not.toBeNull();
+  });
+
+  it("returns a Diagnostic when Livid rejects a scope", async () => {
+    class InvalidRenderer extends LividScopeRenderer {
+      override toDiagramSpec(projection: Parameters<LividScopeRenderer["toDiagramSpec"]>[0]): DiagramSpec {
+        const spec = super.toDiagramSpec(projection);
+        return { ...spec, edges: spec.edges.map((edge, index) => index === 0 ? { ...edge, target: "missing" } : edge) };
+      }
+    }
+    const result = await new InvalidRenderer().render(fixtureProjection());
+    expect(result.diagram).toBeNull();
+    expect(result.diagnostic).toMatchObject({ kind: "warning" });
+    expect(result.diagnostic?.message).toContain("validation failed");
   });
 });

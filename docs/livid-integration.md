@@ -6,12 +6,14 @@ SysVista owns the `ScopeRenderer` interface in `sysvista-web/src/lib/livid/types
 
 | Item | Recorded value |
 | --- | --- |
-| `@rankonelabs/livid-core` | `file:../../livid/packages/core` (workspace package version unavailable) |
-| `@rankonelabs/livid-react` | `file:../../livid/packages/react` (workspace package version unavailable) |
-| Livid workspace commit | unavailable — the sibling `../../livid` workspace was absent in this checkout |
-| Dependency semantics profile | `sysvista-dependency-v1` |
+| npm dependency `@rankonelabs/livid-core` | `0.3.0` (exact pin) |
+| npm dependency `@rankonelabs/livid-react` | `0.2.0` (exact pin) |
+| Reviewed source workspace | `/home/steve/codes/rol/livid` |
+| Reviewed source commit | `96a16e8772cdd921267453011eae63f6dc941bb4` |
+| Package versions recorded at that source pairing | `@rankonelabs/livid-core` `0.2.2`; `@rankonelabs/livid-react` `0.1.1` |
+| Dependency semantics profile | `dependency` |
 | Deferred-child key | `scope:<ScopeId>` |
 
-The real-package validation/interaction round trip is therefore **BLOCKED on the Livid companion workspace**. This does not block the fake renderer, projection golden, review UI, or downstream lens work. Once the workspace is supplied, replace the two unavailable values above with its package versions and commit after the root fixture passes Livid validation (including static-call fan-out and a cycle) and deferred descent invokes `onDescend`.
+CI installs the published exact pins with `npm ci`; it does not require a sibling checkout. The source pairing above records the workspace and commit supplied during integration review, while the npm rows record the subsequently published API-compatible packages used by this build. The root-with-three-scopes fixture is validated, normalized, and laid out through the real packages in `spec.test.ts`; validation failures become visible SysVista `Diagnostic` values and retain the fixture-compatible surface.
 
 The peer versions used by SysVista are React `^19.2.0` and `@xyflow/react` `^12.10.0`.

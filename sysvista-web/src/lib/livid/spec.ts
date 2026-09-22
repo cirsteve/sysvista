@@ -33,7 +33,7 @@ export function toDiagramSpec({ snapshot, projected }: ScopeProjection): Diagram
       target: boundaryTarget.get(String(edge.target)) ?? edge.target,
       label: String(edge.kind),
       details: {
-        kind: edge.kind,
+        kind: String(edge.kind),
         origin: edge.origin,
         count: edge.relationshipIds.length,
         relationshipIds: edge.relationshipIds,
