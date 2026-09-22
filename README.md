@@ -126,7 +126,7 @@ The CLI produces and the viewer consumes a `SysVistaOutput` JSON document:
     {
       "id": "a1b2c3d4e5f60001",
       "name": "UserService",
-      "kind": "service",            // "model" | "service" | "transport" | "transform"
+      "kind": "service",            // "model" | "service" | "transport" | "transform" | "prompt"
       "language": "typescript",
       "source": { "file": "src/services/user.service.ts", "line_start": 8 },
       "metadata": {},

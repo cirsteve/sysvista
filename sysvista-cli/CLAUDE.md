@@ -52,7 +52,7 @@ src/
 ## Key Types (output/schema.rs)
 
 ```
-ComponentKind: Model | Service | Transport | Transform
+ComponentKind: Model | Service | Transport | Transform | Prompt
 DetectedComponent: { id, name, kind, language, source, metadata, consumes, produces, ... }
 DetectedEdge: { from_id, to_id, label, payload_type }
 Workflow: { id, name, entry_point_id, steps: [{ component_id, step_type, order }] }

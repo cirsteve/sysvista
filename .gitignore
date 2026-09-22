@@ -11,6 +11,7 @@ sysvista-web/dist/
 !sysvista-web/package.json
 !sysvista-web/package-lock.json
 !sysvista-web/tsconfig*.json
+!schema/sysvista-v2.schema.json
 
 # IDE
 .idea/
@@ -18,4 +19,3 @@ sysvista-web/dist/
 *.swp
 *.swo
 comms/
-
