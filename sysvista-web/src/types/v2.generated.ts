@@ -7,12 +7,14 @@
 
 export type Diagnostic =
   | {
+      id: string;
       kind: "unreadable_file";
       message: string;
       path: string;
       [k: string]: unknown;
     }
   | {
+      id: string;
       kind: "failed_file";
       message: string;
       path: string;
@@ -60,6 +62,30 @@ export type Finding =
   | {
       kind: "project";
       message: string;
+      [k: string]: unknown;
+    };
+export type InventoryOutcome =
+  | {
+      kind: "included";
+      [k: string]: unknown;
+    }
+  | {
+      kind: "excluded";
+      rule: string;
+      [k: string]: unknown;
+    }
+  | {
+      kind: "unsupported";
+      [k: string]: unknown;
+    }
+  | {
+      io_error: string;
+      kind: "unreadable";
+      [k: string]: unknown;
+    }
+  | {
+      diagnostic_id: string;
+      kind: "failed";
       [k: string]: unknown;
     };
 export type Relationship =
@@ -237,6 +263,7 @@ export interface Manifest {
     [k: string]: string;
   };
   inventory: InventoryCounts;
+  inventory_entries?: InventoryEntry[];
   repository: string;
   root: string;
   scanned_at: string;
@@ -250,6 +277,11 @@ export interface InventoryCounts {
   included: number;
   unreadable: number;
   unsupported: number;
+  [k: string]: unknown;
+}
+export interface InventoryEntry {
+  outcome: InventoryOutcome;
+  path: string;
   [k: string]: unknown;
 }
 export interface LogicalModule {

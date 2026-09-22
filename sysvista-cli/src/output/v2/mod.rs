@@ -1,8 +1,10 @@
 mod diagnostics;
 mod entities;
 mod ids;
+mod index;
 mod projection;
 mod relationships;
+mod writer;
 
 use std::{
     collections::BTreeMap,
@@ -16,11 +18,14 @@ use serde::{Deserialize, Serialize};
 pub use diagnostics::{Diagnostic, Finding};
 #[allow(unused_imports)]
 pub use entities::{AnalysisStatus, CodeEntity, LogicalModule, SourceFile, SourceSpan};
-pub use ids::{EntityId, FileId, ModuleId, RelationshipId, ScopeId};
-pub use projection::Projection;
-pub use relationships::{
-    Claim, Evidence, PayloadContract, Relationship, UnresolvedReference,
+pub use ids::{
+    EntityId, FileId, ModuleId, RelationshipId, ScopeId, entity_id, file_id, relationship_id,
+    scope_id, stable_id,
 };
+pub use index::ScopeIndex;
+pub use projection::Projection;
+pub use relationships::{Claim, Evidence, PayloadContract, Relationship, UnresolvedReference};
+pub use writer::write_bundle;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct InventoryCounts {
@@ -41,6 +46,8 @@ pub struct Manifest {
     #[serde(default)]
     pub analyzer_versions: BTreeMap<String, String>,
     pub inventory: InventoryCounts,
+    #[serde(default)]
+    pub inventory_entries: Vec<crate::discovery::InventoryEntry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

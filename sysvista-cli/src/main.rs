@@ -1,8 +1,13 @@
-mod output;
-mod scanner;
-
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+use sysvista_cli::{discovery, output, scanner};
+
+#[derive(Clone, Copy, Debug, Default, ValueEnum)]
+enum OutputFormat {
+    V1,
+    #[default]
+    V2,
+}
 
 #[derive(Parser)]
 #[command(name = "sysvista", version, about = "System architecture visualizer")]
@@ -18,9 +23,13 @@ enum Commands {
         /// Path to the project root
         path: PathBuf,
 
-        /// Output JSON file path
-        #[arg(short, long, default_value = "sysvista-output.json")]
-        output: PathBuf,
+        /// Output path (a directory for v2, a JSON file for v1)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Output contract version
+        #[arg(long, value_enum, default_value_t)]
+        format: OutputFormat,
     },
     /// Write the canonical v2 JSON Schema
     Schema {
@@ -34,7 +43,11 @@ fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Scan { path, output } => {
+        Commands::Scan {
+            path,
+            output,
+            format,
+        } => {
             let root = path.canonicalize().unwrap_or_else(|e| {
                 eprintln!("Error: cannot resolve path '{}': {e}", path.display());
                 std::process::exit(1);
@@ -42,23 +55,34 @@ fn main() {
 
             eprintln!("Scanning {}...", root.display());
 
-            let result = scanner::scan(&root);
-
-            eprintln!(
-                "Found {} components, {} edges across {} languages ({} files scanned in {}ms)",
-                result.components.len(),
-                result.edges.len(),
-                result.detected_languages.len(),
-                result.scan_stats.files_scanned,
-                result.scan_stats.scan_duration_ms,
-            );
-
-            output::writer::write_json(&result, &output).unwrap_or_else(|e| {
-                eprintln!("Error writing output: {e}");
+            let config = discovery::Config::load(&root).unwrap_or_else(|e| {
+                eprintln!("Error loading sysvista.toml: {e}");
                 std::process::exit(1);
             });
 
-            eprintln!("Output written to {}", output.display());
+            match format {
+                OutputFormat::V1 => {
+                    let output = output.unwrap_or_else(|| PathBuf::from("sysvista-output.json"));
+                    let result = scanner::scan(&root);
+                    output::writer::write_json(&result, &output).unwrap_or_else(|e| {
+                        eprintln!("Error writing output: {e}");
+                        std::process::exit(1);
+                    });
+                    eprintln!("Output written to {}", output.display());
+                }
+                OutputFormat::V2 => {
+                    let output = output.unwrap_or_else(|| PathBuf::from("sysvista-output"));
+                    let snapshot = scanner::scan_v2(&root, &config).unwrap_or_else(|e| {
+                        eprintln!("Error scanning project: {e}");
+                        std::process::exit(1);
+                    });
+                    output::v2::write_bundle(&snapshot, &output).unwrap_or_else(|e| {
+                        eprintln!("Error writing output: {e}");
+                        std::process::exit(1);
+                    });
+                    eprintln!("Output written to {}", output.display());
+                }
+            }
         }
         Commands::Schema { output } => {
             let output = output.unwrap_or_else(output::v2::default_schema_path);

@@ -214,6 +214,9 @@
         {
           "type": "object",
           "properties": {
+            "id": {
+              "type": "string"
+            },
             "kind": {
               "type": "string",
               "const": "unreadable_file"
@@ -227,6 +230,7 @@
           },
           "required": [
             "kind",
+            "id",
             "path",
             "message"
           ]
@@ -234,6 +238,9 @@
         {
           "type": "object",
           "properties": {
+            "id": {
+              "type": "string"
+            },
             "kind": {
               "type": "string",
               "const": "failed_file"
@@ -247,6 +254,7 @@
           },
           "required": [
             "kind",
+            "id",
             "path",
             "message"
           ]
@@ -444,6 +452,97 @@
         "failed"
       ]
     },
+    "InventoryEntry": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/InventoryOutcome"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "outcome"
+      ]
+    },
+    "InventoryOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "included"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "excluded"
+            },
+            "rule": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "rule"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "io_error": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "unreadable"
+            }
+          },
+          "required": [
+            "kind",
+            "io_error"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "diagnostic_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "failed"
+            }
+          },
+          "required": [
+            "kind",
+            "diagnostic_id"
+          ]
+        }
+      ]
+    },
     "LogicalModule": {
       "type": "object",
       "properties": {
@@ -489,6 +588,13 @@
         },
         "inventory": {
           "$ref": "#/$defs/InventoryCounts"
+        },
+        "inventory_entries": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InventoryEntry"
+          }
         },
         "repository": {
           "type": "string"

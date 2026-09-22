@@ -7,10 +7,12 @@ use super::{EntityId, RelationshipId, SourceSpan};
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Diagnostic {
     UnreadableFile {
+        id: String,
         path: String,
         message: String,
     },
     FailedFile {
+        id: String,
         path: String,
         message: String,
     },

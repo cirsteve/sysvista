@@ -104,6 +104,102 @@ pub enum Relationship {
     },
 }
 
+impl Relationship {
+    pub fn sort_key(&self) -> (&RelationshipId, &EntityId, &EntityId, &'static str, &str) {
+        macro_rules! fields {
+            ($kind:literal, $id:ident, $source:ident, $target:ident, $origin:ident) => {
+                ($id, $source, $target, $kind, $origin.as_str())
+            };
+        }
+        match self {
+            Self::Imports {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("imports", id, source, target, origin),
+            Self::References {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("references", id, source, target, origin),
+            Self::Calls {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("calls", id, source, target, origin),
+            Self::Contains {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("contains", id, source, target, origin),
+            Self::DependsOn {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("depends_on", id, source, target, origin),
+            Self::Handles {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("handles", id, source, target, origin),
+            Self::Persists {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("persists", id, source, target, origin),
+            Self::Transforms {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("transforms", id, source, target, origin),
+            Self::Consumes {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("consumes", id, source, target, origin),
+            Self::Produces {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("produces", id, source, target, origin),
+            Self::Dispatches {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("dispatches", id, source, target, origin),
+            Self::InvokesPrompt {
+                id,
+                source,
+                target,
+                origin,
+                ..
+            } => fields!("invokes_prompt", id, source, target, origin),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UnresolvedReference {
     pub name: String,
