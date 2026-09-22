@@ -624,6 +624,7 @@ dependencies = [
  "clap",
  "globset",
  "ignore",
+ "libc",
  "regex",
  "schemars",
  "serde",

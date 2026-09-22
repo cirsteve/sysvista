@@ -1,0 +1,1 @@
+{ "compilerOptions": { "strict": true, "experimentalDecorators": true, "module": "NodeNext", "moduleResolution": "NodeNext" }, "include": ["*.ts"] }

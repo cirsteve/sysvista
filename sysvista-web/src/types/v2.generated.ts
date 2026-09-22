@@ -7,6 +7,25 @@
 
 export type Diagnostic =
   | {
+      kind: "analyzer_unavailable";
+      message: string;
+      severity: string;
+      [k: string]: unknown;
+    }
+  | {
+      kind: "analyzer_contract_mismatch";
+      message: string;
+      severity: string;
+      [k: string]: unknown;
+    }
+  | {
+      kind: "analyzer_issue";
+      message: string;
+      severity: string;
+      span?: SourceSpan | null;
+      [k: string]: unknown;
+    }
+  | {
       id: string;
       kind: "unreadable_file";
       message: string;
@@ -41,9 +60,12 @@ export type Evidence =
     }
   | {
       analyzer: string;
+      confidence?: string | null;
       detail: string;
       id: string;
       kind: "analyzer";
+      origin?: string | null;
+      rule?: string | null;
       [k: string]: unknown;
     };
 export type Finding =

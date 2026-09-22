@@ -224,6 +224,12 @@ pub enum Evidence {
         id: String,
         analyzer: String,
         detail: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        origin: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        confidence: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rule: Option<String>,
     },
 }
 
