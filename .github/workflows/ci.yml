@@ -60,7 +60,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: sysvista-web/package-lock.json
+          cache-dependency-path: |
+            sysvista-analyzer/package-lock.json
+            sysvista-web/package-lock.json
+      - run: npm ci
+        working-directory: sysvista-analyzer
+      - run: npm run build
+        working-directory: sysvista-analyzer
       - run: npm ci
         working-directory: sysvista-web
       - run: ./scripts/regen-schema.sh
