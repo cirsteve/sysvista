@@ -350,6 +350,10 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     v2_relationships.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
     v2_relationships.dedup_by(|a, b| a.sort_key() == b.sort_key());
 
+    // The legacy detectors are exposed as one explicit stage. Keep the source-file
+    // accounting above, but use the stage output for all v2 graph values.
+    let heuristic = crate::heuristic::analyze(root, &repository, &inventory, config);
+    diagnostics.extend(heuristic.diagnostics);
     let counts = inventory_counts(&inventory);
     Ok(Snapshot {
         manifest: Manifest {
@@ -363,12 +367,12 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             inventory_entries: inventory.entries,
         },
         source_files,
-        entities,
+        entities: heuristic.entities,
         modules: Vec::new(),
-        relationships: v2_relationships,
+        relationships: heuristic.relationships,
         unresolved_references: Vec::new(),
-        evidence: Vec::new(),
-        claims: Vec::new(),
+        evidence: heuristic.evidence,
+        claims: heuristic.claims,
         payload_contracts: Vec::new(),
         diagnostics,
         projections: Vec::new(),
