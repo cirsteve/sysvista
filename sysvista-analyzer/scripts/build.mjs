@@ -6,7 +6,7 @@ import { build } from "esbuild";
 const require = createRequire(import.meta.url);
 const directory = dirname(require.resolve("typescript/lib/typescript.js"));
 const libraries = Object.fromEntries(readdirSync(directory)
-  .filter(name => /^lib\..*\.d\.ts$/.test(name))
+  .filter(name => /^lib(\..+)?\.d\.ts$/.test(name))
   .sort()
   .map(name => [name, readFileSync(join(directory, name), "utf8")]));
 

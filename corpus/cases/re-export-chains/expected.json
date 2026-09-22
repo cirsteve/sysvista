@@ -13,6 +13,19 @@
           "declaration_kind": "function"
         },
         "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "index.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "source.ts",
+          "qualified_name": "load",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
       }
     ],
     "references": [],

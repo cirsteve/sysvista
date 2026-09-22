@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-pub const CONTRACT_VERSION: u32 = 1;
+pub const CONTRACT_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AnalyzeRequest {
@@ -18,6 +18,9 @@ pub struct AnalyzerEntity {
     pub declaration_kind: String,
     pub file: String,
     pub discriminator: usize,
+    /// Key of the nearest enclosing declaration; absent for top-level declarations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_key: Option<String>,
     pub start_line: u32,
     pub start_column: u32,
     pub end_line: u32,

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::contract::{AnalyzeResponse, AnalyzerSpan};
 use crate::{
@@ -20,11 +20,24 @@ pub struct MergedAnalysis {
     pub diagnostics: Vec<Diagnostic>,
 }
 
+/// What the merge needs to know about the scan that produced the analyzer response.
+pub struct MergeContext<'a> {
+    pub repository: &'a str,
+    /// Absolute scan root, scrubbed from analyzer messages.
+    pub root: &'a str,
+    /// Normalized paths of every inventoried file; analyzer spans must name one of them.
+    pub files: &'a BTreeSet<String>,
+}
+
+/// Number of unmatched analyzer keys named individually before they are summarized.
+const UNMATCHED_KEY_LIMIT: usize = 20;
+
 pub fn merge(
-    repository: &str,
+    context: &MergeContext,
     response: AnalyzeResponse,
     heuristic: HeuristicAnalysis,
 ) -> MergedAnalysis {
+    let repository = context.repository;
     let HeuristicAnalysis {
         entities: heuristic_entities,
         relationships: heuristic_relationships,
@@ -32,8 +45,14 @@ pub fn merge(
         claims: heuristic_claims,
         diagnostics: heuristic_diagnostics,
     } = heuristic;
+    let mut issues = MergeIssues::default();
+    let response_entities: Vec<_> = response
+        .entities
+        .iter()
+        .filter(|entity| issues.keep_file(context, &entity.file))
+        .collect();
     let mut key_to_id = HashMap::new();
-    for entity in &response.entities {
+    for entity in &response_entities {
         let file_id = v2::file_id(repository, &entity.file);
         key_to_id.insert(
             key(entity),
@@ -46,21 +65,13 @@ pub fn merge(
         );
     }
     let mut analyzer_entities = Vec::new();
-    for entity in &response.entities {
+    for entity in &response_entities {
         let file_id = v2::file_id(repository, &entity.file);
         let id = key_to_id[&key(entity)].clone();
-        let parent = entity
-            .ownership_chain
-            .rsplit_once('.')
-            .map(|(value, _)| value);
-        let owner_id = parent
-            .and_then(|parent| {
-                response.entities.iter().find(|candidate| {
-                    candidate.file == entity.file && candidate.ownership_chain == parent
-                })
-            })
-            .and_then(|owner| key_to_id.get(&key(owner)))
-            .cloned();
+        let owner_id = entity
+            .owner_key
+            .as_ref()
+            .and_then(|owner| issues.lookup(&key_to_id, owner));
         analyzer_entities.push(CodeEntity {
             id,
             name: entity.name.clone(),
@@ -115,17 +126,16 @@ pub fn merge(
             remapped
         })
         .collect();
-    let mut evidence = heuristic_evidence;
-    for edge in response
-        .relationships
-        .iter()
-        .filter(|edge| edge.target.is_some())
-    {
+    // One relationship per (origin, source, target, kind); every call site or binding
+    // behind it becomes a site on that relationship's single evidence record.
+    let mut analyzer_evidence: BTreeMap<String, AnalyzerEvidence> = BTreeMap::new();
+    for edge in &response.relationships {
+        let Some(target_key) = edge.target.as_ref() else {
+            continue;
+        };
         let (Some(source), Some(target)) = (
-            key_to_id.get(&edge.source),
-            edge.target
-                .as_ref()
-                .and_then(|target| key_to_id.get(target)),
+            issues.lookup(&key_to_id, &edge.source),
+            issues.lookup(&key_to_id, target_key),
         ) else {
             continue;
         };
@@ -133,28 +143,30 @@ pub fn merge(
             "evidence",
             &[&edge.origin, source.as_ref(), target.as_ref(), &edge.kind],
         );
-        evidence.push(Evidence::Analyzer {
-            id: evidence_id.clone(),
-            analyzer: response.analyzer_version.clone(),
-            detail: edge.name.clone().unwrap_or_else(|| edge.kind.clone()),
-            origin: Some(edge.origin.clone()),
-            confidence: Some(
-                if edge.origin == "resolved" {
-                    "high"
-                } else {
-                    "low"
-                }
-                .into(),
-            ),
-            rule: None,
+        let record = analyzer_evidence.entry(evidence_id.clone()).or_insert_with(|| {
+            relationships.push(make_relationship(
+                &edge.kind,
+                source.clone(),
+                target.clone(),
+                edge.origin.clone(),
+                Some(evidence_id),
+            ));
+            AnalyzerEvidence {
+                kind: edge.kind.clone(),
+                origin: edge.origin.clone(),
+                ..Default::default()
+            }
         });
-        relationships.push(make_relationship(
-            &edge.kind,
-            source.clone(),
-            target.clone(),
-            edge.origin.clone(),
-            Some(evidence_id),
-        ));
+        record.names.extend(edge.name.clone());
+        if let Some(span) = edge.span.clone() {
+            if issues.keep_file(context, &span.file) {
+                record.sites.push(convert_span(repository, span));
+            }
+        }
+    }
+    let mut evidence = heuristic_evidence;
+    for (id, record) in analyzer_evidence {
+        evidence.push(record.into_evidence(id, &response.analyzer_version));
     }
     relationships
         .sort_by(|a, b| (rank(origin(a)), a.sort_key()).cmp(&(rank(origin(b)), b.sort_key())));
@@ -163,9 +175,10 @@ pub fn merge(
         .unresolved
         .into_iter()
         .filter_map(|item| {
-            Some(UnresolvedReference {
+            let source = issues.lookup(&key_to_id, &item.source)?;
+            issues.keep_file(context, &item.span.file).then(|| UnresolvedReference {
                 name: item.name,
-                source: key_to_id.get(&item.source)?.clone(),
+                source,
                 span: convert_span(repository, item.span),
                 reason: item.reason,
             })
@@ -180,23 +193,28 @@ pub fn merge(
             producer_ids: payload
                 .producers
                 .iter()
-                .filter_map(|key| key_to_id.get(key).cloned())
+                .filter_map(|key| issues.lookup(&key_to_id, key))
                 .collect(),
             consumer_ids: payload
                 .consumers
                 .iter()
-                .filter_map(|key| key_to_id.get(key).cloned())
+                .filter_map(|key| issues.lookup(&key_to_id, key))
                 .collect(),
         })
         .collect();
     let mut diagnostics = heuristic_diagnostics;
-    diagnostics.extend(response.diagnostics.into_iter().map(|diagnostic| {
-        Diagnostic::AnalyzerIssue {
-            message: diagnostic.message,
+    for diagnostic in response.diagnostics {
+        let span = diagnostic
+            .span
+            .filter(|span| issues.keep_file(context, &span.file))
+            .map(|span| convert_span(repository, span));
+        diagnostics.push(Diagnostic::AnalyzerIssue {
+            message: scrub(&diagnostic.message, context.root),
             severity: diagnostic.severity,
-            span: diagnostic.span.map(|span| convert_span(repository, span)),
-        }
-    }));
+            span,
+        });
+    }
+    diagnostics.extend(issues.into_diagnostics());
     MergedAnalysis {
         entities,
         relationships,
@@ -213,6 +231,102 @@ pub fn merge(
         payloads,
         diagnostics,
     }
+}
+
+#[derive(Default)]
+struct AnalyzerEvidence {
+    kind: String,
+    origin: String,
+    names: BTreeSet<String>,
+    sites: Vec<SourceSpan>,
+}
+
+impl AnalyzerEvidence {
+    fn into_evidence(mut self, id: String, analyzer: &str) -> Evidence {
+        self.sites.sort_by(|a, b| span_order(a).cmp(&span_order(b)));
+        self.sites.dedup();
+        Evidence::Analyzer {
+            id,
+            analyzer: analyzer.to_owned(),
+            detail: if self.names.is_empty() {
+                self.kind
+            } else {
+                self.names.into_iter().collect::<Vec<_>>().join(", ")
+            },
+            confidence: Some(if self.origin == "resolved" { "high" } else { "low" }.into()),
+            origin: Some(self.origin),
+            rule: None,
+            sites: self.sites,
+        }
+    }
+}
+
+fn span_order(span: &SourceSpan) -> (&v2::FileId, u32, u32, u32, u32) {
+    (&span.file_id, span.start_line, span.start_column, span.end_line, span.end_column)
+}
+
+/// Analyzer output the merge could not use, reported instead of silently dropped.
+#[derive(Default)]
+struct MergeIssues {
+    unmatched_keys: BTreeSet<String>,
+    outside_files: BTreeSet<String>,
+}
+
+impl MergeIssues {
+    fn lookup(&mut self, key_to_id: &HashMap<String, EntityId>, key: &str) -> Option<EntityId> {
+        let found = key_to_id.get(key).cloned();
+        if found.is_none() {
+            self.unmatched_keys.insert(key.to_owned());
+        }
+        found
+    }
+
+    fn keep_file(&mut self, context: &MergeContext, file: &str) -> bool {
+        let known = context.files.contains(file);
+        if !known {
+            self.outside_files.insert(file.to_owned());
+        }
+        known
+    }
+
+    fn into_diagnostics(self) -> Vec<Diagnostic> {
+        let mut out = Vec::new();
+        for key in self.unmatched_keys.iter().take(UNMATCHED_KEY_LIMIT) {
+            out.push(Diagnostic::Warning {
+                message: format!("analyzer key {key} matches no emitted entity; records using it were dropped"),
+                span: None,
+            });
+        }
+        if self.unmatched_keys.len() > UNMATCHED_KEY_LIMIT {
+            out.push(Diagnostic::Warning {
+                message: format!(
+                    "{} further analyzer keys matched no emitted entity",
+                    self.unmatched_keys.len() - UNMATCHED_KEY_LIMIT
+                ),
+                span: None,
+            });
+        }
+        if !self.outside_files.is_empty() {
+            // Only the count: these paths may be absolute host paths.
+            out.push(Diagnostic::Warning {
+                message: format!(
+                    "analyzer output named {} files outside the scan inventory; those records were dropped",
+                    self.outside_files.len()
+                ),
+                span: None,
+            });
+        }
+        out
+    }
+}
+
+/// Remove the absolute scan root from a message so output does not depend on the checkout location.
+fn scrub(message: &str, root: &str) -> String {
+    let root = root.trim_end_matches('/');
+    if root.is_empty() {
+        return message.to_owned();
+    }
+    message.replace(&format!("{root}/"), "").replace(root, ".")
 }
 
 fn key(entity: &super::contract::AnalyzerEntity) -> String {

@@ -70,13 +70,6 @@ export type Diagnostic =
       [k: string]: unknown;
     }
   | {
-      id: string;
-      kind: "contradiction";
-      message: string;
-      relationship_ids: string[];
-      [k: string]: unknown;
-    }
-  | {
       evidence_id: string;
       id: string;
       kind: "stale_evidence";
@@ -119,6 +112,10 @@ export type Evidence =
       kind: "analyzer";
       origin?: string | null;
       rule?: string | null;
+      /**
+       * Every source site supporting the relationship, e.g. each call of one callee.
+       */
+      sites?: SourceSpan[];
       [k: string]: unknown;
     };
 export type Finding =
@@ -287,6 +284,10 @@ export type Relationship =
 export type AnalysisStatus =
   | {
       kind: "none";
+      [k: string]: unknown;
+    }
+  | {
+      kind: "unsupported";
       [k: string]: unknown;
     }
   | {

@@ -114,7 +114,7 @@ mod unix_tests {
                 .any(|file| file.path == "unknown.xyz"
                     && matches!(
                         file.analysis,
-                        sysvista_cli::output::v2::AnalysisStatus::None
+                        sysvista_cli::output::v2::AnalysisStatus::Unsupported
                     ))
         );
         assert!(
