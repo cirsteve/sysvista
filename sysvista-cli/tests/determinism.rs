@@ -4,6 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use regex::Regex;
 use serde_json::Value;
 use sysvista_cli::{discovery::Config, output::v2, scanner};
 
@@ -72,7 +73,8 @@ fn graph_is_deterministic_and_line_insensitive() {
     let graph_text = String::from_utf8(first_graph.clone()).unwrap();
     assert!(!graph_text.contains(root.to_string_lossy().as_ref()));
     assert!(!graph_text.contains("scanned_at"));
-    assert!(!graph_text.contains("T00:00:00Z"));
+    let iso8601_timestamp = Regex::new(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}").unwrap();
+    assert!(!iso8601_timestamp.is_match(&graph_text));
 
     let original = fs::read_to_string(root.join("models.rs")).unwrap();
     fs::write(root.join("models.rs"), format!("\n{original}")).unwrap();
