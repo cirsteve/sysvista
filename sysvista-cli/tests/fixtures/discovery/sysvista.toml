@@ -1,0 +1,6 @@
+[repository]
+name = "example/discovery-fixture"
+
+[discovery]
+exclude = ["excluded/**"]
+extra_extensions = { custom = "custom" }
