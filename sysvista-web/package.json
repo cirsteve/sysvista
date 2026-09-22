@@ -16,9 +16,11 @@
     "@tailwindcss/vite": "^4.1.18",
     "@xyflow/react": "^12.10.0",
     "ajv": "^8.20.0",
+    "fflate": "^0.8.3",
     "lucide-react": "^0.564.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "shiki": "^4.4.3",
     "tailwindcss": "^4.1.18",
     "zustand": "^4.5.7"
   },

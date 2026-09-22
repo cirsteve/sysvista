@@ -1,5 +1,5 @@
 import type { EntityId, Manifest, Snapshot } from "../types/v2";
-import type { DiagramEdge, DiagramSpec } from "./livid/types";
+import type { AggregateDiagramEdge, DiagramSpec } from "./livid/types";
 import type { ViewState } from "./view-state/types";
 import type { ViewHistory } from "./view-state/history";
 
@@ -19,7 +19,7 @@ export const selectCounts = (spec: DiagramSpec, state: ViewState) => ({
   total: spec.nodes.length,
 });
 
-export const selectEvidenceComposition = (edge: DiagramEdge): Record<string, number> => {
+export const selectEvidenceComposition = (edge: AggregateDiagramEdge): Record<string, number> => {
   if (!Array.isArray(edge.details.origins)) {
     return { [String(edge.details.origin ?? "unknown")]: Number(edge.details.count ?? 1) };
   }

@@ -15,12 +15,22 @@ export type Evidence = Generated.Evidence;
 export type InventoryCounts = Generated.InventoryCounts;
 export type Manifest = Generated.Manifest;
 
-export type SourceSpan = Omit<Generated.SourceSpan, "file_id"> & {
+export type SourceSpan = Omit<Generated.SourceSpan, "file_id" | "start_line" | "start_column" | "end_line" | "end_column"> & {
   file_id: FileId;
+  start_line: number;
+  start_column: number;
+  end_line: number;
+  end_column: number;
 };
 
-export type SourceFile = Omit<Generated.SourceFile, "id"> & {
+export type SourceFile = Omit<Generated.SourceFile, "id" | "path" | "language" | "analysis" | "content_hash" | "byte_length" | "line_count"> & {
   id: FileId;
+  path: string;
+  language?: string | null;
+  analysis: AnalysisStatus;
+  content_hash?: string | null;
+  byte_length?: number | null;
+  line_count?: number | null;
 };
 
 export type CodeEntity = Omit<
@@ -104,6 +114,7 @@ export type Finding = BrandedFinding<Generated.Finding>;
 export type Snapshot = Omit<
   Generated.Snapshot,
   | "claims"
+  | "diagnostics"
   | "entities"
   | "findings"
   | "modules"
@@ -114,6 +125,7 @@ export type Snapshot = Omit<
   | "unresolved_references"
 > & {
   claims?: Claim[];
+  diagnostics?: Diagnostic[];
   entities?: CodeEntity[];
   findings?: Finding[];
   modules?: LogicalModule[];

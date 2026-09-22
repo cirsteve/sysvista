@@ -15,6 +15,7 @@ import type {
   BoundaryDetails,
   DiagramSpec,
   FileDetails,
+  FlowDetails,
   ModuleDetails,
   ScopeProjection,
   ScopeRenderer,
@@ -49,9 +50,11 @@ const registry = defineRegistry({
     file: { label: "File", detail: objectSchema<FileDetails>(["path"]), shape: "rect", glyph: "bar", isRouter: false },
     symbol: { label: "Symbol", detail: objectSchema<SymbolDetails>(["qualifiedName"]), shape: "stadium", glyph: "dot", isRouter: false },
     boundary: { label: "Boundary", detail: objectSchema<BoundaryDetails>(["externalTargetId"]), shape: "hexagon", glyph: "chevron", isRouter: false },
+    flow: { label: "Flow function", detail: objectSchema<FlowDetails>(["truncationCount"]), shape: "stadium", glyph: "chevron", isRouter: false },
   },
   edgeTypes: {
     "aggregate-edge": { label: "Dependency", detail: objectSchema<AggregateEdgeDetails>(["count", "origin"]) },
+    "flow-edge": { label: "Direct call", detail: objectSchema<{ backEdge: boolean }>(["backEdge"]) },
   },
 });
 
@@ -93,6 +96,10 @@ export class LividScopeRenderer implements ScopeRenderer {
 
   async render(projection: ScopeProjection) {
     const spec = this.toDiagramSpec(projection);
+    return this.renderSpec(spec);
+  }
+
+  async renderSpec(spec: DiagramSpec) {
     const valid = validateDiagram(registry, asLividSpec(spec));
     if (!valid.ok) {
       return { spec, diagram: null, diagnostic: diagnostic("validation", valid.error.map(formatError)) };

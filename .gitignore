@@ -13,6 +13,7 @@ sysvista-analyzer/dist/
 !sysvista-web/package.json
 !sysvista-web/package-lock.json
 !sysvista-web/tsconfig*.json
+!sysvista-web/src/test/fixtures/**/*.json
 !sysvista-analyzer/package.json
 !sysvista-analyzer/package-lock.json
 !sysvista-analyzer/tsconfig.json

@@ -1,5 +1,7 @@
 import type { CodeEntity, LogicalModule, SourceFile } from "../../types/v2";
-import type { DiagramNode } from "./types";
+import type { FlowGraph } from "../flow/types";
+import type { DiagramNode, DiagramSpec } from "./types";
+import { FLOW_SEMANTICS_PROFILE } from "./types";
 
 const entityPresentation = (entity: CodeEntity): "file" | "symbol" =>
   entity.declaration_kind === "file" ? "file" : "symbol";
@@ -46,3 +48,34 @@ export const fileNode = (file: SourceFile): DiagramNode => {
     details: { path, language: String(file.language ?? "unknown"), analysis: file.analysis },
   };
 };
+
+export function flowPresentation(flow: FlowGraph, scopeId: import("../../types/v2").ScopeId): DiagramSpec {
+  return {
+    id: `flow:${flow.rootIds.join(",")}:${flow.horizon}`,
+    scopeId,
+    semanticsProfile: FLOW_SEMANTICS_PROFILE,
+    nodes: flow.nodes.map((node) => ({
+      id: node.id,
+      presentation: "flow" as const,
+      label: node.label,
+      details: {
+        depth: node.depth,
+        branch: node.branch,
+        truncationCount: node.truncationCount,
+        unknownContinuations: node.unknownContinuations,
+      },
+    })),
+    edges: flow.edges.map((edge) => ({
+      id: edge.id,
+      presentation: "flow-edge" as const,
+      source: edge.source,
+      target: edge.target,
+      label: edge.backEdge ? "cycle" : "calls",
+      details: {
+        backEdge: edge.backEdge,
+        argumentPayloads: edge.argumentPayloads,
+        returnPayloads: edge.returnPayloads,
+      },
+    })),
+  };
+}

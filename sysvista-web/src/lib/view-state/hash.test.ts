@@ -7,7 +7,8 @@ describe("view-state hash", () => {
   const state: ViewState = {
     snapshotId: "snapshot-7", scopeId: "scope:child" as ScopeId,
     filters: { kinds: ["module", "symbol"], origins: ["analyzer"], query: "router" },
-    selection: "entity-3", viewport: { x: 12.5, y: -4, zoom: 1.75 },
+    selection: "entity-3", selectedEntities: ["entity-3" as never], lens: "flow", flowHops: 4,
+    viewport: { x: 12.5, y: -4, zoom: 1.75 },
   };
 
   it("round-trips every field", () => {
@@ -19,5 +20,12 @@ describe("view-state hash", () => {
     const decoded = decodeViewState("#sv=v1.%7Bbroken", defaults);
     expect(decoded.state).toEqual(defaults);
     expect(decoded.diagnostics[0]?.kind).toBe("warning");
+  });
+
+  it("rejects a hash that bypasses the flow-hop limit", () => {
+    const defaults = defaultViewState("current", "root" as ScopeId);
+    const decoded = decodeViewState(encodeViewState({ ...state, flowHops: 9 }), defaults);
+    expect(decoded.state).toEqual(defaults);
+    expect(decoded.diagnostics[0]?.message).toContain("Malformed view-state hash");
   });
 });

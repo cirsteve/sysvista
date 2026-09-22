@@ -26,8 +26,10 @@ describe("toDiagramSpec", () => {
     const spec = toDiagramSpec(fixtureProjection());
     expect({
       nodes: spec.nodes.map(({ id, presentation, deferredChildKey }) => ({ id, presentation, deferredChildKey })),
-      edges: spec.edges.map(({ source, target, label, details }) => ({
-        source, target, label, count: details.count, origin: details.origin,
+      edges: spec.edges.map((edge) => ({
+        source: edge.source, target: edge.target, label: edge.label,
+        count: edge.presentation === "aggregate-edge" ? edge.details.count : 0,
+        origin: edge.presentation === "aggregate-edge" ? edge.details.origin : "flow",
       })),
     }).toEqual(GOLDEN);
   });

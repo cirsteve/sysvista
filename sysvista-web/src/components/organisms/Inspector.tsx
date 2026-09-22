@@ -1,14 +1,22 @@
 import { useState } from "react";
+import { useSource } from "../../hooks/useSource";
+import type { LoadedSnapshot } from "../../lib/loader";
 import type { DiagramEdge, DiagramNode } from "../../lib/livid/types";
+import type { FileId } from "../../types/v2";
 import { selectEvidenceComposition } from "../../lib/selectors";
 import { EvidenceComposition } from "../molecules/EvidenceComposition";
 import { InspectorSection } from "../molecules/InspectorSection";
 import { ResizeHandle } from "../molecules/ResizeHandle";
+import { SourceView } from "./SourceView";
 
-interface InspectorProps { item: DiagramNode | DiagramEdge | null }
+interface InspectorProps { item: DiagramNode | DiagramEdge | null; loaded: LoadedSnapshot | null }
 
-export function Inspector({ item }: InspectorProps) {
+export function Inspector({ item, loaded }: InspectorProps) {
   const [width, setWidth] = useState(320);
+  const fileId = item?.presentation === "symbol" ? item.details.fileId : item?.presentation === "file" ? item.id as FileId : undefined;
+  const span = item?.presentation === "symbol" ? item.details.span : undefined;
+  const file = loaded?.snapshot.source_files?.find(({ id }) => id === fileId);
+  const source = useSource(loaded, fileId);
   return (
     <aside className="relative shrink-0 border-l border-[var(--border)] bg-[var(--surface)]" style={{ width }}>
       <ResizeHandle onResize={(delta) => setWidth((value) => Math.min(560, Math.max(240, value + delta)))} />
@@ -25,6 +33,7 @@ export function Inspector({ item }: InspectorProps) {
           <InspectorSection title="Details">
             {Object.entries(item.details).map(([key, value]) => <div key={key}><span className="text-[var(--muted)]">{key}: </span><span className="break-all">{typeof value === "object" ? JSON.stringify(value) : String(value)}</span></div>)}
           </InspectorSection>
+          {(item.presentation === "symbol" || item.presentation === "file") && <SourceView source={source} language={file?.language} span={span} />}
         </>
       )}
     </aside>

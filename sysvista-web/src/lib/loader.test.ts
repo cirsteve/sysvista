@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { strToU8, zipSync } from "fflate";
 import sample from "../test/fixtures/v1/sample-output.json";
-import { loadFromFile, loadFromFiles, validate } from "./loader";
+import { loadFromArchive, loadFromFile, loadFromFiles, validate } from "./loader";
 
 const manifest = { schema_version: "2", repository: "example/repo", scanned_at: "2026-09-21T00:00:00Z", root: "/repo", tool_version: "0.1.0", inventory: { included: 1, excluded: 0, unsupported: 0, unreadable: 0, failed: 0 } };
 const jsonFile = (name: string, value: unknown, relativePath = name) => ({
@@ -32,11 +33,12 @@ describe("loader validate", () => {
     const result = validate({ manifest, graph: { entities: [], relationships: [] }, diagnostics: [] });
     expect(result.ok && result.value.origin).toBe("v2");
   });
-  it("loads the four files emitted by the v2 CLI", async () => {
+  it("loads the metadata files emitted by the v2 CLI", async () => {
     const result = await loadFromFiles([
       jsonFile("manifest.json", manifest),
       jsonFile("graph.json", { entities: [], relationships: [] }),
       jsonFile("diagnostics.json", []),
+      jsonFile("findings.json", []),
       jsonFile("scopes.json", { scopes: [] }, "bundle/index/scopes.json"),
     ]);
     expect(result.ok).toBe(true);
@@ -49,12 +51,74 @@ describe("loader validate", () => {
     const file = { name: "broken.json", text: async () => { throw new Error("read failed"); } } as unknown as File;
     await expect(loadFromFile(file)).resolves.toEqual({ ok: false, error: { kind: "parse", message: "read failed" } });
   });
+  it("rejects an oversized archive before reading its bytes", async () => {
+    const file = {
+      name: "huge.zip",
+      size: 512 * 1024 * 1024 + 1,
+      arrayBuffer: () => { throw new Error("must not read"); },
+    } as unknown as File;
+    const result = await loadFromFile(file);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatchObject({ kind: "format", message: expect.stringContaining("cap") });
+  });
   it("reports the relationship ID for a dangling v2 target", () => {
     const result = validate({ manifest, source_files: [{ id: "f", path: "a.ts", analysis: { kind: "none" } }], entities: [{ id: "a", name: "a", qualified_name: "a", declaration_kind: "service", file_id: "f", scope_id: "s", span: { file_id: "f", start_line: 1, start_column: 1, end_line: 1, end_column: 1 } }], relationships: [{ id: "rel-dangling", kind: "calls", source: "a", target: "missing", origin: "test" }] });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.kind).toBe("references");
       expect(JSON.stringify(result.error)).toContain("rel-dangling");
+    }
+  });
+  it("loads archive metadata and lazily resolves content-addressed source", async () => {
+    const hash = "abc123";
+    const archive = zipSync({
+      "manifest.json": strToU8(JSON.stringify({ ...manifest, source_included: true })),
+      "graph.json": strToU8(JSON.stringify({ entities: [], relationships: [] })),
+      "diagnostics.json": strToU8("[]"),
+      "findings.json": strToU8("[]"),
+      "index/scopes.json": strToU8('{"scopes":[]}'),
+      "source-index.json": strToU8(JSON.stringify({ files: [{ file_id: "f", path: "a.ts", content_hash: hash, byte_length: 2, source_available: true }] })),
+      [`source/${hash}`]: strToU8("ok"),
+    });
+    const result = await loadFromArchive(archive);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(new TextDecoder().decode(await result.value.sources?.read(hash))).toBe("ok");
+  });
+  it("uses findings embedded in graph metadata when the separate entry is absent", async () => {
+    const embedded = [{ kind: "project", message: "embedded finding" }];
+    const archive = zipSync({
+      "manifest.json": strToU8(JSON.stringify(manifest)),
+      "graph.json": strToU8(JSON.stringify({ entities: [], relationships: [], findings: embedded })),
+      "diagnostics.json": strToU8("[]"),
+      "index/scopes.json": strToU8('{"scopes":[]}'),
+    });
+    const archived = await loadFromArchive(archive);
+    expect(archived.ok && archived.value.snapshot.findings).toEqual(embedded);
+
+    const directory = await loadFromFiles([
+      jsonFile("manifest.json", manifest),
+      jsonFile("graph.json", { entities: [], relationships: [], findings: embedded }),
+      jsonFile("diagnostics.json", []),
+      jsonFile("scopes.json", { scopes: [] }, "bundle/index/scopes.json"),
+    ]);
+    expect(directory.ok && directory.value.snapshot.findings).toEqual(embedded);
+  });
+  it("marks sources unavailable when a no-source archive is loaded", async () => {
+    const archive = zipSync({
+      "manifest.json": strToU8(JSON.stringify({ ...manifest, source_included: false })),
+      "graph.json": strToU8(JSON.stringify({ entities: [], relationships: [] })),
+      "diagnostics.json": strToU8("[]"),
+      "findings.json": strToU8("[]"),
+      "index/scopes.json": strToU8('{"scopes":[]}'),
+      "source-index.json": strToU8(JSON.stringify({ files: [{ file_id: "f", path: "a.ts", source_available: false }] })),
+    });
+    const result = await loadFromArchive(archive);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.sources?.included).toBe(false);
+      expect([...result.value.sources!.index.values()]).toEqual([
+        expect.objectContaining({ file_id: "f", source_available: false }),
+      ]);
     }
   });
 });

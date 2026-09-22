@@ -18,10 +18,12 @@ export const PRESENTATION_TYPES: readonly PresentationRegistration[] = [
   { type: "file", label: "File", detailSchema: [{ key: "path", label: "Path", type: "code", required: true }] },
   { type: "symbol", label: "Symbol", detailSchema: [{ key: "qualifiedName", label: "Qualified name", type: "code", required: true }] },
   { type: "boundary", label: "Boundary", detailSchema: [{ key: "externalTargetId", label: "External target", type: "code", required: true }] },
+  { type: "flow", label: "Flow function", detailSchema: [{ key: "truncationCount", label: "Truncated calls", type: "number", required: true }] },
   { type: "aggregate-edge", label: "Dependency", detailSchema: [
     { key: "count", label: "Evidence count", type: "number", required: true },
     { key: "origin", label: "Evidence origin", type: "evidence", required: true },
   ] },
+  { type: "flow-edge", label: "Direct call", detailSchema: [{ key: "backEdge", label: "Cycle", type: "text", required: true }] },
 ];
 
 export class FakeScopeRenderer implements ScopeRenderer {
@@ -32,6 +34,7 @@ export class FakeScopeRenderer implements ScopeRenderer {
   async render(projection: ScopeProjection) {
     return { spec: this.toDiagramSpec(projection), diagram: null };
   }
+  async renderSpec(spec: DiagramSpec) { return { spec, diagram: null }; }
   subscribe(listener: ScopeRendererListener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

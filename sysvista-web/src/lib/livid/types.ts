@@ -8,7 +8,7 @@ import type {
 } from "../../types/v2";
 import type { ProjectedScope, ScopeIndex } from "../projection/types";
 
-export type PresentationType = "module" | "file" | "symbol" | "boundary" | "aggregate-edge";
+export type PresentationType = "module" | "file" | "symbol" | "boundary" | "flow" | "aggregate-edge" | "flow-edge";
 
 export interface DetailField {
   key: string;
@@ -23,7 +23,7 @@ export interface PresentationRegistration {
   detailSchema: readonly DetailField[];
 }
 
-interface DiagramNodeBase<P extends Exclude<PresentationType, "aggregate-edge">, D> {
+interface DiagramNodeBase<P extends Exclude<PresentationType, "aggregate-edge" | "flow-edge">, D> {
   id: string;
   presentation: P;
   label: string;
@@ -52,12 +52,19 @@ export interface SymbolDetails {
 }
 
 export interface BoundaryDetails { externalTargetId: EntityId }
+export interface FlowDetails {
+  depth: number;
+  branch: boolean;
+  truncationCount: number;
+  unknownContinuations: { id: string; name: string; reason: string }[];
+}
 
 export type DiagramNode =
   | DiagramNodeBase<"module", ModuleDetails>
   | DiagramNodeBase<"file", FileDetails>
   | DiagramNodeBase<"symbol", SymbolDetails>
-  | DiagramNodeBase<"boundary", BoundaryDetails>;
+  | DiagramNodeBase<"boundary", BoundaryDetails>
+  | DiagramNodeBase<"flow", FlowDetails>;
 
 export interface AggregateEdgeDetails {
   kind: string;
@@ -67,7 +74,7 @@ export interface AggregateEdgeDetails {
   relationshipIds: string[];
 }
 
-export interface DiagramEdge {
+export interface AggregateDiagramEdge {
   id: string;
   presentation: "aggregate-edge";
   source: string;
@@ -75,6 +82,21 @@ export interface DiagramEdge {
   label: string;
   details: AggregateEdgeDetails;
 }
+
+export interface FlowDiagramEdge {
+  id: string;
+  presentation: "flow-edge";
+  source: string;
+  target: string;
+  label: string;
+  details: {
+    backEdge: boolean;
+    argumentPayloads: string[];
+    returnPayloads: string[];
+  };
+}
+
+export type DiagramEdge = AggregateDiagramEdge | FlowDiagramEdge;
 
 export interface DiagramSpec {
   id: string;
@@ -121,6 +143,7 @@ export interface ScopeRenderer {
   registerPresentationTypes(): readonly PresentationRegistration[];
   toDiagramSpec(projection: ScopeProjection): DiagramSpec;
   render(projection: ScopeProjection): Promise<ScopeRenderResult>;
+  renderSpec(spec: DiagramSpec): Promise<ScopeRenderResult>;
   subscribe(listener: ScopeRendererListener): () => void;
   select(id: EntityId | FileId | string | null): void;
   descend(scopeId: ScopeId, deferredChildKey: string): void;
@@ -129,5 +152,6 @@ export interface ScopeRenderer {
 }
 
 export const DEPENDENCY_SEMANTICS_PROFILE = "dependency";
+export const FLOW_SEMANTICS_PROFILE = "flow";
 
 export const deferredChildKey = (scopeId: ScopeId): string => `scope:${scopeId}`;
