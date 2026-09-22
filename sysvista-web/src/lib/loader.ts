@@ -1,91 +1,81 @@
 import type { SysVistaOutput } from "../types/schema";
+import type { Snapshot } from "../types/v2";
+import { adaptV1 } from "./adapters/v1";
+import type { Result } from "./result";
+import { validateReferences, type ReferenceError } from "./validate/references";
+import { validateSnapshot, type ValidationError } from "./validate/v2";
 
-function validate(data: unknown): SysVistaOutput {
-  const obj = data as Record<string, unknown>;
-  if (
-    !obj ||
-    typeof obj !== "object" ||
-    !Array.isArray(obj.components) ||
-    !Array.isArray(obj.edges)
-  ) {
-    throw new Error(
-      "Invalid SysVista JSON: missing required fields (components, edges)",
-    );
+export interface LoadedSnapshot { snapshot: Snapshot; origin: "v1-legacy" | "v2" }
+export type LoadError =
+  | { kind: "parse" | "fetch" | "format"; message: string }
+  | { kind: "validation"; message: string; errors: ValidationError[] }
+  | { kind: "references"; message: string; errors: ReferenceError[] };
+
+const failure = (error: LoadError): Result<LoadedSnapshot, LoadError> => ({ ok: false, error });
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const isV1 = (value: unknown): value is SysVistaOutput => isRecord(value) && Array.isArray(value.components) && Array.isArray(value.edges);
+const bundleSnapshot = (value: Record<string, unknown>): unknown =>
+  isRecord(value.manifest) && isRecord(value.graph)
+    ? { ...value.graph, manifest: value.manifest, diagnostics: value.diagnostics ?? [] }
+    : value;
+
+export function validate(data: unknown): Result<LoadedSnapshot, LoadError> {
+  if (isV1(data)) {
+    const snapshot = adaptV1({ ...data, workflows: Array.isArray(data.workflows) ? data.workflows : [] });
+    const refs = validateReferences(snapshot);
+    return refs.ok ? { ok: true, value: { snapshot, origin: "v1-legacy" } }
+      : failure({ kind: "references", message: "Legacy input contains dangling references", errors: refs.error });
   }
-  if (!Array.isArray(obj.workflows)) {
-    obj.workflows = [];
+  if (!isRecord(data)) return failure({ kind: "format", message: "Invalid SysVista JSON: expected an object" });
+  const schemaResult = validateSnapshot(bundleSnapshot(data));
+  if (!schemaResult.ok) return failure({ kind: "validation", message: "Invalid SysVista v2 snapshot", errors: schemaResult.error });
+  const refs = validateReferences(schemaResult.value);
+  return refs.ok ? { ok: true, value: { snapshot: refs.value, origin: "v2" } }
+    : failure({ kind: "references", message: "Snapshot contains dangling references", errors: refs.error });
+}
+
+const parse = (text: string): Result<LoadedSnapshot, LoadError> => {
+  try { return validate(JSON.parse(text)); }
+  catch (cause) { return failure({ kind: "parse", message: cause instanceof Error ? cause.message : "Invalid JSON" }); }
+};
+
+export async function loadFromFile(file: File): Promise<Result<LoadedSnapshot, LoadError>> {
+  return parse(await file.text());
+}
+
+export async function loadFromUrl(url: string): Promise<Result<LoadedSnapshot, LoadError>> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return failure({ kind: "fetch", message: `Failed to fetch: ${response.status}` });
+    return parse(await response.text());
+  } catch (cause) {
+    return failure({ kind: "fetch", message: cause instanceof Error ? cause.message : "Failed to fetch" });
   }
-  return obj as unknown as SysVistaOutput;
 }
 
-export async function loadFromFile(file: File): Promise<SysVistaOutput> {
-  const text = await file.text();
-  const parsed = JSON.parse(text);
-  return validate(parsed);
+export function formatLoadError(error: LoadError): string {
+  return "errors" in error ? `${error.message}: ${error.errors.map((item) => item.message).join("; ")}` : error.message;
 }
 
-export async function loadFromUrl(url: string): Promise<SysVistaOutput> {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`Failed to fetch: ${resp.status}`);
-  const data = await resp.json();
-  return validate(data);
-}
-
-export function setupDropZone(
-  element: HTMLElement,
-  onLoad: (data: SysVistaOutput) => void,
-  onError: (message: string) => void,
-  onDragStateChange: (isDragging: boolean) => void,
-) {
+export function setupDropZone(element: HTMLElement, onLoad: (data: LoadedSnapshot) => void, onError: (message: string) => void, onDragStateChange: (isDragging: boolean) => void) {
   let dragCounter = 0;
-
-  const handleDragEnter = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter++;
-    if (dragCounter === 1) onDragStateChange(true);
-  };
-
-  const handleDragOver = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDragLeave = (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter--;
-    if (dragCounter === 0) onDragStateChange(false);
-  };
-
-  const handleDrop = async (e: DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter = 0;
-    onDragStateChange(false);
-    const file = e.dataTransfer?.files[0];
+  const enter = (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); if (++dragCounter === 1) onDragStateChange(true); };
+  const over = (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); };
+  const leave = (event: DragEvent) => { event.preventDefault(); event.stopPropagation(); if (--dragCounter === 0) onDragStateChange(false); };
+  const drop = async (event: DragEvent) => {
+    event.preventDefault(); event.stopPropagation(); dragCounter = 0; onDragStateChange(false);
+    const file = event.dataTransfer?.files[0];
     if (!file) return;
-    if (!file.name.endsWith(".json")) {
-      onError("Please drop a .json file");
-      return;
-    }
-    try {
-      const data = await loadFromFile(file);
-      onLoad(data);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to load file");
-    }
+    if (!file.name.endsWith(".json")) { onError("Please drop a .json file"); return; }
+    const result = await loadFromFile(file);
+    if (result.ok) onLoad(result.value); else onError(formatLoadError(result.error));
   };
-
-  element.addEventListener("dragenter", handleDragEnter);
-  element.addEventListener("dragover", handleDragOver);
-  element.addEventListener("dragleave", handleDragLeave);
-  element.addEventListener("drop", handleDrop);
-
+  element.addEventListener("dragenter", enter); element.addEventListener("dragover", over);
+  element.addEventListener("dragleave", leave); element.addEventListener("drop", drop);
   return () => {
-    element.removeEventListener("dragenter", handleDragEnter);
-    element.removeEventListener("dragover", handleDragOver);
-    element.removeEventListener("dragleave", handleDragLeave);
-    element.removeEventListener("drop", handleDrop);
+    element.removeEventListener("dragenter", enter); element.removeEventListener("dragover", over);
+    element.removeEventListener("dragleave", leave); element.removeEventListener("drop", drop);
   };
 }
+
+export { adaptV1, validateReferences, validateSnapshot };

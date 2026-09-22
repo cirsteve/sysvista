@@ -42,7 +42,7 @@ describe("validateSnapshot", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(
-        result.errors.some(({ instancePath }) =>
+        result.error.some(({ instancePath }) =>
           instancePath.startsWith("/relationships/0"),
         ),
       ).toBe(true);

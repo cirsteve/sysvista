@@ -1,77 +1,34 @@
-import { describe, it, expect } from "vitest";
-import type { SysVistaOutput } from "../types/schema";
+import { describe, expect, it } from "vitest";
+import sample from "../test/fixtures/v1/sample-output.json";
+import { validate } from "./loader";
 
-// Re-implement validate logic for testing since it's not exported
-function validate(data: unknown): SysVistaOutput {
-  const obj = data as Record<string, unknown>;
-  if (
-    !obj ||
-    typeof obj !== "object" ||
-    !Array.isArray(obj.components) ||
-    !Array.isArray(obj.edges)
-  ) {
-    throw new Error(
-      "Invalid SysVista JSON: missing required fields (components, edges)",
-    );
-  }
-  if (!Array.isArray(obj.workflows)) {
-    obj.workflows = [];
-  }
-  return obj as unknown as SysVistaOutput;
-}
+const manifest = { schema_version: "2", repository: "example/repo", scanned_at: "2026-09-21T00:00:00Z", root: "/repo", tool_version: "0.1.0", inventory: { included: 1, excluded: 0, unsupported: 0, unreadable: 0, failed: 0 } };
 
 describe("loader validate", () => {
-  it("accepts valid data with workflows", () => {
-    const data = {
-      version: "1",
-      scanned_at: "2024-01-01",
-      root_dir: "/test",
-      project_name: "test",
-      detected_languages: ["python"],
-      components: [],
-      edges: [],
-      workflows: [{ id: "w1", name: "POST /messages", entry_point_id: "tp1", steps: [] }],
-      scan_stats: { files_scanned: 1, files_skipped: 0, scan_duration_ms: 10 },
-    };
-    const result = validate(data);
-    expect(result.workflows).toHaveLength(1);
-    expect(result.workflows[0].name).toBe("POST /messages");
+  it("adapts v1 and supplies one legacy diagnostic with unknown coverage", () => {
+    const result = validate(sample);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.origin).toBe("v1-legacy");
+    expect(result.value.snapshot.diagnostics).toHaveLength(1);
+    expect(result.value.snapshot.coverage).toBe("unknown");
+    expect(result.value.snapshot.relationships?.[0]).toMatchObject({ origin: "heuristic", rule: "model_name_match" });
   });
-
-  it("defaults workflows to empty array for old format", () => {
-    const data = {
-      version: "1",
-      scanned_at: "2024-01-01",
-      root_dir: "/test",
-      project_name: "test",
-      detected_languages: [],
-      components: [{ id: "c1", name: "Test", kind: "model", language: "python", source: { file: "test.py" }, metadata: {} }],
-      edges: [],
-      scan_stats: { files_scanned: 1, files_skipped: 0, scan_duration_ms: 10 },
-    };
-    const result = validate(data);
-    expect(result.workflows).toEqual([]);
+  it("defaults omitted v1 workflows to empty", () => {
+    const { workflows: _workflows, ...withoutWorkflows } = sample;
+    const result = validate(withoutWorkflows);
+    expect(result.ok && result.value.snapshot.claims).toEqual([]);
   });
-
-  it("rejects data missing components", () => {
-    expect(() => validate({ edges: [] })).toThrow("missing required fields");
+  it("accepts a v2 bundle", () => {
+    const result = validate({ manifest, graph: { entities: [], relationships: [] }, diagnostics: [] });
+    expect(result.ok && result.value.origin).toBe("v2");
   });
-
-  it("rejects data missing edges", () => {
-    expect(() => validate({ components: [] })).toThrow("missing required fields");
-  });
-
-  it("rejects null input", () => {
-    expect(() => validate(null)).toThrow("missing required fields");
-  });
-
-  it("preserves existing empty workflows array", () => {
-    const data = {
-      components: [],
-      edges: [],
-      workflows: [],
-    };
-    const result = validate(data);
-    expect(result.workflows).toEqual([]);
+  it("reports the relationship ID for a dangling v2 target", () => {
+    const result = validate({ manifest, source_files: [{ id: "f", path: "a.ts", analysis: { kind: "none" } }], entities: [{ id: "a", name: "a", qualified_name: "a", declaration_kind: "service", file_id: "f", scope_id: "s", span: { file_id: "f", start_line: 1, start_column: 1, end_line: 1, end_column: 1 } }], relationships: [{ id: "rel-dangling", kind: "calls", source: "a", target: "missing", origin: "test" }] });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("references");
+      expect(JSON.stringify(result.error)).toContain("rel-dangling");
+    }
   });
 });
