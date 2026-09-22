@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fixtureProjection } from "./fake";
+import { createFixtureRenderer, fixtureProjection } from "./fake";
 import { toDiagramSpec } from "./spec";
 
 const GOLDEN = {
@@ -24,5 +24,17 @@ describe("toDiagramSpec", () => {
         source, target, label, count: details.count, origin: details.origin,
       })),
     }).toEqual(GOLDEN);
+  });
+
+  it("drives select, descend, focus, and replacement through the renderer contract", () => {
+    const renderer = createFixtureRenderer();
+    const events: string[] = [];
+    renderer.subscribe((event) => events.push(event.type));
+    const spec = renderer.toDiagramSpec(fixtureProjection());
+    renderer.select("a");
+    renderer.descend(spec.scopeId, "scope:a-scope");
+    renderer.focus("a", { x: 1, y: 2, zoom: 1.5 });
+    renderer.replace("snapshot", spec.scopeId, spec);
+    expect(events).toEqual(["select", "descend", "focus", "replace"]);
   });
 });

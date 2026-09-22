@@ -1,4 +1,3 @@
-import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
 import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind } from "../types/schema";
 import { KIND_NODE_SIZE } from "./design-tokens";
@@ -153,23 +152,16 @@ function dagreLayout(
   nodesep: number,
   ranksep: number,
 ): Map<string, { x: number; y: number }> {
-  const g = new dagre.graphlib.Graph();
-  g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir, nodesep, ranksep });
-
-  components.forEach((comp) => {
-    const config = KIND_CONFIG[comp.kind];
-    g.setNode(comp.id, { width: config.width, height: config.height });
-  });
-
-  edges.forEach((edge) => g.setEdge(edge.from_id, edge.to_id));
-
-  dagre.layout(g);
-
-  return new Map(components.map((comp) => {
-    const n = g.node(comp.id);
-    const config = KIND_CONFIG[comp.kind];
-    return [comp.id, { x: n.x - config.width / 2, y: n.y - config.height / 2 }];
+  const connected = new Set(edges.flatMap((edge) => [edge.from_id, edge.to_id]));
+  const ordered = [...components].sort((left, right) =>
+    Number(connected.has(right.id)) - Number(connected.has(left.id)) || left.id.localeCompare(right.id));
+  const columns = Math.max(1, Math.ceil(Math.sqrt(ordered.length)));
+  return new Map(ordered.map((component, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const width = KIND_CONFIG[component.kind].width + nodesep;
+    const height = KIND_CONFIG[component.kind].height + ranksep;
+    return [component.id, rankdir === "TB" ? { x: column * width, y: row * height } : { x: row * width, y: column * height }];
   }));
 }
 

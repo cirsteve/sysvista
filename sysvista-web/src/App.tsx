@@ -1,237 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ReactFlowProvider, useReactFlow } from "@xyflow/react";
-import { useGraphData } from "./hooks/useGraphData";
-import { GraphCanvas } from "./components/organisms/GraphCanvas";
-import { DetailPanel } from "./components/organisms/DetailPanel";
+import { useState } from "react";
+import { Breadcrumbs } from "./components/organisms/Breadcrumbs";
+import { Inspector } from "./components/organisms/Inspector";
+import { Legend } from "./components/organisms/Legend";
+import { ScopeCanvas } from "./components/organisms/ScopeCanvas";
+import { ScopeHeader } from "./components/organisms/ScopeHeader";
 import { SearchBar } from "./components/organisms/SearchBar";
 import { Toolbar } from "./components/organisms/Toolbar";
-import { Legend } from "./components/organisms/Legend";
-import { WorkflowPanel } from "./components/organisms/WorkflowPanel";
-import { setupDropZone } from "./lib/loader";
-import type { DetectedComponent } from "./types/schema";
-
-function AppInner() {
-  const {
-    schema,
-    nodes,
-    edges,
-    flowNodes,
-    flowEdges,
-    flowNodeIdSet,
-    activeKinds,
-    selectedNode,
-    searchQuery,
-    searchResults,
-    connectedComponents,
-    highlightedNodeIds,
-    highlightedFlowNodeIds,
-    traversalClaims,
-    selectedTraversal,
-    viewMode,
-    loadSchema,
-    toggleKind,
-    setSelectedNode,
-    doSearch,
-    selectTraversal,
-    toggleFlowView,
-    setViewMode,
-  } = useGraphData();
-
-  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showWorkflowPanel, setShowWorkflowPanel] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { fitView } = useReactFlow();
-
-  // Auto-dismiss error after 4s
-  useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => setError(null), 4000);
-    return () => clearTimeout(t);
-  }, [error]);
-
-  const handleLoad = useCallback(
-    (data: Parameters<typeof loadSchema>[0]) => {
-      try {
-        loadSchema(data);
-        setShowWorkflowPanel(false);
-      } catch (err) {
-        console.error("Graph build failed:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to build graph",
-        );
-      }
-    },
-    [loadSchema],
-  );
-
-  // Set up drag-and-drop
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    return setupDropZone(el, handleLoad, setError, setIsDragging);
-  }, [handleLoad]);
-
-  const handleNodeClick = useCallback(
-    (component: DetectedComponent) => {
-      setSelectedNode(component);
-      setFocusNodeId(null);
-    },
-    [setSelectedNode],
-  );
-
-  const handleNavigate = useCallback(
-    (component: DetectedComponent) => {
-      setSelectedNode(component);
-      setFocusNodeId(component.id);
-    },
-    [setSelectedNode],
-  );
-
-  const handleSearchSelect = useCallback(
-    (component: DetectedComponent) => {
-      setSelectedNode(component);
-      setFocusNodeId(component.id);
-      // If in flow view and component is not in flow graph, switch to graph view
-      if (viewMode === "flow" && !flowNodeIdSet.has(component.id)) {
-        setViewMode("graph");
-      }
-    },
-    [setSelectedNode, viewMode, flowNodeIdSet, setViewMode],
-  );
-
-  // Select the right nodes/edges for the current view mode
-  const activeNodes = viewMode === "flow" ? flowNodes : nodes;
-  const activeEdges = viewMode === "flow" ? flowEdges : edges;
-
-  // Combine highlight sources: transport trace (graph mode) or workflow highlight (flow mode)
-  const activeHighlightedNodeIds = viewMode === "flow"
-    ? highlightedFlowNodeIds
-    : highlightedNodeIds;
-
-  const handleFitView = useCallback(() => {
-    fitView({ padding: 0.2, duration: 300 });
-  }, [fitView]);
-
-  const handleToggleWorkflows = useCallback(() => {
-    setShowWorkflowPanel((prev) => !prev);
-  }, []);
-
-  return (
-    <div ref={containerRef} className="flex flex-col h-screen">
-      <Toolbar
-        projectName={schema?.project_name}
-        stats={
-          schema
-            ? {
-                components: schema.components.length,
-                edges: schema.edges.length,
-                files: schema.scan_stats.files_scanned,
-              }
-            : undefined
-        }
-        viewMode={viewMode}
-        flowEdgeCount={flowEdges.length}
-        workflowCount={traversalClaims.length}
-        onLoad={handleLoad}
-        onError={setError}
-        onFitView={handleFitView}
-        onToggleFlowView={toggleFlowView}
-        onToggleWorkflows={handleToggleWorkflows}
-      />
-
-      <div className="flex-1 relative">
-        {/* Search bar overlay */}
-        <div className="absolute top-3 left-3 z-40">
-          <SearchBar
-            query={searchQuery}
-            results={searchResults}
-            activeKinds={activeKinds}
-            onSearch={doSearch}
-            onSelect={handleSearchSelect}
-            onToggleKind={toggleKind}
-          />
-        </div>
-
-        {schema ? (
-          <>
-            <GraphCanvas
-              nodes={activeNodes}
-              edges={activeEdges}
-              onNodeClick={handleNodeClick}
-              focusNodeId={focusNodeId}
-              highlightedNodeIds={activeHighlightedNodeIds}
-            />
-            <Legend mode={viewMode} />
-          </>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="text-6xl mb-4 opacity-20">&#9678;</div>
-              <h2 className="text-xl font-semibold text-gray-400 mb-2">
-                No architecture loaded
-              </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Load a SysVista JSON file or drag and drop one here
-              </p>
-              <p className="text-xs text-gray-600">
-                Generate one with:{" "}
-                <code className="bg-gray-800 px-1.5 py-0.5 rounded">
-                  sysvista-cli scan /path/to/project -o output.json
-                </code>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Workflow panel */}
-        {showWorkflowPanel && schema && (
-          <WorkflowPanel
-            claims={traversalClaims}
-            selectedClaim={selectedTraversal}
-            components={schema.components}
-            onSelectClaim={selectTraversal}
-            onClose={() => setShowWorkflowPanel(false)}
-            onNavigateToComponent={handleNavigate}
-          />
-        )}
-
-        {/* Detail panel */}
-        {selectedNode && (
-          <DetailPanel
-            component={selectedNode}
-            connectedComponents={connectedComponents}
-            onClose={() => setSelectedNode(null)}
-            onNavigate={handleNavigate}
-          />
-        )}
-
-        {/* Drag overlay */}
-        {isDragging && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-950/60 border-2 border-dashed border-blue-500 rounded-lg m-2 pointer-events-none">
-            <div className="text-center">
-              <div className="text-4xl mb-2 opacity-60">&#8615;</div>
-              <p className="text-sm text-blue-400 font-medium">Drop JSON file to load</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Error toast */}
-      {error && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-red-900/90 text-red-200 px-4 py-2.5 rounded-lg border border-red-700 text-sm shadow-lg">
-          {error}
-        </div>
-      )}
-    </div>
-  );
-}
+import { useGraphData } from "./hooks/useGraphData";
+import { useKeyboardNavigation } from "./hooks/useKeyboardNavigation";
+import { useViewState } from "./hooks/useViewState";
+import { useViewStore } from "./store/viewStore";
+import type { Manifest } from "./types/v2";
 
 export default function App() {
+  useViewState();
+  const graph = useGraphData();
+  const [error, setError] = useState<string>();
+  const history = useViewStore((state) => state.history);
+  const back = useViewStore((state) => state.back);
+  const forward = useViewStore((state) => state.forward);
+  const theme = useViewStore((state) => state.theme);
+  const toggleTheme = useViewStore((state) => state.toggleTheme);
+
+  useKeyboardNavigation({ spec: graph.slice?.spec ?? null, selectedId: graph.view.selection, onSelect: graph.select, onDescend: graph.descend, onBack: back });
+
+  const snapshot = graph.loaded?.snapshot;
+  const manifest = snapshot?.manifest as Manifest | undefined;
   return (
-    <ReactFlowProvider>
-      <AppInner />
-    </ReactFlowProvider>
+    <div className={theme === "dark" ? "dark app-shell" : "app-shell"}>
+      <Toolbar projectName={manifest ? String(manifest.repository) : undefined} theme={theme} onToggleTheme={toggleTheme} onLoad={graph.load} onError={setError} />
+      <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+        <Breadcrumbs scopeId={graph.view.scopeId} canBack={history.cursor > 0} canForward={history.cursor < history.entries.length - 1} onBack={back} onForward={forward} />
+        <ScopeHeader title={String(graph.view.scopeId)} visible={graph.counts.visible} total={graph.counts.total} />
+        <SearchBar query={graph.view.filters.query} results={graph.results} onSearch={graph.setQuery} onSelect={(hit) => graph.navigateScope(hit.owningScopeId, hit.entityId)} />
+      </div>
+      <main className="flex min-h-0 flex-1">
+        <section className="min-w-0 flex-1">
+          {graph.slice ? <ScopeCanvas spec={graph.slice.spec} selectedId={graph.view.selection} onSelect={graph.select} onDescend={graph.descend} onViewportChange={graph.setViewport} notice={graph.rendererNotice} /> : <div className="grid h-full place-items-center text-center text-[var(--muted)]"><div><p className="text-xl font-medium">No architecture loaded</p><p className="mt-1 text-sm">Load a SysVista JSON file or v2 bundle to review it.</p></div></div>}
+        </section>
+        <Inspector item={graph.selectedItem} />
+      </main>
+      <Legend />
+      {error && <div role="alert" className="fixed bottom-12 left-1/2 -translate-x-1/2 rounded bg-red-700 px-4 py-2 text-sm text-white">{error}</div>}
+    </div>
   );
 }

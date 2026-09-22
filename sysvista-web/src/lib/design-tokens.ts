@@ -1,5 +1,10 @@
 import type { ComponentKind, StepType } from "../types/schema";
 
+export const THEME_TOKENS = {
+  light: { canvas: "#f5f7fb", surface: "#ffffff", text: "#172033", border: "#d7dee9" },
+  dark: { canvas: "#08111f", surface: "#111b2c", text: "#e5e7eb", border: "#334155" },
+} as const;
+
 export const KIND_COLORS: Record<ComponentKind, {
   bg: string;
   text: string;

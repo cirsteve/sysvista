@@ -1,0 +1,14 @@
+import { describe, expect, it } from "vitest";
+import fixture from "../test/fixtures/projection/root-with-three-scopes.json";
+import type { Snapshot } from "../types/v2";
+import { owningScopeForEntity, selectEvidenceComposition } from "./selectors";
+
+describe("review selectors", () => {
+  it("returns an entity hit's owning scope", () => {
+    expect(owningScopeForEntity(fixture.snapshot as unknown as Snapshot, "a1")).toBe("a-scope");
+  });
+
+  it("counts aggregate-edge evidence by origin", () => {
+    expect(selectEvidenceComposition({ id: "e", presentation: "aggregate-edge", source: "a", target: "b", label: "calls", details: { origins: ["analyzer", "analyzer", "heuristic"] } })).toEqual({ analyzer: 2, heuristic: 1 });
+  });
+});
