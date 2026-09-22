@@ -54,7 +54,11 @@ struct Counts {
 #[test]
 fn labeled_corpus_meets_relationship_floors() {
     let cases = corpus_cases();
-    assert_eq!(cases.len(), 13, "the documented corpus must contain all 13 cases");
+    assert_eq!(
+        cases.len(),
+        13,
+        "the documented corpus must contain all 13 cases"
+    );
     let mut aggregate: BTreeMap<&str, Counts> = KINDS
         .into_iter()
         .map(|kind| (kind, Counts::default()))
@@ -66,7 +70,11 @@ fn labeled_corpus_meets_relationship_floors() {
         )
         .expect("parse expected.json");
         assert_eq!(
-            expected.relationships.keys().cloned().collect::<BTreeSet<_>>(),
+            expected
+                .relationships
+                .keys()
+                .cloned()
+                .collect::<BTreeSet<_>>(),
             KINDS.into_iter().map(str::to_owned).collect(),
             "{} must label every relationship kind",
             case.display()
@@ -79,12 +87,10 @@ fn labeled_corpus_meets_relationship_floors() {
         let actual = actual_relationships(&snapshot);
 
         for kind in KINDS {
-            let expected_for_kind: BTreeSet<_> = expected.relationships[kind]
-                .iter()
-                .cloned()
-                .collect();
+            let expected_for_kind: BTreeSet<_> =
+                expected.relationships[kind].iter().cloned().collect();
             let actual_for_kind = actual.get(kind).cloned().unwrap_or_default();
-            let true_positive = expected_for_kind.intersection(&actual_for_kind).count();
+            let true_positive = true_positive_count(&expected_for_kind, &actual_for_kind);
             let precision = ratio(true_positive, actual_for_kind.len());
             let recall = ratio(true_positive, expected_for_kind.len());
             println!(
@@ -107,7 +113,10 @@ fn labeled_corpus_meets_relationship_floors() {
             "aggregate kind={kind} precision={precision:.3} recall={recall:.3} tp={} actual={} expected={}",
             counts.true_positive, counts.actual, counts.expected
         );
-        assert!(precision >= 0.98, "{kind} precision {precision:.3} is below 0.980");
+        assert!(
+            precision >= 0.98,
+            "{kind} precision {precision:.3} is below 0.980"
+        );
         assert!(recall >= 0.98, "{kind} recall {recall:.3} is below 0.980");
     }
 }
@@ -180,12 +189,15 @@ fn actual_relationships(snapshot: &Snapshot) -> BTreeMap<String, BTreeSet<Expect
     for ((file, qualified_name, declaration_kind), mut entities) in groups {
         entities.sort_by_key(|entity| (entity.span.start_line, entity.span.start_column));
         for (discriminator, entity) in entities.into_iter().enumerate() {
-            locators.insert(entity.id.clone(), Locator {
-                file: file.clone(),
-                qualified_name: qualified_name.clone(),
-                declaration_kind: declaration_kind.clone(),
-                discriminator,
-            });
+            locators.insert(
+                entity.id.clone(),
+                Locator {
+                    file: file.clone(),
+                    qualified_name: qualified_name.clone(),
+                    declaration_kind: declaration_kind.clone(),
+                    discriminator,
+                },
+            );
         }
     }
 
@@ -195,15 +207,75 @@ fn actual_relationships(snapshot: &Snapshot) -> BTreeMap<String, BTreeSet<Expect
         let (Some(source), Some(target)) = (locators.get(source), locators.get(target)) else {
             panic!("relationship endpoints must resolve: {relationship:?}");
         };
-        result.entry(kind.to_owned()).or_default().insert(ExpectedRelationship {
-            source: source.clone(),
-            target: target.clone(),
-            origin: Some(origin.to_owned()),
-        });
+        result
+            .entry(kind.to_owned())
+            .or_default()
+            .insert(ExpectedRelationship {
+                source: source.clone(),
+                target: target.clone(),
+                origin: Some(origin.to_owned()),
+            });
     }
     result
 }
 
 fn ratio(numerator: usize, denominator: usize) -> f64 {
-    if denominator == 0 { 1.0 } else { numerator as f64 / denominator as f64 }
+    if denominator == 0 {
+        1.0
+    } else {
+        numerator as f64 / denominator as f64
+    }
+}
+
+fn true_positive_count(
+    expected: &BTreeSet<ExpectedRelationship>,
+    actual: &BTreeSet<ExpectedRelationship>,
+) -> usize {
+    let mut expected = expected.iter().collect::<Vec<_>>();
+    // Match constrained expectations first so a wildcard cannot consume the only
+    // actual relationship satisfying a later, origin-specific expectation.
+    expected.sort_by_key(|relationship| relationship.origin.is_none());
+    let mut unmatched = actual.iter().collect::<Vec<_>>();
+
+    expected
+        .into_iter()
+        .filter(|expected| {
+            let match_index = unmatched.iter().position(|actual| {
+                expected.source == actual.source
+                    && expected.target == actual.target
+                    && expected
+                        .origin
+                        .as_ref()
+                        .map_or(true, |origin| actual.origin.as_ref() == Some(origin))
+            });
+            if let Some(index) = match_index {
+                unmatched.remove(index);
+                true
+            } else {
+                false
+            }
+        })
+        .count()
+}
+
+#[test]
+fn omitted_expected_origin_matches_any_actual_origin() {
+    let locator = Locator {
+        file: "main.ts".to_owned(),
+        qualified_name: "main".to_owned(),
+        declaration_kind: "function".to_owned(),
+        discriminator: 0,
+    };
+    let expected = BTreeSet::from([ExpectedRelationship {
+        source: locator.clone(),
+        target: locator.clone(),
+        origin: None,
+    }]);
+    let actual = BTreeSet::from([ExpectedRelationship {
+        source: locator.clone(),
+        target: locator,
+        origin: Some("resolved".to_owned()),
+    }]);
+
+    assert_eq!(true_positive_count(&expected, &actual), 1);
 }
