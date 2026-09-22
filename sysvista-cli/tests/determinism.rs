@@ -93,7 +93,7 @@ fn graph_is_deterministic_and_line_insensitive() {
     let index: Value =
         serde_json::from_slice(&fs::read(first_output.join("index/scopes.json")).unwrap()).unwrap();
     let scopes = index["scopes"].as_array().unwrap();
-    assert_eq!(scopes.len(), first.source_files.len());
+    assert!(scopes.len() >= first.source_files.len());
     assert!(
         scopes
             .windows(2)

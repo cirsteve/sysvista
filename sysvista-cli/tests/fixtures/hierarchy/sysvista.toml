@@ -1,0 +1,20 @@
+[repository]
+name = "fixture/hierarchy"
+
+[[modules]]
+name = "src"
+selectors = ["src/**"]
+tags = ["code"]
+
+[[modules]]
+name = "ui"
+selectors = ["src/ui/**"]
+tags = ["frontend"]
+
+[[modules]]
+name = "shared-a"
+selectors = ["src/shared.rs"]
+
+[[modules]]
+name = "shared-b"
+selectors = ["src/shared.rs"]

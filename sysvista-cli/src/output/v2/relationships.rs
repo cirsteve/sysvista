@@ -216,6 +216,11 @@ pub enum Evidence {
         id: String,
         span: SourceSpan,
     },
+    SourceSnapshot {
+        id: String,
+        span: SourceSpan,
+        content_hash: String,
+    },
     Text {
         id: String,
         value: String,
@@ -231,6 +236,16 @@ pub enum Evidence {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rule: Option<String>,
     },
+}
+
+impl Evidence {
+    pub fn source(&self) -> Option<(&str, &SourceSpan, Option<&str>)> {
+        match self {
+            Self::Source { id, span } => Some((id, span, None)),
+            Self::SourceSnapshot { id, span, content_hash } => Some((id, span, Some(content_hash))),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

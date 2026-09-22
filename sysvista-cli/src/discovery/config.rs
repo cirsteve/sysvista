@@ -11,6 +11,26 @@ pub struct Config {
     pub include: Vec<String>,
     pub exclude: Vec<String>,
     pub extra_extensions: BTreeMap<String, String>,
+    pub modules: Vec<ModuleConfig>,
+    pub forbidden_dependencies: Vec<ForbiddenDependencyConfig>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ModuleConfig {
+    pub name: String,
+    #[serde(alias = "globs", alias = "paths")]
+    pub selectors: Vec<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ForbiddenDependencyConfig {
+    #[serde(alias = "source")]
+    pub from: String,
+    #[serde(alias = "target")]
+    pub to: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -65,6 +85,22 @@ impl Config {
                     io::ErrorKind::InvalidInput,
                     format!("invalid extra extension {extension:?}; omit the leading dot"),
                 ));
+            }
+        }
+        for module in &self.modules {
+            if module.name.trim().is_empty() || module.selectors.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "logical modules require a name and at least one selector",
+                ));
+            }
+            for selector in &module.selectors {
+                globset::Glob::new(selector).map_err(|error| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("invalid module selector {selector:?}: {error}"),
+                    )
+                })?;
             }
         }
         Ok(())

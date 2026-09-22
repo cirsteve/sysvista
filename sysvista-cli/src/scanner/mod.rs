@@ -170,6 +170,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     analysis: AnalysisStatus::Failed {
                         message: io_error.clone(),
                     },
+                    content_hash: None, byte_length: None, line_count: None,
                 });
             }
             InventoryOutcome::Failed { diagnostic_id } => {
@@ -185,6 +186,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     analysis: AnalysisStatus::Failed {
                         message: "path discovery failed".into(),
                     },
+                    content_hash: None, byte_length: None, line_count: None,
                 });
             }
             InventoryOutcome::Unsupported => {
@@ -193,6 +195,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     path: entry.path.clone(),
                     language: None,
                     analysis: AnalysisStatus::None,
+                    content_hash: None, byte_length: None, line_count: None,
                 });
             }
             InventoryOutcome::Included => {
@@ -211,6 +214,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                                 analyzer: "builtin-heuristic".into(),
                             }
                         },
+                        content_hash: None, byte_length: None, line_count: None,
                     }),
                     Err(error) => {
                         let message = error.to_string();
@@ -229,10 +233,18 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                             path: entry.path.clone(),
                             language: Some(language),
                             analysis: AnalysisStatus::Failed { message },
+                            content_hash: None, byte_length: None, line_count: None,
                         });
                     }
                 }
             }
+        }
+    }
+    for file in &mut source_files {
+        if let Ok(bytes) = std::fs::read(root.join(&file.path)) {
+            file.content_hash = Some(format!("{:x}", Sha256::digest(&bytes)));
+            file.byte_length = Some(bytes.len() as u64);
+            file.line_count = Some(bytes.split(|byte| *byte == b'\n').count().max(1) as u32);
         }
     }
 
@@ -305,7 +317,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let merged = crate::analyzer::merge(&repository, response, heuristic);
     diagnostics.extend(merged.diagnostics);
     let counts = inventory_counts(&inventory);
-    Ok(Snapshot {
+    let mut snapshot = Snapshot {
         manifest: Manifest {
             schema_version: "2".into(),
             repository,
@@ -314,7 +326,10 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             tool_version: env!("CARGO_PKG_VERSION").into(),
             analyzer_versions,
             inventory: counts,
-            inventory_entries: inventory.entries,
+            inventory_entries: inventory.entries.clone(),
+            validation: Default::default(),
+            files: Vec::new(),
+            source_included: false,
         },
         source_files,
         entities: merged.entities,
@@ -327,7 +342,12 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         diagnostics,
         projections: Vec::new(),
         findings: Vec::new(),
-    })
+    };
+    crate::hierarchy::derive(&mut snapshot, &inventory, config);
+    let validation = crate::validate::validate(&snapshot);
+    snapshot.manifest.validation = crate::validate::summary(&validation);
+    snapshot.diagnostics.extend(validation);
+    Ok(snapshot)
 }
 
 fn mark_typescript_analysis(source_files: &mut [SourceFile], status: AnalysisStatus) {

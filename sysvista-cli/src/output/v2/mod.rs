@@ -48,6 +48,19 @@ pub struct Manifest {
     pub inventory: InventoryCounts,
     #[serde(default)]
     pub inventory_entries: Vec<crate::discovery::InventoryEntry>,
+    #[serde(default)]
+    pub validation: ValidationSummary,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub source_included: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ValidationSummary {
+    pub diagnostics: u64,
+    pub errors: u64,
+    pub warnings: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

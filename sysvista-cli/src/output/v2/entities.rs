@@ -29,6 +29,12 @@ pub struct SourceFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
     pub analysis: AnalysisStatus,
+    #[serde(default, skip_serializing)]
+    pub content_hash: Option<String>,
+    #[serde(default, skip_serializing)]
+    pub byte_length: Option<u64>,
+    #[serde(default, skip_serializing)]
+    pub line_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -51,6 +57,10 @@ pub struct LogicalModule {
     pub id: ModuleId,
     pub name: String,
     pub scope_id: ScopeId,
+    #[serde(default)]
+    pub selectors: Vec<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     #[serde(default)]
     pub file_ids: Vec<FileId>,
     #[serde(default)]

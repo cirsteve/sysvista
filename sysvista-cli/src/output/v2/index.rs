@@ -26,6 +26,28 @@ impl ScopeIndex {
             .map(|entity| (entity.id.clone(), entity.scope_id.clone()))
             .collect();
         let mut by_scope: BTreeMap<ScopeId, ScopeSlice> = BTreeMap::new();
+        for projection in &snapshot.projections {
+            by_scope
+                .entry(projection.scope_id.clone())
+                .or_insert_with(|| ScopeSlice {
+                    scope_id: projection.scope_id.clone(),
+                    child_ids: Vec::new(),
+                    owner_map: BTreeMap::new(),
+                    crossing_relationship_ids: Vec::new(),
+                });
+            if let Some(parent) = &projection.parent_scope_id {
+                by_scope
+                    .entry(parent.clone())
+                    .or_insert_with(|| ScopeSlice {
+                        scope_id: parent.clone(),
+                        child_ids: Vec::new(),
+                        owner_map: BTreeMap::new(),
+                        crossing_relationship_ids: Vec::new(),
+                    })
+                    .child_ids
+                    .push(projection.scope_id.0.clone());
+            }
+        }
         for file in &snapshot.source_files {
             let scope_id = super::scope_id(&file.id);
             by_scope
