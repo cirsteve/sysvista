@@ -1,207 +1,78 @@
-import { useState, useCallback, useMemo } from "react";
-import type { Node, Edge } from "@xyflow/react";
-import type {
-  DetectedComponent,
-  ComponentKind,
-} from "../types/schema";
-import { buildGraph, buildFlowGraph, FLOW_LABELS, projectedScopeToGraphInput } from "../lib/graph-adapter";
-import { initSearch, search } from "../lib/search";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LoadedSnapshot } from "../lib/loader";
+import type { Manifest, ScopeId } from "../types/v2";
+import type { Viewport } from "../lib/livid/types";
+import { loadScopeRenderer } from "../lib/livid/adapter";
+import { FakeScopeRenderer } from "../lib/livid/fake";
+import type { ScopeRenderer } from "../lib/livid/types";
 import { indexSnapshot, rootScopeId } from "../lib/projection/children";
-import { projectScope } from "../lib/projection/project";
-import type { Claim } from "../types/v2";
-
-const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
-
-export type ViewMode = "graph" | "flow";
+import { searchSnapshot } from "../lib/search";
+import { selectCounts } from "../lib/selectors";
+import { nearestValidScope } from "../lib/view-state/fallback";
+import { useViewStore } from "../store/viewStore";
+import { useScopeSlice } from "./useScopeSlice";
 
 export function useGraphData() {
   const [loaded, setLoaded] = useState<LoadedSnapshot | null>(null);
-  const [activeKinds, setActiveKinds] = useState<Set<ComponentKind>>(
-    new Set(ALL_KINDS),
-  );
-  const [selectedNode, setSelectedNode] = useState<DetectedComponent | null>(
-    null,
-  );
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<DetectedComponent[]>([]);
-  const [selectedTraversal, setSelectedTraversal] = useState<Claim | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("graph");
+  const [renderer, setRenderer] = useState<ScopeRenderer>(() => new FakeScopeRenderer());
+  const [rendererNotice, setRendererNotice] = useState<string>();
+  const reportedDiagnostics = useRef(new Set<string>());
+  const view = useViewStore((state) => state.view);
+  const replaceView = useViewStore((state) => state.replaceView);
+  const navigateScope = useViewStore((state) => state.navigateScope);
+  const updateView = useViewStore((state) => state.updateView);
+  const addDiagnostic = useViewStore((state) => state.addDiagnostic);
+  const slice = useScopeSlice(loaded?.snapshot ?? null, view.scopeId, renderer);
 
-  const schema = useMemo(() => {
-    if (!loaded) return null;
-    const index = indexSnapshot(loaded.snapshot);
-    const root = rootScopeId(loaded.snapshot);
-    return projectedScopeToGraphInput(loaded.snapshot, projectScope(loaded.snapshot, index, root));
-  }, [loaded]);
-
-  const traversalClaims = useMemo(() => (loaded?.snapshot.claims ?? []).filter((claim) => {
-    const object = claim.object as unknown as Record<string, unknown>;
-    return claim.predicate === "HeuristicTraversal" &&
-      typeof object.name === "string" &&
-      Array.isArray(object.entity_ids) &&
-      Array.isArray(object.relationship_ids);
-  }), [loaded]);
-
-  const loadSchema = useCallback((data: LoadedSnapshot) => {
-    setLoaded(data);
-    const index = indexSnapshot(data.snapshot);
-    const root = rootScopeId(data.snapshot);
-    initSearch(projectedScopeToGraphInput(data.snapshot, projectScope(data.snapshot, index, root)).components);
-    setSelectedNode(null);
-    setSearchQuery("");
-    setSearchResults([]);
-    setSelectedTraversal(null);
-    setViewMode("graph");
-  }, []);
-
-  const toggleKind = useCallback((kind: ComponentKind) => {
-    setActiveKinds((prev) => {
-      const next = new Set(prev);
-      if (next.has(kind)) {
-        next.delete(kind);
-      } else {
-        next.add(kind);
+  useEffect(() => {
+    void loadScopeRenderer().then((result) => {
+      setRenderer(result.renderer);
+      if (result.diagnostic) {
+        setRendererNotice(result.diagnostic.message);
+        addDiagnostic(result.diagnostic);
       }
-      return next;
     });
-  }, []);
+  }, [addDiagnostic]);
 
-  const doSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    setSearchResults(search(query));
-  }, []);
-
-  const { nodes, edges } = useMemo((): {
-    nodes: Node[];
-    edges: Edge[];
-  } => {
-    if (!schema) return { nodes: [], edges: [] };
-    try {
-      return buildGraph(schema, activeKinds);
-    } catch (err) {
-      console.error("buildGraph failed:", err);
-      return { nodes: [], edges: [] };
+  useEffect(() => {
+    const current = slice?.diagnostic;
+    if (current && !reportedDiagnostics.current.has(current.message)) {
+      reportedDiagnostics.current.add(current.message);
+      addDiagnostic(current);
     }
-  }, [schema, activeKinds]);
+  }, [addDiagnostic, slice?.diagnostic]);
 
-  const { flowNodes, flowEdges } = useMemo((): {
-    flowNodes: Node[];
-    flowEdges: Edge[];
-  } => {
-    if (!schema) return { flowNodes: [], flowEdges: [] };
-    try {
-      const result = buildFlowGraph(schema, activeKinds);
-      return { flowNodes: result.nodes, flowEdges: result.edges };
-    } catch (err) {
-      console.error("buildFlowGraph failed:", err);
-      return { flowNodes: [], flowEdges: [] };
-    }
-  }, [schema, activeKinds]);
+  const load = useCallback((data: LoadedSnapshot) => {
+    setLoaded(data);
+    const scopeId = rootScopeId(data.snapshot);
+    const manifest = data.snapshot.manifest as Manifest;
+    const snapshotId = String(manifest.scanned_at ?? manifest.repository);
+    const restored = view.snapshotId === snapshotId;
+    const index = indexSnapshot(data.snapshot);
+    const valid = new Set(index.scopes.map((scope) => scope.scope_id));
+    valid.add(scopeId);
+    const entities = new Map((data.snapshot.entities ?? []).map((entity) => [entity.id, entity]));
+    const parents = new Map(index.scopes.flatMap((scope) => {
+      const owner = (data.snapshot.entities ?? []).find((entity) => entity.scope_id === scope.scope_id && entity.owner_id)?.owner_id;
+      const parent = owner ? entities.get(owner)?.scope_id : undefined;
+      return parent ? [[scope.scope_id, parent] as const] : [];
+    }));
+    const fallback = nearestValidScope(restored ? view.scopeId : scopeId, valid, parents, scopeId);
+    if (fallback.diagnostic) addDiagnostic(fallback.diagnostic);
+    replaceView(restored ? { ...view, scopeId: fallback.scopeId } : {
+      snapshotId, scopeId: fallback.scopeId,
+      filters: { kinds: [], origins: [], query: "" }, selection: null,
+      viewport: { x: 0, y: 0, zoom: 1 },
+    });
+  }, [addDiagnostic, replaceView, view]);
 
-  const connectedComponents = useMemo(() => {
-    if (!schema || !selectedNode) return [];
-    const connectedIds = schema.edges.reduce((acc, edge) => {
-      if (edge.from_id === selectedNode.id) acc.add(edge.to_id);
-      if (edge.to_id === selectedNode.id) acc.add(edge.from_id);
-      return acc;
-    }, new Set<string>());
-    return schema.components.filter((c) => connectedIds.has(c.id));
-  }, [schema, selectedNode]);
+  const descend = useCallback((key: string) => navigateScope(key.replace(/^scope:/, "") as ScopeId), [navigateScope]);
+  const select = useCallback((id: string | null) => updateView({ selection: id }, false), [updateView]);
+  const setViewport = useCallback((viewport: Viewport) => updateView({ viewport }, false), [updateView]);
+  const setQuery = useCallback((query: string) => updateView({ filters: { ...view.filters, query } }, false), [updateView, view.filters]);
+  const results = useMemo(() => loaded ? searchSnapshot(loaded.snapshot, view.filters.query) : [], [loaded, view.filters.query]);
+  const selectedItem = useMemo(() => slice?.spec.nodes.find(({ id }) => id === view.selection) ?? slice?.spec.edges.find(({ id }) => id === view.selection) ?? null, [slice, view.selection]);
+  const counts = useMemo(() => slice ? selectCounts(slice.spec, view) : { visible: 0, total: 0 }, [slice, view]);
 
-  /**
-   * Trace workflow from a component by following flow edges (handles, persists, transforms).
-   * BFS in both directions to find the full flow chain.
-   */
-  const traceWorkflow = useCallback(
-    (componentId: string): { nodeIds: Set<string>; edgeIds: Set<string> } => {
-      if (!schema) return { nodeIds: new Set(), edgeIds: new Set() };
-
-      // Build adjacency from flow edges only
-      const flowEdges = schema.edges.filter(
-        (e) => e.label && FLOW_LABELS.has(e.label),
-      );
-
-      const nodeIds = new Set<string>();
-      const edgeIds = new Set<string>();
-      const queue = [componentId];
-      nodeIds.add(componentId);
-
-      while (queue.length > 0) {
-        const current = queue.shift()!;
-        for (let i = 0; i < flowEdges.length; i++) {
-          const e = flowEdges[i];
-          let neighbor: string | null = null;
-          if (e.from_id === current) neighbor = e.to_id;
-          else if (e.to_id === current) neighbor = e.from_id;
-
-          if (neighbor && !nodeIds.has(neighbor)) {
-            nodeIds.add(neighbor);
-            edgeIds.add(`flow-${i}`);
-            queue.push(neighbor);
-          } else if (neighbor) {
-            // Edge still part of the trace even if node already visited
-            edgeIds.add(`flow-${i}`);
-          }
-        }
-      }
-
-      return { nodeIds, edgeIds };
-    },
-    [schema],
-  );
-
-  // When a transport is selected, auto-trace its workflow
-  const highlightedNodeIds = useMemo((): Set<string> | null => {
-    if (!selectedNode || selectedNode.kind !== "transport") return null;
-    const { nodeIds } = traceWorkflow(selectedNode.id);
-    // Only highlight if there are flow connections (more than just the selected node)
-    return nodeIds.size > 1 ? nodeIds : null;
-  }, [selectedNode, traceWorkflow]);
-
-  // Traversal claims intentionally carry unordered entity sets.
-  const highlightedFlowNodeIds = useMemo((): Set<string> | null => {
-    if (viewMode !== "flow" || !selectedTraversal) return null;
-    return new Set(selectedTraversal.object.entity_ids);
-  }, [viewMode, selectedTraversal]);
-
-  const selectTraversal = useCallback((claim: Claim | null) => {
-    setSelectedTraversal(claim);
-  }, []);
-
-  const toggleFlowView = useCallback(() => {
-    setViewMode((prev) => (prev === "flow" ? "graph" : "flow"));
-  }, []);
-
-  // Set of flow node IDs for quick lookup (used to check if a search result is in the flow view)
-  const flowNodeIdSet = useMemo(
-    () => new Set(flowNodes.map((n) => n.id)),
-    [flowNodes],
-  );
-
-  return {
-    schema,
-    nodes,
-    edges,
-    flowNodes,
-    flowEdges,
-    flowNodeIdSet,
-    activeKinds,
-    selectedNode,
-    searchQuery,
-    searchResults,
-    connectedComponents,
-    highlightedNodeIds,
-    highlightedFlowNodeIds,
-    traversalClaims,
-    selectedTraversal,
-    viewMode,
-    loadSchema,
-    toggleKind,
-    setSelectedNode,
-    doSearch,
-    selectTraversal,
-    toggleFlowView,
-    setViewMode,
-  };
+  return { loaded, rendererNotice: slice?.diagnostic?.message ?? rendererNotice, view, slice, results, selectedItem, counts, load, descend, select, setViewport, setQuery, navigateScope };
 }
