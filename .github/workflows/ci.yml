@@ -16,6 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sysvista-analyzer/package-lock.json
+      - run: npm ci
+        working-directory: sysvista-analyzer
+      - run: npm run build
+        working-directory: sysvista-analyzer
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: sysvista-cli

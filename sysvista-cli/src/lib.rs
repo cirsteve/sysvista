@@ -1,3 +1,4 @@
+pub mod analyzer;
 pub mod discovery;
 pub mod heuristic;
 pub mod output;

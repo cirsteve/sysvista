@@ -354,6 +354,21 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     // accounting above, but use the stage output for all v2 graph values.
     let heuristic = crate::heuristic::analyze(root, &repository, &inventory, config);
     diagnostics.extend(heuristic.diagnostics);
+    let analyzer_files: Vec<_> = source_files.iter().filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript"))).map(|file| file.path.clone()).collect();
+    let mut analyzer_versions = std::collections::BTreeMap::new();
+    if !analyzer_files.is_empty() {
+        let request = crate::analyzer::AnalyzeRequest {
+            contract_version: crate::analyzer::CONTRACT_VERSION,
+            root: root.display().to_string(),
+            files: analyzer_files,
+            tsconfig: None,
+        };
+        match crate::analyzer::analyze(&request) {
+            Ok(response) => { analyzer_versions.insert("typescript".into(), response.analyzer_version); }
+            Err(crate::analyzer::AnalyzerError::ContractMismatch { expected, actual }) => diagnostics.push(Diagnostic::AnalyzerContractMismatch { message: format!("analyzer contract mismatch: expected {expected}, got {actual}"), severity: "error".into() }),
+            Err(error) => diagnostics.push(Diagnostic::AnalyzerUnavailable { message: error.to_string(), severity: "error".into() }),
+        }
+    }
     let counts = inventory_counts(&inventory);
     Ok(Snapshot {
         manifest: Manifest {
@@ -362,7 +377,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             scanned_at: chrono::Utc::now().to_rfc3339(),
             root: root.display().to_string(),
             tool_version: env!("CARGO_PKG_VERSION").into(),
-            analyzer_versions: Default::default(),
+            analyzer_versions,
             inventory: counts,
             inventory_entries: inventory.entries,
         },

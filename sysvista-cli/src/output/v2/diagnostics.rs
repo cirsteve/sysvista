@@ -6,6 +6,14 @@ use super::{EntityId, RelationshipId, SourceSpan};
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Diagnostic {
+    AnalyzerUnavailable {
+        message: String,
+        severity: String,
+    },
+    AnalyzerContractMismatch {
+        message: String,
+        severity: String,
+    },
     UnreadableFile {
         id: String,
         path: String,

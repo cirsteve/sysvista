@@ -4,6 +4,8 @@ sysvista-cli/target/
 # Node
 sysvista-web/node_modules/
 sysvista-web/dist/
+sysvista-analyzer/node_modules/
+sysvista-analyzer/dist/
 
 # Output
 *.json
@@ -11,6 +13,9 @@ sysvista-web/dist/
 !sysvista-web/package.json
 !sysvista-web/package-lock.json
 !sysvista-web/tsconfig*.json
+!sysvista-analyzer/package.json
+!sysvista-analyzer/package-lock.json
+!sysvista-analyzer/tsconfig.json
 !schema/sysvista-v2.schema.json
 
 # IDE

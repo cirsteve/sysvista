@@ -1,0 +1,13 @@
+{
+  "name": "sysvista-analyzer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --outfile=dist/analyzer.js",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/*.test.ts"
+  },
+  "dependencies": { "typescript": "^5.9.2" },
+  "devDependencies": { "@types/node": "^22.18.3", "esbuild": "^0.25.9" }
+}
