@@ -32,11 +32,12 @@ describe("loader validate", () => {
     const result = validate({ manifest, graph: { entities: [], relationships: [] }, diagnostics: [] });
     expect(result.ok && result.value.origin).toBe("v2");
   });
-  it("loads the four files emitted by the v2 CLI", async () => {
+  it("loads the metadata files emitted by the v2 CLI", async () => {
     const result = await loadFromFiles([
       jsonFile("manifest.json", manifest),
       jsonFile("graph.json", { entities: [], relationships: [] }),
       jsonFile("diagnostics.json", []),
+      jsonFile("findings.json", []),
       jsonFile("scopes.json", { scopes: [] }, "bundle/index/scopes.json"),
     ]);
     expect(result.ok).toBe(true);
