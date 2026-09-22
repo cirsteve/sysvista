@@ -74,4 +74,22 @@ describe("loader validate", () => {
     expect(result.ok).toBe(true);
     if (result.ok) expect(new TextDecoder().decode(await result.value.sources?.read(hash))).toBe("ok");
   });
+  it("marks sources unavailable when a no-source archive is loaded", async () => {
+    const archive = zipSync({
+      "manifest.json": strToU8(JSON.stringify({ ...manifest, source_included: false })),
+      "graph.json": strToU8(JSON.stringify({ entities: [], relationships: [] })),
+      "diagnostics.json": strToU8("[]"),
+      "findings.json": strToU8("[]"),
+      "index/scopes.json": strToU8('{"scopes":[]}'),
+      "source-index.json": strToU8(JSON.stringify({ files: [{ file_id: "f", path: "a.ts", source_available: false }] })),
+    });
+    const result = await loadFromArchive(archive);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.sources?.included).toBe(false);
+      expect([...result.value.sources!.index.values()]).toEqual([
+        expect.objectContaining({ file_id: "f", source_available: false }),
+      ]);
+    }
+  });
 });
