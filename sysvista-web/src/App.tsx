@@ -37,7 +37,7 @@ export default function App() {
       </div>
       <main className="flex min-h-0 flex-1">
         <section className="min-w-0 flex-1">
-          {graph.slice ? <ScopeCanvas spec={graph.slice.spec} diagram={graph.slice.diagram} selectedId={graph.view.selection} onSelect={graph.select} onDescend={graph.descend} onViewportChange={graph.setViewport} notice={graph.rendererNotice} /> : <div className="grid h-full place-items-center text-center text-[var(--muted)]"><div><p className="text-xl font-medium">No architecture loaded</p><p className="mt-1 text-sm">Load a SysVista JSON file or v2 bundle to review it.</p></div></div>}
+          {graph.slice ? <ScopeCanvas spec={graph.slice.spec} diagram={graph.slice.diagram} selectedId={graph.view.selection} viewport={graph.view.viewport} onSelect={graph.select} onDescend={graph.descend} onViewportChange={graph.setViewport} notice={graph.rendererNotice} /> : <div className="grid h-full place-items-center text-center text-[var(--muted)]"><div><p className="text-xl font-medium">No architecture loaded</p><p className="mt-1 text-sm">Load a SysVista JSON file or v2 bundle to review it.</p></div></div>}
         </section>
         <Inspector item={graph.selectedItem} />
       </main>

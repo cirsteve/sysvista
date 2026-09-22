@@ -12,6 +12,7 @@ const GOLDEN = {
     { id: "a", presentation: "symbol", deferredChildKey: "scope:a-scope" },
     { id: "b", presentation: "symbol", deferredChildKey: "scope:b-scope" },
     { id: "c", presentation: "symbol", deferredChildKey: undefined },
+    { id: "f", presentation: "file", deferredChildKey: undefined },
     { id: "proj:root:outside", presentation: "boundary", deferredChildKey: undefined },
   ],
   edges: [
@@ -48,6 +49,23 @@ describe("toDiagramSpec", () => {
     expect(result.diagnostic).toBeUndefined();
     expect(result.diagram).not.toBeNull();
     expect(JSON.stringify(result.diagram)).toContain("scope:a-scope");
+  });
+
+  it("includes file and module presentations owned by the projected scope", () => {
+    const projection = fixtureProjection();
+    const snapshot = structuredClone(projection.snapshot) as Snapshot;
+    snapshot.modules = [{
+      id: "module-a", name: "Module A", scope_id: projection.projected.scopeId,
+      file_ids: ["f"], entity_ids: ["a"],
+    }] as unknown as Snapshot["modules"];
+    snapshot.source_files?.push({ id: "orphan-file", path: "orphan.ts", analysis: { kind: "none" } } as never);
+    snapshot.scope_index = { scopes: [{ scope_id: projection.projected.scopeId, child_ids: ["orphan-file"] }] };
+    const spec = toDiagramSpec({ ...projection, snapshot });
+    expect(spec.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "f", presentation: "file" }),
+      expect.objectContaining({ id: "orphan-file", presentation: "file" }),
+      expect.objectContaining({ id: "module-a", presentation: "module" }),
+    ]));
   });
 
   it("accepts fan-out and a cycle under dependency semantics", async () => {

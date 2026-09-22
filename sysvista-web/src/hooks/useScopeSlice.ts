@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Manifest, ScopeId, Snapshot } from "../types/v2";
 import { indexSnapshot } from "../lib/projection/children";
 import { projectScope } from "../lib/projection/project";
-import { ScopeRequestCoordinator } from "../lib/livid/requests";
+import { ScopeRequestCoordinator, scopeRenderFailureDiagnostic } from "../lib/livid/requests";
 import type { ScopeRenderer, ScopeRenderResult } from "../lib/livid/types";
 
 interface ScopeSliceResult extends ScopeRenderResult {
@@ -39,11 +39,17 @@ export function useScopeSlice(snapshot: Snapshot | null, scopeId: ScopeId, rende
     const key = { snapshotId, scopeId, requestId: `render-${++requestNumber.current}` };
     const requestCoordinator = coordinator.current;
     requestCoordinator.begin(key);
-    void renderer.render({ snapshot, ...projection }).then((result) => {
-      requestCoordinator.commit(key, { ...projection, ...result }, (slice) => {
+    void renderer.render({ snapshot, ...projection }).then(
+      (result) => requestCoordinator.commit(key, { ...projection, ...result }, (slice) => {
         setCompleted({ projection, renderer, slice });
-      });
-    });
+      }),
+      (cause) => requestCoordinator.commit(key, {
+        ...projection,
+        spec: renderer.toDiagramSpec({ snapshot, ...projection }),
+        diagram: null,
+        diagnostic: scopeRenderFailureDiagnostic(cause),
+      }, (slice) => setCompleted({ projection, renderer, slice })),
+    );
     return () => requestCoordinator.clear(key);
   }, [projection, renderer, scopeId, snapshot]);
 

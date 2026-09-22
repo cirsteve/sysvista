@@ -1,6 +1,6 @@
 # Livid integration
 
-SysVista owns the `ScopeRenderer` interface in `sysvista-web/src/lib/livid/types.ts`. Livid-specific loading, registration, and validation are isolated in `adapter.ts`; the viewer falls back to the fixture-backed renderer with a visible diagnostic if that boundary is unavailable or rejects a scope.
+SysVista owns the `ScopeRenderer` interface in `sysvista-web/src/lib/livid/types.ts`. Livid is a required build-time dependency: Vite statically bundles the renderer and its interaction CSS. Livid-specific registration, validation, normalization, and layout are isolated in `adapter.ts`; if Livid rejects a scope at runtime, the viewer retains the fixture-compatible surface and shows a visible diagnostic.
 
 ## Tested pairing
 

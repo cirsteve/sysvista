@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScopeId } from "../../types/v2";
-import { ScopeRequestCoordinator } from "./requests";
+import { ScopeRequestCoordinator, scopeRenderFailureDiagnostic } from "./requests";
 
 describe("ScopeRequestCoordinator", () => {
   it("discards a late response after the full request tuple is superseded", () => {
@@ -25,5 +25,12 @@ describe("ScopeRequestCoordinator", () => {
     coordinator.begin(current);
     expect(coordinator.isCurrent({ ...current, snapshotId: "one" })).toBe(false);
     expect(coordinator.isCurrent({ ...current, scopeId: "root" as ScopeId })).toBe(false);
+  });
+
+  it("turns renderer rejection into a visible warning Diagnostic", () => {
+    expect(scopeRenderFailureDiagnostic(new Error("layout crashed"))).toEqual({
+      kind: "warning",
+      message: "Scope rendering failed; showing the fixture-compatible surface (layout crashed)",
+    });
   });
 });

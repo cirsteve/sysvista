@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { LividDiagram, type LividDiagramHandle } from "@rankonelabs/livid-react";
 // Livid's interaction styling must ship beside the component import.
 import "@rankonelabs/livid-react/styles.css";
@@ -8,6 +8,7 @@ interface ScopeCanvasProps {
   spec: DiagramSpec;
   diagram: RenderedDiagram | null;
   selectedId: string | null;
+  viewport: Viewport;
   onSelect: (id: string | null) => void;
   onDescend: (key: string) => void;
   onViewportChange: (viewport: Viewport) => void;
@@ -16,11 +17,23 @@ interface ScopeCanvasProps {
 
 const EMPTY_FRAME = { __brand: "StateFrame", nodes: {}, edges: {} } as const;
 
-export function ScopeCanvas({ spec, diagram, selectedId, onSelect, onDescend, onViewportChange, notice }: ScopeCanvasProps) {
+export function ScopeCanvas({ spec, diagram, selectedId, viewport, onSelect, onDescend, onViewportChange, notice }: ScopeCanvasProps) {
   const livid = useRef<LividDiagramHandle>(null);
+  const fallback = useRef<HTMLDivElement>(null);
+  const hasRestoredViewport = viewport.x !== 0 || viewport.y !== 0 || viewport.zoom !== 1;
+  useEffect(() => {
+    if (diagram && hasRestoredViewport) {
+      void livid.current?.setViewport(viewport);
+    } else if (!diagram && fallback.current) {
+      fallback.current.scrollLeft = viewport.x;
+      fallback.current.scrollTop = viewport.y;
+    }
+  }, [diagram, hasRestoredViewport, viewport]);
   const recordViewport = () => {
-    const viewport = livid.current?.getViewport();
-    if (viewport) onViewportChange(viewport);
+    requestAnimationFrame(() => {
+      const current = livid.current?.getViewport();
+      if (current) onViewportChange(current);
+    });
   };
 
   if (diagram) {
@@ -34,7 +47,7 @@ export function ScopeCanvas({ spec, diagram, selectedId, onSelect, onDescend, on
           className="h-full"
           ariaLabel={`Dependency diagram for ${String(spec.scopeId)}`}
           interactive
-          fitView
+          fitView={!hasRestoredViewport}
           onSelect={(selection) => onSelect(String(selection.id))}
           onSelectionChange={(selection) => onSelect(selection ? String(selection.id) : null)}
           onDescendRequest={(request) => {
@@ -46,7 +59,7 @@ export function ScopeCanvas({ spec, diagram, selectedId, onSelect, onDescend, on
   }
 
   return (
-    <div className="h-full overflow-auto bg-[var(--canvas)] p-8" onScroll={(event) => onViewportChange({ x: event.currentTarget.scrollLeft, y: event.currentTarget.scrollTop, zoom: 1 })}>
+    <div ref={fallback} className="h-full overflow-auto bg-[var(--canvas)] p-8" onScroll={(event) => onViewportChange({ x: event.currentTarget.scrollLeft, y: event.currentTarget.scrollTop, zoom: 1 })}>
       {notice && <div role="status" className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">{notice}</div>}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-6">
         {spec.nodes.map((node) => (

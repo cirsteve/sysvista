@@ -1,4 +1,9 @@
-import type { ScopeId } from "../../types/v2";
+import type { Diagnostic, ScopeId } from "../../types/v2";
+
+export const scopeRenderFailureDiagnostic = (cause: unknown): Diagnostic => ({
+  kind: "warning",
+  message: `Scope rendering failed; showing the fixture-compatible surface (${cause instanceof Error ? cause.message : String(cause)})`,
+});
 
 export interface ScopeRequestKey {
   snapshotId: string;
