@@ -52,5 +52,27 @@ is not significant.
 The relationship kinds are `imports`, `references`, `calls`, `contains`, `depends_on`,
 `handles`, `persists`, `transforms`, `consumes`, `produces`, `dispatches`, and
 `invokes_prompt`. The corpus validator runs the shared v2 snapshot validator before
-scoring these labels. Precision and recall floors will be documented here after the first
-complete corpus run measures them; later changes may only ratchet those floors upward.
+scoring these labels. When both the expected and actual sets are empty, precision and
+recall are defined as `1.0`. Run `scripts/validate-corpus.sh` from any directory to print
+per-case and aggregate metrics and enforce the floors.
+
+## Current floors
+
+The first complete run measured `1.000` aggregate precision and recall for every kind.
+The initial floor is that measurement minus a `0.020` margin. Floors are ratchets: later
+changes may increase them but must not lower them.
+
+| Relationship kind | Precision floor | Recall floor |
+| --- | ---: | ---: |
+| imports | 0.980 | 0.980 |
+| references | 0.980 | 0.980 |
+| calls | 0.980 | 0.980 |
+| contains | 0.980 | 0.980 |
+| depends_on | 0.980 | 0.980 |
+| handles | 0.980 | 0.980 |
+| persists | 0.980 | 0.980 |
+| transforms | 0.980 | 0.980 |
+| consumes | 0.980 | 0.980 |
+| produces | 0.980 | 0.980 |
+| dispatches | 0.980 | 0.980 |
+| invokes_prompt | 0.980 | 0.980 |

@@ -32,6 +32,7 @@ jobs:
           workspaces: sysvista-cli
       - run: cargo build
       - run: cargo test
+      - run: ../scripts/validate-corpus.sh
 
   web-tests:
     name: Web (TypeScript)
