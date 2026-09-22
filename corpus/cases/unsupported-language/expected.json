@@ -1,0 +1,16 @@
+{
+  "relationships": {
+    "imports": [],
+    "references": [],
+    "calls": [],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

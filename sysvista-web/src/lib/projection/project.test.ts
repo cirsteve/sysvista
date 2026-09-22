@@ -4,6 +4,9 @@ import type { ScopeId, Snapshot } from "../../types/v2";
 import { projectScope } from "./project";
 import type { ScopeIndex } from "./types";
 import { createSliceLoader } from "./slices";
+if (process.env.SYSVISTA_RUN_PROJECTION_BENCHMARK === "1") {
+  await import("./project.bench");
+}
 
 describe("projectScope", () => {
   const projected = projectScope(fixture.snapshot as unknown as Snapshot, fixture.index as unknown as ScopeIndex, "root" as ScopeId);
@@ -28,19 +31,6 @@ describe("projectScope", () => {
     expect(result.relationships).toEqual([]);
     expect(result.boundaryNodes).toEqual([]);
   });
-
-  it("warn-benchmarks a warm 250k relationship scope", () => {
-    const snapshot = fixture.snapshot as unknown as Snapshot;
-    const base = snapshot.relationships ?? [];
-    const synthetic = { ...snapshot, relationships: Array.from({ length: 250_000 }, (_, index) => ({ ...base[index % base.length], id: `synthetic-${index}` })) } as Snapshot;
-    projectScope(synthetic, fixture.index as unknown as ScopeIndex, "root" as ScopeId);
-    const start = performance.now();
-    projectScope(synthetic, fixture.index as unknown as ScopeIndex, "root" as ScopeId);
-    const elapsed = performance.now() - start;
-    if (elapsed > 300) console.warn(`projectScope warm 250k benchmark: ${elapsed.toFixed(1)}ms (target 300ms)`);
-    else console.info(`projectScope warm 250k benchmark: ${elapsed.toFixed(1)}ms`);
-    expect(elapsed).toBeGreaterThanOrEqual(0);
-  }, 10_000);
 
   it("memoizes slices by snapshot and scope", async () => {
     let reads = 0;

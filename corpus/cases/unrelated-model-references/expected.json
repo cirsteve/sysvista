@@ -1,0 +1,22 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": { "file": "formatter.ts", "qualified_name": "<module>", "declaration_kind": "module" },
+        "target": { "file": "models.ts", "qualified_name": "AccountRecord", "declaration_kind": "interface" },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

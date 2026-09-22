@@ -1,0 +1,44 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "main.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "source.ts",
+          "qualified_name": "load",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "main.ts",
+          "qualified_name": "run",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "source.ts",
+          "qualified_name": "load",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}
