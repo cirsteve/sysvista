@@ -141,6 +141,18 @@ mod unix_tests {
     }
 
     #[test]
+    fn reserved_and_duplicate_module_names_are_rejected() {
+        for config in [
+            "[[modules]]\nname = 'Unassigned'\nselectors = ['src/**']\n",
+            "[[modules]]\nname = 'ui'\nselectors = ['src/**']\n\n[[modules]]\nname = 'ui'\nselectors = ['tests/**']\n",
+        ] {
+            let temp = TempDir::new();
+            fs::write(temp.0.join("sysvista.toml"), config).unwrap();
+            assert!(Config::load(&temp.0).is_err());
+        }
+    }
+
+    #[test]
     fn invalid_v2_config_does_not_block_explicit_v1_scan() {
         let temp = TempDir::new();
         fs::write(

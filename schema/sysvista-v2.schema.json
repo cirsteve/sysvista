@@ -1069,7 +1069,8 @@
           "type": "string"
         },
         "kind": {
-          "type": "string"
+          "type": "string",
+          "default": "legacy"
         },
         "name": {
           "type": "string"
@@ -1100,8 +1101,7 @@
       "required": [
         "id",
         "name",
-        "scope_id",
-        "kind"
+        "scope_id"
       ]
     },
     "Relationship": {

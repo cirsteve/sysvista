@@ -8,6 +8,7 @@ pub struct Projection {
     pub id: String,
     pub name: String,
     pub scope_id: ScopeId,
+    #[serde(default = "legacy_projection_kind")]
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_scope_id: Option<ScopeId>,
@@ -17,4 +18,8 @@ pub struct Projection {
     pub entity_ids: Vec<EntityId>,
     #[serde(default)]
     pub relationship_ids: Vec<RelationshipId>,
+}
+
+fn legacy_projection_kind() -> String {
+    "legacy".into()
 }

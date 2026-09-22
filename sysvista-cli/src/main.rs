@@ -48,6 +48,9 @@ enum Commands {
         /// Omit content-addressed source bytes
         #[arg(long)]
         no_source: bool,
+        /// Trusted repository root for source bytes (defaults to the current directory)
+        #[arg(long)]
+        source_root: Option<PathBuf>,
     },
 }
 
@@ -107,9 +110,20 @@ fn main() {
             input,
             archive,
             no_source,
+            source_root,
         } => {
             let options = bundle::ArchiveOptions {
                 include_source: !no_source,
+                source_root: if no_source {
+                    None
+                } else {
+                    Some(source_root.unwrap_or_else(|| {
+                        std::env::current_dir().unwrap_or_else(|error| {
+                            eprintln!("Error resolving current directory: {error}");
+                            std::process::exit(1);
+                        })
+                    }))
+                },
                 ..Default::default()
             };
             bundle::write_archive(&input, &archive, &options).unwrap_or_else(|e| {

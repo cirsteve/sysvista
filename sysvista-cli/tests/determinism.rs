@@ -67,6 +67,51 @@ fn graph_is_deterministic_and_line_insensitive() {
     v2::write_bundle(&first, &first_output).unwrap();
     v2::write_bundle(&second, &second_output).unwrap();
 
+    let mut reordered = first.clone();
+    reordered.source_files.reverse();
+    reordered.entities.reverse();
+    reordered.modules.reverse();
+    for module in &mut reordered.modules {
+        module.file_ids.reverse();
+        module.entity_ids.reverse();
+    }
+    reordered.relationships.reverse();
+    reordered.unresolved_references.reverse();
+    reordered.evidence.reverse();
+    reordered.claims.reverse();
+    for claim in &mut reordered.claims {
+        claim.evidence_ids.reverse();
+    }
+    reordered.payload_contracts.reverse();
+    for contract in &mut reordered.payload_contracts {
+        contract.producer_ids.reverse();
+        contract.consumer_ids.reverse();
+    }
+    reordered.diagnostics.reverse();
+    reordered.projections.reverse();
+    for projection in &mut reordered.projections {
+        projection.entity_ids.reverse();
+        projection.relationship_ids.reverse();
+    }
+    reordered.findings.reverse();
+    reordered.manifest.inventory_entries.reverse();
+    let reordered_output = temp.0.join("reordered");
+    v2::write_bundle(&reordered, &reordered_output).unwrap();
+    for name in [
+        "manifest.json",
+        "graph.json",
+        "diagnostics.json",
+        "findings.json",
+        "source-index.json",
+        "index/scopes.json",
+    ] {
+        assert_eq!(
+            fs::read(first_output.join(name)).unwrap(),
+            fs::read(reordered_output.join(name)).unwrap(),
+            "{name} changed when input arrays were reordered"
+        );
+    }
+
     let first_graph = fs::read(first_output.join("graph.json")).unwrap();
     let second_graph = fs::read(second_output.join("graph.json")).unwrap();
     assert_eq!(first_graph, second_graph);
@@ -100,6 +145,12 @@ fn graph_is_deterministic_and_line_insensitive() {
             .all(|pair| pair[0]["scope_id"].as_str() <= pair[1]["scope_id"].as_str())
     );
     for scope in scopes {
+        let child_scopes = scope["child_scope_ids"].as_array().unwrap();
+        assert!(
+            child_scopes
+                .windows(2)
+                .all(|pair| pair[0].as_str() <= pair[1].as_str())
+        );
         let children = scope["child_ids"].as_array().unwrap();
         assert!(
             children

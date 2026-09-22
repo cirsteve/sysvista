@@ -17,7 +17,7 @@ pub fn derive(
         "repository",
         root.clone(),
         None,
-        Vec::new(),
+        entities.iter().map(|entity| entity.id.clone()).collect(),
     )];
     let file_by_path: BTreeMap<_, _> = files.iter().map(|f| (f.path.as_str(), f)).collect();
     let mut dirs = BTreeSet::new();
@@ -44,12 +44,19 @@ pub fn derive(
         let parent = parent_path
             .map(|p| ScopeId(v2::stable_id("scope", &["directory", repository, &p])))
             .unwrap_or_else(|| root.clone());
-        out.push(node(dir, "directory", scope, Some(parent), Vec::new()));
+        out.push(node(
+            dir,
+            "directory",
+            scope,
+            Some(parent),
+            entities_for_path(dir, files, entities),
+        ));
     }
     for marker in ["package.json", "Cargo.toml", "pyproject.toml"] {
         for entry in inventory
             .entries
             .iter()
+            .filter(|e| !matches!(e.outcome, InventoryOutcome::Excluded { .. }))
             .filter(|e| e.path == marker || e.path.ends_with(&format!("/{marker}")))
         {
             let package_path = Path::new(&entry.path)
@@ -77,7 +84,7 @@ pub fn derive(
                 "package",
                 scope,
                 Some(parent),
-                Vec::new(),
+                entities_for_path(&package_path, files, entities),
             ));
         }
     }
@@ -115,6 +122,30 @@ pub fn derive(
     out.sort_by(|a, b| a.id.cmp(&b.id));
     out.dedup_by(|a, b| a.scope_id == b.scope_id);
     out
+}
+
+fn entities_for_path(
+    path: &str,
+    files: &[SourceFile],
+    entities: &[CodeEntity],
+) -> Vec<crate::output::v2::EntityId> {
+    let file_ids: BTreeSet<_> = files
+        .iter()
+        .filter(|file| {
+            path.is_empty()
+                || file.path == path
+                || file
+                    .path
+                    .strip_prefix(path)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
+        .map(|file| &file.id)
+        .collect();
+    entities
+        .iter()
+        .filter(|entity| file_ids.contains(&entity.file_id))
+        .map(|entity| entity.id.clone())
+        .collect()
 }
 
 fn node(

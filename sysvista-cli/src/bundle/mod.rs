@@ -61,6 +61,7 @@ struct Graph<'a> {
     claims: &'a [v2::Claim],
     payload_contracts: &'a [v2::PayloadContract],
     projections: &'a [v2::Projection],
+    findings: &'a [v2::Finding],
     forbidden_dependencies: &'a [v2::ForbiddenDependencyRule],
 }
 
@@ -71,6 +72,10 @@ pub fn write_directory(snapshot: &Snapshot, output: &Path) -> BundleResult<()> {
     let source_index =
         SourceIndex::from_snapshot(&snapshot, MAX_ENTRY_BYTES, &mut source_diagnostics);
     snapshot.diagnostics.extend(source_diagnostics);
+    snapshot
+        .diagnostics
+        .sort_by_key(|value| serde_json::to_string(value).unwrap_or_default());
+    snapshot.manifest.validation = crate::validate::summary(&snapshot.diagnostics);
     snapshot.manifest.files = vec![
         "config.snapshot.toml".into(),
         "diagnostics.json".into(),
@@ -95,6 +100,7 @@ pub fn write_directory(snapshot: &Snapshot, output: &Path) -> BundleResult<()> {
             claims: &snapshot.claims,
             payload_contracts: &snapshot.payload_contracts,
             projections: &snapshot.projections,
+            findings: &snapshot.findings,
             forbidden_dependencies: &snapshot.forbidden_dependencies,
         },
     )?;
@@ -115,7 +121,7 @@ pub fn write_directory(snapshot: &Snapshot, output: &Path) -> BundleResult<()> {
 }
 
 pub fn write_bytes(root: &Path, entry: &str, bytes: &[u8]) -> BundleResult<()> {
-    let relative = validate_entry_path(Path::new(entry))?;
+    let relative = validate_entry_path(entry)?;
     let path = root.join(relative);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -184,13 +190,28 @@ pub(crate) fn canonicalize(snapshot: &mut Snapshot) {
         .evidence
         .sort_by_key(|v| serde_json::to_string(v).unwrap_or_default());
     snapshot.claims.sort_by(|a, b| a.id.cmp(&b.id));
+    for claim in &mut snapshot.claims {
+        claim.evidence_ids.sort();
+    }
     snapshot
         .payload_contracts
         .sort_by(|a, b| a.name.cmp(&b.name));
+    for contract in &mut snapshot.payload_contracts {
+        contract.producer_ids.sort();
+        contract.consumer_ids.sort();
+    }
     snapshot
         .diagnostics
         .sort_by_key(|v| serde_json::to_string(v).unwrap_or_default());
     snapshot.projections.sort_by(|a, b| a.id.cmp(&b.id));
+    for projection in &mut snapshot.projections {
+        projection.entity_ids.sort();
+        projection.relationship_ids.sort();
+    }
+    snapshot
+        .manifest
+        .inventory_entries
+        .sort_by_key(|entry| serde_json::to_string(entry).unwrap_or_default());
     snapshot
         .findings
         .sort_by_key(|v| serde_json::to_string(v).unwrap_or_default());

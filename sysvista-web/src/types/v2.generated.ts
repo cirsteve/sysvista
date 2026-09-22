@@ -411,7 +411,7 @@ export interface PayloadContract {
 export interface Projection {
   entity_ids?: string[];
   id: string;
-  kind: string;
+  kind?: string;
   name: string;
   parent_scope_id?: string | null;
   relationship_ids?: string[];

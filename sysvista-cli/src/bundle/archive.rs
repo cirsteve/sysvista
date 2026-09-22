@@ -14,6 +14,8 @@ use zip::{CompressionMethod, ZipWriter, write::SimpleFileOptions};
 #[derive(Clone, Debug)]
 pub struct ArchiveOptions {
     pub include_source: bool,
+    /// Explicitly trusted repository root used to resolve source-index paths.
+    pub source_root: Option<PathBuf>,
     pub entry_cap: u64,
     pub archive_cap: u64,
 }
@@ -21,6 +23,7 @@ impl Default for ArchiveOptions {
     fn default() -> Self {
         Self {
             include_source: true,
+            source_root: None,
             entry_cap: MAX_ENTRY_BYTES,
             archive_cap: MAX_ARCHIVE_BYTES,
         }
@@ -37,7 +40,7 @@ pub fn write_archive(bundle: &Path, archive: &Path, options: &ArchiveOptions) ->
     names.sort();
     names.dedup();
     for name in names {
-        validate_entry_path(Path::new(&name))?;
+        validate_entry_path(&name)?;
         let bytes = if name == "manifest.json" {
             let mut bytes = serde_json::to_vec_pretty(&manifest)
                 .map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
@@ -52,26 +55,50 @@ pub fn write_archive(bundle: &Path, archive: &Path, options: &ArchiveOptions) ->
         let index: SourceIndex =
             serde_json::from_slice(&fs::read(bundle.join("source-index.json"))?)
                 .map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
-        let root = PathBuf::from(&manifest.root);
-        let mut hashes = BTreeSet::new();
-        for item in index
-            .files
-            .into_iter()
-            .filter(|item| item.source_available && hashes.insert(item.content_hash.clone()))
-        {
-            validate_entry_path(Path::new(&item.path))?;
-            let bytes = fs::read(root.join(&item.path))?;
-            if bytes.len() as u64 > options.entry_cap {
+        let configured_root = options.source_root.as_ref().ok_or_else(|| {
+            BundleError::InvalidBundle(
+                "including source requires an explicit trusted source root".into(),
+            )
+        })?;
+        let root = configured_root.canonicalize()?;
+        let manifest_root = PathBuf::from(&manifest.root).canonicalize()?;
+        if root != manifest_root {
+            return Err(BundleError::InvalidBundle(format!(
+                "trusted source root {} does not match scanned root {}",
+                root.display(),
+                manifest_root.display()
+            )));
+        }
+        let mut hashes = BTreeSet::<String>::new();
+        for item in index.files.into_iter().filter(|item| item.source_available) {
+            let (Some(content_hash), Some(byte_length)) =
+                (item.content_hash.as_ref(), item.byte_length)
+            else {
+                return Err(BundleError::InvalidBundle(format!(
+                    "available source lacks hash or byte length: {}",
+                    item.path
+                )));
+            };
+            if !hashes.insert(content_hash.to_owned()) {
                 continue;
             }
+            let relative = validate_entry_path(&item.path)?;
+            let source = root.join(relative).canonicalize()?;
+            if !source.starts_with(&root) {
+                return Err(BundleError::UnsafePath(PathBuf::from(item.path)));
+            }
+            let bytes = fs::read(source)?;
             let actual = format!("{:x}", Sha256::digest(&bytes));
-            if actual != item.content_hash || bytes.len() as u64 != item.byte_length {
+            if actual != *content_hash || bytes.len() as u64 != byte_length {
                 return Err(BundleError::InvalidBundle(format!(
                     "source changed after scan: {}",
                     item.path
                 )));
             }
-            entries.push((format!("source/{}", item.content_hash), bytes));
+            if bytes.len() as u64 > options.entry_cap {
+                continue;
+            }
+            entries.push((format!("source/{content_hash}"), bytes));
         }
     }
     let total: u64 = entries.iter().map(|(_, bytes)| bytes.len() as u64).sum();
@@ -95,7 +122,7 @@ fn write_zip<W: Write + Seek>(writer: W, entries: Vec<(String, Vec<u8>)>) -> Bun
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o644);
     for (name, bytes) in entries {
-        validate_entry_path(Path::new(&name))?;
+        validate_entry_path(&name)?;
         zip.start_file(name, options)?;
         zip.write_all(&bytes)?;
     }

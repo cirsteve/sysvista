@@ -10,8 +10,10 @@ pub struct SourceIndex {
 pub struct SourceIndexEntry {
     pub file_id: FileId,
     pub path: String,
-    pub content_hash: String,
-    pub byte_length: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub byte_length: Option<u64>,
     pub source_available: bool,
 }
 
@@ -19,11 +21,8 @@ impl SourceIndex {
     pub fn from_snapshot(snapshot: &Snapshot, cap: u64, diagnostics: &mut Vec<Diagnostic>) -> Self {
         let mut files = Vec::new();
         for file in &snapshot.source_files {
-            let (Some(hash), Some(bytes)) = (file.content_hash.clone(), file.byte_length) else {
-                continue;
-            };
-            let available = bytes <= cap;
-            if !available {
+            let available = matches!((&file.content_hash, file.byte_length), (Some(_), Some(bytes)) if bytes <= cap);
+            if let Some(bytes) = file.byte_length.filter(|bytes| *bytes > cap) {
                 diagnostics.push(Diagnostic::SourceUnavailable {
                     id: v2::stable_id(
                         "diagnostic",
@@ -37,8 +36,8 @@ impl SourceIndex {
             files.push(SourceIndexEntry {
                 file_id: file.id.clone(),
                 path: file.path.clone(),
-                content_hash: hash,
-                byte_length: bytes,
+                content_hash: file.content_hash.clone(),
+                byte_length: file.byte_length,
                 source_available: available,
             });
         }

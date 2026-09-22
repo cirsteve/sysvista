@@ -6,6 +6,7 @@ const VIEWER_ROOT_SCOPE = toScopeId("scope:root");
 
 const emptyScope = (scopeId: ScopeId): ScopeSlice => ({
   scope_id: scopeId,
+  child_scope_ids: [],
   child_ids: [],
   owner_map: {},
   crossing_relationship_ids: [],
