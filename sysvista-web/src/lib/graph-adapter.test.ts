@@ -3,7 +3,8 @@ import { buildGraph, buildFlowGraph, projectedScopeToGraphInput } from "./graph-
 import type { SysVistaOutput, ComponentKind } from "../types/schema";
 import sample from "../test/fixtures/v1/sample-output.json";
 import { validate } from "./loader";
-import { indexSnapshot, projectScope } from "./projection";
+import { indexSnapshot } from "./projection/children";
+import { projectScope } from "./projection/project";
 import type { ScopeId } from "../types/v2";
 
 function makeScan(overrides: Partial<SysVistaOutput> = {}): SysVistaOutput {
@@ -118,6 +119,9 @@ describe("buildGraph filtering", () => {
     const graph = buildGraph(data, new Set<ComponentKind>(["model", "service", "transport", "transform", "prompt"]));
     const expected = loaded.value.snapshot.entities?.filter(({ declaration_kind }) => declaration_kind !== "file").map(({ id }) => id).sort();
     expect(graph.nodes.map(({ id }) => id).sort()).toEqual(expected);
+    expect(data.workflows).toHaveLength(1);
+    expect(data.workflows[0]).toMatchObject({ name: "Save user", entry_point_id: "legacy-entity:route" });
+    expect(data.workflows[0].steps).toHaveLength(3);
   });
   it("filters by active kinds", () => {
     const data = makeScan({

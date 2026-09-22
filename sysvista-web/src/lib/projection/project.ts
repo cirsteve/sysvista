@@ -15,7 +15,7 @@ export function projectScope(snapshot: Snapshot, index: ScopeIndex, scopeId: Sco
     scopedIds.size === 0 || scopedIds.has(relationship.id) || ownerByEntity.has(relationship.source) || ownerByEntity.has(relationship.target));
   const aggregated = aggregateCrossingRelationships(scopeId, relationships, ownerByEntity);
   const boundaries = boundaryNodes(scopeId, children, aggregated);
-  const visibleIds = new Set<string>([...ownerByEntity.keys(), ...children.map(({ id }) => id)]);
+  const visibleIds = new Set([...ownerByEntity.keys(), ...children.map(({ id }) => id)]);
   return { scopeId, children, ownerByEntity, relationships: aggregated,
     internalRelationships: summarizeInternalRelationships(relationships, ownerByEntity),
     boundaryNodes: boundaries, hidden: hiddenCounts(snapshot, visibleIds, aggregated) };

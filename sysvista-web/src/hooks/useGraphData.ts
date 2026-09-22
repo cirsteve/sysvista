@@ -8,8 +8,8 @@ import type {
 import { buildGraph, buildFlowGraph, FLOW_LABELS, projectedScopeToGraphInput } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
 import type { LoadedSnapshot } from "../lib/loader";
-import { indexSnapshot, projectScope } from "../lib/projection";
-import type { ScopeId } from "../types/v2";
+import { indexSnapshot, rootScopeId } from "../lib/projection/children";
+import { projectScope } from "../lib/projection/project";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
 
@@ -31,7 +31,7 @@ export function useGraphData() {
   const schema = useMemo(() => {
     if (!loaded) return null;
     const index = indexSnapshot(loaded.snapshot);
-    const root = (typeof loaded.snapshot.root_scope_id === "string" ? loaded.snapshot.root_scope_id : "scope:root") as ScopeId;
+    const root = rootScopeId(loaded.snapshot);
     return projectedScopeToGraphInput(loaded.snapshot, projectScope(loaded.snapshot, index, root));
   }, [loaded]);
 
@@ -40,7 +40,7 @@ export function useGraphData() {
   const loadSchema = useCallback((data: LoadedSnapshot) => {
     setLoaded(data);
     const index = indexSnapshot(data.snapshot);
-    const root = (typeof data.snapshot.root_scope_id === "string" ? data.snapshot.root_scope_id : "scope:root") as ScopeId;
+    const root = rootScopeId(data.snapshot);
     initSearch(projectedScopeToGraphInput(data.snapshot, projectScope(data.snapshot, index, root)).components);
     setSelectedNode(null);
     setSearchQuery("");

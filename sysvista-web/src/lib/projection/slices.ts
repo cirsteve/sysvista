@@ -15,7 +15,11 @@ export function createSliceLoader(source: SliceSource) {
     const cached = cache.get(key);
     if (cached) return cached;
     const pending = source.readScope(snapshotId, scopeId).then(async (scope) => {
-      const entities = await source.readEntities(snapshotId, [...new Set([...scope.child_ids, ...Object.keys(scope.owner_map), ...Object.values(scope.owner_map)])]);
+      const entities = await source.readEntities(snapshotId, [...new Set([
+        ...scope.child_ids.map(String),
+        ...Object.keys(scope.owner_map),
+        ...Object.values(scope.owner_map).map(String),
+      ])]);
       const relationships = await source.readRelationships(snapshotId, scope.crossing_relationship_ids);
       const endpointIds = relationships.flatMap(({ source, target }) => [source, target]);
       const known = new Set(entities.map(({ id }) => id));

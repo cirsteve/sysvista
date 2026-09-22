@@ -13,9 +13,9 @@ const missing = (errors: ReferenceError[], ownerId: string, field: string, targe
 
 export function validateReferences(snapshot: Snapshot): Result<Snapshot, ReferenceError[]> {
   const errors: ReferenceError[] = [];
-  const files = new Set((snapshot.source_files ?? []).map(({ id }) => id));
-  const entities = new Set((snapshot.entities ?? []).map(({ id }) => id));
-  const relationships = new Set((snapshot.relationships ?? []).map(({ id }) => id));
+  const files = new Set<string>((snapshot.source_files ?? []).map(({ id }) => id));
+  const entities = new Set<string>((snapshot.entities ?? []).map(({ id }) => id));
+  const relationships = new Set<string>((snapshot.relationships ?? []).map(({ id }) => id));
   const evidenceItems = (snapshot.evidence ?? []) as Evidence[];
   const evidence = new Set(evidenceItems.map(({ id }) => id));
   for (const entity of snapshot.entities ?? []) {
@@ -37,12 +37,12 @@ export function validateReferences(snapshot: Snapshot): Result<Snapshot, Referen
     if (!files.has(item.span.file_id)) missing(errors, `unresolved:${item.name}`, "span.file_id", item.span.file_id);
   }
   for (const projection of (snapshot.projections ?? []) as Projection[]) {
-    for (const id of (projection.entity_ids ?? []) as string[]) if (!entities.has(id as never)) missing(errors, String(projection.id), "entity_ids", id);
-    for (const id of (projection.relationship_ids ?? []) as string[]) if (!relationships.has(id as never)) missing(errors, String(projection.id), "relationship_ids", id);
+    for (const id of (projection.entity_ids ?? []) as string[]) if (!entities.has(id)) missing(errors, String(projection.id), "entity_ids", id);
+    for (const id of (projection.relationship_ids ?? []) as string[]) if (!relationships.has(id)) missing(errors, String(projection.id), "relationship_ids", id);
   }
   for (const contract of (snapshot.payload_contracts ?? []) as PayloadContract[]) {
     for (const id of [...((contract.producer_ids ?? []) as string[]), ...((contract.consumer_ids ?? []) as string[])]) {
-      if (!entities.has(id as never)) missing(errors, String(contract.name), "entity_ids", id);
+      if (!entities.has(id)) missing(errors, String(contract.name), "entity_ids", id);
     }
   }
   return errors.length === 0 ? { ok: true, value: snapshot } : { ok: false, error: errors };

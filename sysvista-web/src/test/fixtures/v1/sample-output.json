@@ -1,1 +1,22 @@
-{"version":"1","scanned_at":"2026-09-21T00:00:00Z","root_dir":"/example","project_name":"example/sysvista","detected_languages":["typescript"],"components":[{"id":"service","name":"UserService","kind":"service","language":"typescript","source":{"file":"src/users.ts","line_start":10},"metadata":{}},{"id":"model","name":"User","kind":"model","language":"typescript","source":{"file":"src/model.ts","line_start":2},"metadata":{}}],"edges":[{"from_id":"service","to_id":"model","label":"persists"}],"workflows":[{"id":"users","name":"Save user","entry_point_id":"service","steps":[{"component_id":"service","step_type":"entry","order":0},{"component_id":"model","step_type":"persist","order":1}]}],"scan_stats":{"files_scanned":2,"files_skipped":0,"scan_duration_ms":10}}
+{
+  "version": "1",
+  "scanned_at": "2026-09-21T00:00:00Z",
+  "root_dir": "/example",
+  "project_name": "example/sysvista",
+  "detected_languages": ["typescript"],
+  "components": [
+    {"id":"route","name":"POST /users","kind":"transport","language":"typescript","source":{"file":"src/routes.ts","line_start":4},"metadata":{},"transport_protocol":"http","http_method":"POST","http_path":"/users"},
+    {"id":"service","name":"UserService","kind":"service","language":"typescript","source":{"file":"src/services/users.ts","line_start":10},"metadata":{}},
+    {"id":"model","name":"User","kind":"model","language":"typescript","source":{"file":"src/models/user.ts","line_start":2},"metadata":{}}
+  ],
+  "edges": [
+    {"from_id":"route","to_id":"service","label":"calls"},
+    {"from_id":"service","to_id":"model","label":"persists"}
+  ],
+  "workflows": [{"id":"users","name":"Save user","entry_point_id":"route","steps":[
+    {"component_id":"route","step_type":"entry","order":0},
+    {"component_id":"service","step_type":"call","order":1},
+    {"component_id":"model","step_type":"persist","order":2}
+  ]}],
+  "scan_stats":{"files_scanned":3,"files_skipped":0,"scan_duration_ms":10}
+}

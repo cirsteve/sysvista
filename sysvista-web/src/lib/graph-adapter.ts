@@ -1,9 +1,9 @@
 import dagre from "@dagrejs/dagre";
 import type { Node, Edge } from "@xyflow/react";
-import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind } from "../types/schema";
+import type { SysVistaOutput, DetectedComponent, DetectedEdge, ComponentKind, StepType, Workflow } from "../types/schema";
 import { KIND_NODE_SIZE } from "./design-tokens";
 import type { Manifest, Snapshot } from "../types/v2";
-import type { ProjectedScope } from "./projection";
+import type { ProjectedScope } from "./projection/types";
 
 interface HubInfo { tier: "high" | "medium" | "normal"; degree: number }
 
@@ -20,9 +20,34 @@ const detectHubs = (components: DetectedComponent[], edges: DetectedEdge[]): Map
   return new Map([...degrees].map(([id, degree]) => [id, { degree, tier: degree > mean + 2 * deviation ? "high" : degree > mean + deviation ? "medium" : "normal" }]));
 };
 
-const classifyComponents = (components: DetectedComponent[]) => new Map(components.map(({ id }) => [id, "scope"]));
-
 const COMPONENT_KINDS = new Set<ComponentKind>(["model", "service", "transport", "transform", "prompt"]);
+
+const toStepType = (kind: string | undefined): StepType => {
+  switch (kind) {
+    case "persists": return "persist";
+    case "dispatches": return "dispatch";
+    case "invokes_prompt": return "prompt";
+    default: return "call";
+  }
+};
+
+const claimsToWorkflows = (snapshot: Snapshot): Workflow[] => (snapshot.claims ?? [])
+  .filter(({ predicate }) => predicate === "HeuristicTraversal")
+  .map((claim) => ({
+    id: claim.id,
+    name: claim.object.name,
+    entry_point_id: claim.subject,
+    steps: claim.object.entity_ids.map((componentId, order) => {
+      const incoming = (snapshot.relationships ?? []).find(({ target }) => target === componentId);
+      return {
+        component_id: componentId,
+        step_type: componentId === claim.subject
+          ? "entry"
+          : toStepType(incoming ? String(incoming.kind) : undefined),
+        order,
+      };
+    }),
+  }));
 
 export function projectedScopeToGraphInput(snapshot: Snapshot, projection: ProjectedScope): SysVistaOutput {
   const manifest = snapshot.manifest as Manifest;
@@ -44,7 +69,8 @@ export function projectedScopeToGraphInput(snapshot: Snapshot, projection: Proje
     root_dir: String(manifest.root), project_name: String(manifest.repository),
     detected_languages: [...new Set(components.map(({ language }) => language))], components,
     edges: projection.relationships.map((relationship) => ({ from_id: relationship.source, to_id: relationship.target, label: String(relationship.kind) })),
-    workflows: [], scan_stats: { files_scanned: snapshot.source_files?.length ?? 0, files_skipped: 0, scan_duration_ms: 0 },
+    workflows: claimsToWorkflows(snapshot),
+    scan_stats: { files_scanned: snapshot.source_files?.length ?? 0, files_skipped: 0, scan_duration_ms: 0 },
   };
 }
 
@@ -52,15 +78,8 @@ export interface GraphNode extends Record<string, unknown> {
   component: DetectedComponent;
   hubTier: HubInfo["tier"];
   degree: number;
-  cluster: string;
   highlighted?: boolean;
   direction?: "TB" | "LR";
-}
-
-export interface GroupLabelNode extends Record<string, unknown> {
-  label: string;
-  count: number;
-  kind: ComponentKind;
 }
 
 const KIND_CONFIG = KIND_NODE_SIZE;
@@ -99,7 +118,6 @@ const toComponentNode = (
   comp: DetectedComponent,
   position: { x: number; y: number },
   hubMap: Map<string, HubInfo>,
-  clusterMap: Map<string, string>,
   direction?: "TB" | "LR",
 ): Node<GraphNode> => {
   const hub = hubMap.get(comp.id) ?? { tier: "normal" as const, degree: 0 };
@@ -111,7 +129,6 @@ const toComponentNode = (
       component: comp,
       hubTier: hub.tier,
       degree: hub.degree,
-      cluster: clusterMap.get(comp.id) ?? "Other",
       ...(direction && { direction }),
     },
   };
@@ -178,12 +195,11 @@ export function buildGraph(
   const filteredEdges = data.edges.filter((e) => visibleIds.has(e.from_id) && visibleIds.has(e.to_id));
   const uniqueEdges = deduplicateEdges(filteredEdges);
 
-  const clusterMap = classifyComponents(filteredComponents);
   const hubMap = detectHubs(filteredComponents, filteredEdges);
 
   const positions = dagreLayout(filteredComponents, uniqueEdges, "TB", 60, 80);
   const componentNodes: Node[] = filteredComponents.map((comp) =>
-    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, clusterMap),
+    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap),
   );
 
   const edges: Edge[] = uniqueEdges
@@ -242,10 +258,9 @@ export function buildFlowGraph(
   const positions = dagreLayout(connectedComponents, uniqueEdges, "LR", 50, 100);
   const visibleFlowEdges = flowEdges.filter((e) => visibleIds.has(e.from_id) && visibleIds.has(e.to_id));
   const hubMap = detectHubs(connectedComponents, visibleFlowEdges);
-  const clusterMap = classifyComponents(connectedComponents);
 
   const nodes: Node<GraphNode>[] = connectedComponents.map((comp) =>
-    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, clusterMap, "LR"),
+    toComponentNode(comp, positions.get(comp.id) ?? { x: 0, y: 0 }, hubMap, "LR"),
   );
 
   const edges: Edge[] = uniqueEdges

@@ -18,8 +18,6 @@ import { ServiceNode } from "../nodes/ServiceNode";
 import { TransportNode } from "../nodes/TransportNode";
 import { TransformNode } from "../nodes/TransformNode";
 import { PromptNode } from "../nodes/PromptNode";
-import { GroupLabelNode } from "../nodes/GroupLabelNode";
-import { ClusterLabelNode } from "../nodes/ClusterLabelNode";
 
 const nodeTypes: NodeTypes = {
   model: ModelNode,
@@ -27,8 +25,6 @@ const nodeTypes: NodeTypes = {
   transport: TransportNode,
   transform: TransformNode,
   prompt: PromptNode,
-  groupLabel: GroupLabelNode,
-  clusterLabel: ClusterLabelNode,
 };
 
 interface GraphCanvasProps {
@@ -50,8 +46,6 @@ function GraphCanvasInner({
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
-      // Skip label nodes
-      if (node.type === "groupLabel" || node.type === "clusterLabel") return;
       const data = node.data as Record<string, unknown>;
       if (data.component) {
         onNodeClick(data.component as DetectedComponent);
@@ -64,7 +58,6 @@ function GraphCanvasInner({
   const styledNodes = useMemo(() => {
     if (!highlightedNodeIds || highlightedNodeIds.size === 0) return nodes;
     return nodes.map((node) => {
-      if (node.type === "groupLabel" || node.type === "clusterLabel") return node;
       const isHighlighted = highlightedNodeIds.has(node.id);
       return {
         ...node,

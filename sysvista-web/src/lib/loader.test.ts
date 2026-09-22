@@ -12,7 +12,11 @@ describe("loader validate", () => {
     expect(result.value.origin).toBe("v1-legacy");
     expect(result.value.snapshot.diagnostics).toHaveLength(1);
     expect(result.value.snapshot.coverage).toBe("unknown");
-    expect(result.value.snapshot.relationships?.[0]).toMatchObject({ origin: "heuristic", rule: "model_name_match" });
+    const persists = result.value.snapshot.relationships?.find(({ kind }) => kind === "persists");
+    const nonPersists = result.value.snapshot.relationships?.find(({ kind }) => kind !== "persists");
+    expect(persists).toMatchObject({ origin: "heuristic", rule: "model_name_match" });
+    expect(nonPersists).toMatchObject({ origin: "heuristic" });
+    expect(nonPersists).not.toHaveProperty("rule");
   });
   it("defaults omitted v1 workflows to empty", () => {
     const withoutWorkflows = { ...sample, workflows: undefined };

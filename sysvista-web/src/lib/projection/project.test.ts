@@ -35,7 +35,10 @@ describe("projectScope", () => {
   it("memoizes slices by snapshot and scope", async () => {
     let reads = 0;
     const load = createSliceLoader({
-      readScope: async () => { reads += 1; return fixture.index.scopes[0] as never; },
+      readScope: async () => {
+        reads += 1;
+        return (fixture.index as unknown as ScopeIndex).scopes[0];
+      },
       readEntities: async () => [], readRelationships: async () => [],
       readManifest: async () => fixture.snapshot.manifest,
     });

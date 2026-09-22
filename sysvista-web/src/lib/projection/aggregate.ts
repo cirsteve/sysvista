@@ -1,4 +1,4 @@
-import type { Relationship } from "../../types/v2";
+import type { EntityId, Relationship, ScopeId } from "../../types/v2";
 import type { AggregateRelationship, InternalRelationshipSummary } from "./types";
 
 const stableHash = (value: string) => {
@@ -11,9 +11,9 @@ const stableHash = (value: string) => {
 };
 
 export function aggregateCrossingRelationships(
-  scopeId: string,
+  scopeId: ScopeId,
   relationships: Relationship[],
-  ownerByEntity: Map<string, string>,
+  ownerByEntity: Map<EntityId, EntityId>,
 ): AggregateRelationship[] {
   const groups = new Map<string, AggregateRelationship>();
   for (const relationship of relationships) {
@@ -31,9 +31,9 @@ export function aggregateCrossingRelationships(
 }
 
 export function summarizeInternalRelationships(
-  relationships: Relationship[], ownerByEntity: Map<string, string>,
+  relationships: Relationship[], ownerByEntity: Map<EntityId, EntityId>,
 ): InternalRelationshipSummary[] {
-  const summaries = new Map<string, InternalRelationshipSummary>();
+  const summaries = new Map<EntityId, InternalRelationshipSummary>();
   for (const relationship of relationships) {
     const source = ownerByEntity.get(relationship.source);
     const target = ownerByEntity.get(relationship.target);
