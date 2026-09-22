@@ -24,6 +24,18 @@ describe("expandFlow", () => {
     expect(flow.edges).toEqual([expect.objectContaining({ id: "aa", backEdge: true })]);
   });
 
+  it("marks a cycle closed across already discovered branches", () => {
+    const crossBranch = { ...snapshot, relationships: [
+      { id: "ab", kind: "calls", source: "a", target: "b", origin: "analyzer" },
+      { id: "ac", kind: "calls", source: "a", target: "c", origin: "analyzer" },
+      { id: "bc", kind: "calls", source: "b", target: "c", origin: "analyzer" },
+      { id: "cb", kind: "calls", source: "c", target: "b", origin: "analyzer" },
+    ] } as unknown as Snapshot;
+    const flow = expandFlow(crossBranch, root);
+    expect(flow.edges.find(({ id }) => id === "cb")?.backEdge).toBe(true);
+    expect(flow.edges.find(({ id }) => id === "bc")?.backEdge).toBe(false);
+  });
+
   it("shows partial and heuristic calls only as unknown continuations", () => {
     const uncertain = { ...snapshot, relationships: [
       { id: "partial", kind: "calls", source: "a", target: "b", origin: "partial" },

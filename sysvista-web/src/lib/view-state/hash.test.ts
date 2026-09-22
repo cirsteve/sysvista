@@ -21,4 +21,11 @@ describe("view-state hash", () => {
     expect(decoded.state).toEqual(defaults);
     expect(decoded.diagnostics[0]?.kind).toBe("warning");
   });
+
+  it("rejects a hash that bypasses the flow-hop limit", () => {
+    const defaults = defaultViewState("current", "root" as ScopeId);
+    const decoded = decodeViewState(encodeViewState({ ...state, flowHops: 9 }), defaults);
+    expect(decoded.state).toEqual(defaults);
+    expect(decoded.diagnostics[0]?.message).toContain("Malformed view-state hash");
+  });
 });

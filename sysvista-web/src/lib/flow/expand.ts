@@ -2,11 +2,13 @@ import type { CodeEntity, EntityId, Relationship, Snapshot } from "../../types/v
 import { annotatePayloads } from "./annotate";
 import type { FlowEdge, FlowGraph, FlowNode, FlowRoot, UnknownContinuation } from "./types";
 
-interface QueueItem { id: EntityId; depth: number; path: EntityId[] }
+interface QueueItem { id: EntityId; depth: number }
 
 const relationshipOrigin = (relationship: Relationship): string => String(relationship.origin ?? "").toLowerCase();
 const isPartial = (relationship: Relationship) => relationshipOrigin(relationship).includes("partial");
 const isHeuristic = (relationship: Relationship) => relationshipOrigin(relationship).includes("heuristic");
+const isResolvedCall = (relationship: Relationship, entities: ReadonlyMap<EntityId, CodeEntity>) =>
+  !isHeuristic(relationship) && !isPartial(relationship) && entities.has(relationship.target);
 
 function rootsFor(snapshot: Snapshot, root: FlowRoot): EntityId[] {
   if (root.kind === "entity") return [root.entityId];
@@ -14,8 +16,55 @@ function rootsFor(snapshot: Snapshot, root: FlowRoot): EntityId[] {
   return [...new Set([...(contract?.producer_ids ?? []), ...(contract?.consumer_ids ?? [])])] as EntityId[];
 }
 
+function cycleBackEdges(
+  roots: EntityId[],
+  outgoing: ReadonlyMap<EntityId, Relationship[]>,
+  entities: ReadonlyMap<EntityId, CodeEntity>,
+  horizon: number,
+): Set<string> {
+  const depths = new Map<EntityId, number>(roots.map((id) => [id, 0]));
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const depth = depths.get(id)!;
+    if (depth >= horizon) continue;
+    for (const relationship of outgoing.get(id) ?? []) {
+      if (!isResolvedCall(relationship, entities) || depths.has(relationship.target)) continue;
+      depths.set(relationship.target, depth + 1);
+      queue.push(relationship.target);
+    }
+  }
+
+  const visited = new Set<EntityId>();
+  const active = new Set<EntityId>();
+  const backEdges = new Set<string>();
+  for (const root of roots) {
+    if (visited.has(root)) continue;
+    visited.add(root);
+    active.add(root);
+    const stack = [{ id: root, index: 0, relationships: outgoing.get(root) ?? [] }];
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      const relationship = frame.relationships[frame.index++];
+      if (!relationship) {
+        active.delete(frame.id);
+        stack.pop();
+        continue;
+      }
+      if (!depths.has(relationship.target) || !isResolvedCall(relationship, entities)) continue;
+      if (active.has(relationship.target)) backEdges.add(relationship.id);
+      else if (!visited.has(relationship.target)) {
+        visited.add(relationship.target);
+        active.add(relationship.target);
+        stack.push({ id: relationship.target, index: 0, relationships: outgoing.get(relationship.target) ?? [] });
+      }
+    }
+  }
+  return backEdges;
+}
+
 export function expandFlow(snapshot: Snapshot, root: FlowRoot, horizon = 3): FlowGraph {
-  const boundedHorizon = Math.max(0, Math.floor(horizon));
+  const boundedHorizon = Math.min(8, Math.max(0, Math.floor(horizon)));
   const entities = new Map<EntityId, CodeEntity>((snapshot.entities ?? []).map((entity) => [entity.id, entity]));
   const calls = (snapshot.relationships ?? []).filter((relationship) => relationship.kind === "calls");
   const outgoing = calls.reduce((map, relationship) => {
@@ -31,7 +80,8 @@ export function expandFlow(snapshot: Snapshot, root: FlowRoot, horizon = 3): Flo
     return map;
   }, new Map<EntityId, NonNullable<Snapshot["unresolved_references"]>>());
   const rootIds = rootsFor(snapshot, root).filter((id) => entities.has(id));
-  const queue: QueueItem[] = rootIds.map((id) => ({ id, depth: 0, path: [id] }));
+  const backEdgeIds = cycleBackEdges(rootIds, outgoing, entities, boundedHorizon);
+  const queue: QueueItem[] = rootIds.map((id) => ({ id, depth: 0 }));
   const depths = new Map<EntityId, number>(rootIds.map((id) => [id, 0]));
   const flowEdges = new Map<string, FlowEdge>();
   const unknownByNode = new Map<EntityId, UnknownContinuation[]>();
@@ -57,7 +107,7 @@ export function expandFlow(snapshot: Snapshot, root: FlowRoot, horizon = 3): Flo
     });
     unknownByNode.set(current.id, unknowns);
     known.forEach((relationship) => {
-      const backEdge = current.path.includes(relationship.target);
+      const backEdge = backEdgeIds.has(relationship.id);
       if (current.depth >= boundedHorizon && !backEdge) {
         truncation.set(current.id, (truncation.get(current.id) ?? 0) + 1);
         return;
@@ -68,7 +118,7 @@ export function expandFlow(snapshot: Snapshot, root: FlowRoot, horizon = 3): Flo
       const nextDepth = current.depth + 1;
       if (!depths.has(relationship.target) || nextDepth < (depths.get(relationship.target) ?? Infinity)) {
         depths.set(relationship.target, nextDepth);
-        queue.push({ id: relationship.target, depth: nextDepth, path: [...current.path, relationship.target] });
+        queue.push({ id: relationship.target, depth: nextDepth });
       }
     });
   }

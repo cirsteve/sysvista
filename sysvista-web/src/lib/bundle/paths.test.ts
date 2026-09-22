@@ -10,7 +10,7 @@ describe("validateEntryPath", () => {
     expect(validateEntryPath(path)).toEqual({ ok: true, path });
   });
 
-  it.each(["./manifest.json", "a//b", "C:/abs", "a\\b"])("rejects non-portable path %s", (path) => {
+  it.each(["./manifest.json", "a//b", "C:/abs", "C:relative", "a\\b"])("rejects non-portable path %s", (path) => {
     expect(validateEntryPath(path).ok).toBe(false);
   });
 });

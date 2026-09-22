@@ -24,4 +24,19 @@ describe("openBundleArchive", () => {
     expect(opened.metadata.has("source/hash")).toBe(false);
     expect(new TextDecoder().decode(await opened.read("source/hash"))).toContain("export const");
   });
+
+  it("bounds accepted aggregate bytes and entry count", async () => {
+    const archive = zipSync({
+      "one.json": strToU8("1234567890"),
+      "two.json": strToU8("1234567890"),
+      "three.json": strToU8("ok"),
+    });
+    const aggregateBounded = await openBundleArchive(archive, 20, 12);
+    expect(aggregateBounded.entries).toEqual(["one.json", "three.json"]);
+    expect(aggregateBounded.diagnostics.some(({ message }) => message.includes("total uncompressed size"))).toBe(true);
+
+    const countBounded = await openBundleArchive(archive, 20, 1_000, 2);
+    expect(countBounded.entries).toEqual(["one.json", "two.json"]);
+    expect(countBounded.diagnostics.some(({ message }) => message.includes("entry cap exceeded"))).toBe(true);
+  });
 });

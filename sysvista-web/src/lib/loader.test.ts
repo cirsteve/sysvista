@@ -51,6 +51,16 @@ describe("loader validate", () => {
     const file = { name: "broken.json", text: async () => { throw new Error("read failed"); } } as unknown as File;
     await expect(loadFromFile(file)).resolves.toEqual({ ok: false, error: { kind: "parse", message: "read failed" } });
   });
+  it("rejects an oversized archive before reading its bytes", async () => {
+    const file = {
+      name: "huge.zip",
+      size: 512 * 1024 * 1024 + 1,
+      arrayBuffer: () => { throw new Error("must not read"); },
+    } as unknown as File;
+    const result = await loadFromFile(file);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatchObject({ kind: "format", message: expect.stringContaining("cap") });
+  });
   it("reports the relationship ID for a dangling v2 target", () => {
     const result = validate({ manifest, source_files: [{ id: "f", path: "a.ts", analysis: { kind: "none" } }], entities: [{ id: "a", name: "a", qualified_name: "a", declaration_kind: "service", file_id: "f", scope_id: "s", span: { file_id: "f", start_line: 1, start_column: 1, end_line: 1, end_column: 1 } }], relationships: [{ id: "rel-dangling", kind: "calls", source: "a", target: "missing", origin: "test" }] });
     expect(result.ok).toBe(false);
@@ -73,6 +83,25 @@ describe("loader validate", () => {
     const result = await loadFromArchive(archive);
     expect(result.ok).toBe(true);
     if (result.ok) expect(new TextDecoder().decode(await result.value.sources?.read(hash))).toBe("ok");
+  });
+  it("uses findings embedded in graph metadata when the separate entry is absent", async () => {
+    const embedded = [{ kind: "project", message: "embedded finding" }];
+    const archive = zipSync({
+      "manifest.json": strToU8(JSON.stringify(manifest)),
+      "graph.json": strToU8(JSON.stringify({ entities: [], relationships: [], findings: embedded })),
+      "diagnostics.json": strToU8("[]"),
+      "index/scopes.json": strToU8('{"scopes":[]}'),
+    });
+    const archived = await loadFromArchive(archive);
+    expect(archived.ok && archived.value.snapshot.findings).toEqual(embedded);
+
+    const directory = await loadFromFiles([
+      jsonFile("manifest.json", manifest),
+      jsonFile("graph.json", { entities: [], relationships: [], findings: embedded }),
+      jsonFile("diagnostics.json", []),
+      jsonFile("scopes.json", { scopes: [] }, "bundle/index/scopes.json"),
+    ]);
+    expect(directory.ok && directory.value.snapshot.findings).toEqual(embedded);
   });
   it("marks sources unavailable when a no-source archive is loaded", async () => {
     const archive = zipSync({

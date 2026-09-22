@@ -18,7 +18,7 @@ const validState = (value: unknown): value is ViewState => {
     (typeof value.selection === "string" || value.selection === null) &&
     Array.isArray(value.selectedEntities) && value.selectedEntities.every((item) => typeof item === "string") &&
     (value.lens === "structure" || value.lens === "flow") &&
-    typeof value.flowHops === "number" && Number.isInteger(value.flowHops) && value.flowHops >= 0 &&
+    typeof value.flowHops === "number" && Number.isInteger(value.flowHops) && value.flowHops >= 0 && value.flowHops <= 8 &&
     Array.isArray(value.filters.kinds) && value.filters.kinds.every((item) => typeof item === "string") &&
     Array.isArray(value.filters.origins) && value.filters.origins.every((item) => typeof item === "string") &&
     typeof value.filters.query === "string" &&

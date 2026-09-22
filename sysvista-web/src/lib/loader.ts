@@ -1,7 +1,7 @@
 import type { SysVistaOutput } from "../types/schema";
 import type { Diagnostic, FileId, Snapshot } from "../types/v2";
 import { adaptV1 } from "./adapters/v1";
-import { openBundleArchive } from "./bundle/archive";
+import { DEFAULT_ARCHIVE_TOTAL_CAP, openBundleArchive } from "./bundle/archive";
 import type { Result } from "./result";
 import { validateReferences, type ReferenceError } from "./validate/references";
 import { validateSnapshot, type ValidationError } from "./validate/v2";
@@ -60,7 +60,12 @@ const parse = (text: string): Result<LoadedSnapshot, LoadError> => {
 
 export async function loadFromFile(file: File): Promise<Result<LoadedSnapshot, LoadError>> {
   try {
-    if (file.name.toLowerCase().endsWith(".zip")) return loadFromArchive(new Uint8Array(await file.arrayBuffer()));
+    if (file.name.toLowerCase().endsWith(".zip")) {
+      if (file.size > DEFAULT_ARCHIVE_TOTAL_CAP) {
+        return failure({ kind: "format", message: `Archive is ${file.size} bytes; cap is ${DEFAULT_ARCHIVE_TOTAL_CAP} bytes` });
+      }
+      return loadFromArchive(new Uint8Array(await file.arrayBuffer()));
+    }
     return parse(await file.text());
   } catch (cause) {
     return failure({ kind: "parse", message: cause instanceof Error ? cause.message : "Failed to read file" });
@@ -89,7 +94,7 @@ export async function loadFromArchive(bytes: Uint8Array): Promise<Result<LoadedS
     const manifest = decodeJson(archive.metadata.get("manifest.json"), "manifest.json");
     const graph = decodeJson(archive.metadata.get("graph.json"), "graph.json");
     const diagnostics = decodeJson(archive.metadata.get("diagnostics.json"), "diagnostics.json");
-    const findings = decodeJson(archive.metadata.get("findings.json"), "findings.json");
+    const findings = archive.metadata.has("findings.json") ? decodeJson(archive.metadata.get("findings.json"), "findings.json") : undefined;
     const scopes = decodeJson(archive.metadata.get("index/scopes.json"), "index/scopes.json");
     const index = sourceIndex(archive.metadata.has("source-index.json")
       ? decodeJson(archive.metadata.get("source-index.json"), "source-index.json")
@@ -127,18 +132,19 @@ export async function loadFromFiles(files: Iterable<File>): Promise<Result<Loade
   const sourceIndexFile = bundlePart(items, "source-index.json");
   const missing = [
     ["manifest.json", manifest], ["graph.json", graph],
-    ["diagnostics.json", diagnostics], ["findings.json", findings], ["index/scopes.json", scopes],
+    ["diagnostics.json", diagnostics], ["index/scopes.json", scopes],
   ].filter(([, file]) => !file).map(([name]) => name);
   if (missing.length > 0) {
     return failure({ kind: "format", message: `Incomplete SysVista v2 bundle: missing ${missing.join(", ")}` });
   }
-  if (!manifest || !graph || !diagnostics || !findings || !scopes) {
+  if (!manifest || !graph || !diagnostics || !scopes) {
     return failure({ kind: "format", message: "Incomplete SysVista v2 bundle" });
   }
   try {
-    const [manifestValue, graphValue, diagnosticsValue, findingsValue, scopeIndex] = await Promise.all(
-      [manifest, graph, diagnostics, findings, scopes].map(async (file) => JSON.parse(await file.text())),
+    const [manifestValue, graphValue, diagnosticsValue, scopeIndex] = await Promise.all(
+      [manifest, graph, diagnostics, scopes].map(async (file) => JSON.parse(await file.text())),
     );
+    const findingsValue = findings ? JSON.parse(await findings.text()) : undefined;
     const result = validate({ manifest: manifestValue, graph: graphValue, diagnostics: diagnosticsValue, findings: findingsValue });
     if (result.ok) {
       result.value.snapshot.scope_index = scopeIndex;
