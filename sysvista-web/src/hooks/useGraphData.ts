@@ -1,20 +1,22 @@
 import { useState, useCallback, useMemo } from "react";
 import type { Node, Edge } from "@xyflow/react";
 import type {
-  SysVistaOutput,
   DetectedComponent,
   ComponentKind,
   Workflow,
 } from "../types/schema";
-import { buildGraph, buildFlowGraph, FLOW_LABELS } from "../lib/graph-adapter";
+import { buildGraph, buildFlowGraph, FLOW_LABELS, projectedScopeToGraphInput } from "../lib/graph-adapter";
 import { initSearch, search } from "../lib/search";
+import type { LoadedSnapshot } from "../lib/loader";
+import { indexSnapshot, projectScope } from "../lib/projection";
+import type { ScopeId } from "../types/v2";
 
 const ALL_KINDS: ComponentKind[] = ["model", "service", "transport", "transform", "prompt"];
 
 export type ViewMode = "graph" | "flow";
 
 export function useGraphData() {
-  const [schema, setSchema] = useState<SysVistaOutput | null>(null);
+  const [loaded, setLoaded] = useState<LoadedSnapshot | null>(null);
   const [activeKinds, setActiveKinds] = useState<Set<ComponentKind>>(
     new Set(ALL_KINDS),
   );
@@ -26,11 +28,20 @@ export function useGraphData() {
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("graph");
 
+  const schema = useMemo(() => {
+    if (!loaded) return null;
+    const index = indexSnapshot(loaded.snapshot);
+    const root = (typeof loaded.snapshot.root_scope_id === "string" ? loaded.snapshot.root_scope_id : "scope:root") as ScopeId;
+    return projectedScopeToGraphInput(loaded.snapshot, projectScope(loaded.snapshot, index, root));
+  }, [loaded]);
+
   const workflows = useMemo(() => schema?.workflows ?? [], [schema]);
 
-  const loadSchema = useCallback((data: SysVistaOutput) => {
-    setSchema(data);
-    initSearch(data.components);
+  const loadSchema = useCallback((data: LoadedSnapshot) => {
+    setLoaded(data);
+    const index = indexSnapshot(data.snapshot);
+    const root = (typeof data.snapshot.root_scope_id === "string" ? data.snapshot.root_scope_id : "scope:root") as ScopeId;
+    initSearch(projectedScopeToGraphInput(data.snapshot, projectScope(data.snapshot, index, root)).components);
     setSelectedNode(null);
     setSearchQuery("");
     setSearchResults([]);

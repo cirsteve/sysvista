@@ -6,6 +6,13 @@ const fileId = (path: string) => `legacy-file:${safe(path)}` as FileId;
 const scopeId = (path: string) => `legacy-scope:${safe(path)}` as ScopeId;
 const entityId = (id: string) => `legacy-entity:${safe(id)}` as EntityId;
 
+const componentKind = (component: DetectedComponent): DetectedComponent["kind"] => {
+  switch (component.kind) {
+    case "model": case "service": case "transport": case "transform": case "prompt": return component.kind;
+    default: { const exhaustive: never = component.kind; return exhaustive; }
+  }
+};
+
 const edgeKind = (edge: DetectedEdge): Relationship["kind"] => {
   switch (edge.label) {
     case "imports": case "references": case "calls": case "contains": case "depends_on":
@@ -19,7 +26,7 @@ const toEntity = (component: DetectedComponent): CodeEntity => {
   const file = fileId(component.source.file);
   return {
     id: entityId(component.id), name: component.name, qualified_name: component.name,
-    declaration_kind: component.kind, file_id: file, scope_id: scopeId(component.source.file),
+    declaration_kind: componentKind(component), file_id: file, scope_id: scopeId(component.source.file),
     owner_id: `legacy-file-entity:${safe(component.source.file)}` as EntityId,
     span: { file_id: file, start_line: component.source.line_start ?? 1, start_column: 1,
       end_line: component.source.line_end ?? component.source.line_start ?? 1, end_column: 1 },

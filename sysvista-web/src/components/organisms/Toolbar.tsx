@@ -1,8 +1,8 @@
 import { Upload, Maximize, GitBranch, Workflow } from "lucide-react";
 import { useRef } from "react";
-import type { SysVistaOutput } from "../../types/schema";
+import type { LoadedSnapshot } from "../../lib/loader";
 import type { ViewMode } from "../../hooks/useGraphData";
-import { loadFromFile } from "../../lib/loader";
+import { formatLoadError, loadFromFile } from "../../lib/loader";
 import { IconButton } from "../atoms/IconButton";
 
 interface ToolbarProps {
@@ -11,7 +11,7 @@ interface ToolbarProps {
   viewMode: ViewMode;
   flowEdgeCount: number;
   workflowCount: number;
-  onLoad: (data: SysVistaOutput) => void;
+  onLoad: (data: LoadedSnapshot) => void;
   onError: (message: string) => void;
   onFitView: () => void;
   onToggleFlowView: () => void;
@@ -26,7 +26,8 @@ export function Toolbar({ projectName, stats, viewMode, flowEdgeCount, workflowC
     if (!file) return;
     try {
       const data = await loadFromFile(file);
-      onLoad(data);
+      if (data.ok) onLoad(data.value);
+      else onError(formatLoadError(data.error));
     } catch (err) {
       onError(err instanceof Error ? err.message : "Failed to load file");
     }

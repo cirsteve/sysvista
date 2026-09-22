@@ -15,7 +15,7 @@ describe("loader validate", () => {
     expect(result.value.snapshot.relationships?.[0]).toMatchObject({ origin: "heuristic", rule: "model_name_match" });
   });
   it("defaults omitted v1 workflows to empty", () => {
-    const { workflows: _workflows, ...withoutWorkflows } = sample;
+    const withoutWorkflows = { ...sample, workflows: undefined };
     const result = validate(withoutWorkflows);
     expect(result.ok && result.value.snapshot.claims).toEqual([]);
   });
