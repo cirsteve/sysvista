@@ -1,4 +1,5 @@
 pub mod analyzer;
+pub mod bundle;
 pub mod discovery;
 pub mod findings;
 pub mod heuristic;

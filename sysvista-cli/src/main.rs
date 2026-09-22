@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
-use sysvista_cli::{discovery, output, scanner};
+use sysvista_cli::{bundle, discovery, output, scanner};
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum)]
 enum OutputFormat {
@@ -36,6 +36,18 @@ enum Commands {
         /// Output path (defaults to schema/sysvista-v2.schema.json at the repository root)
         #[arg(short, long)]
         output: Option<PathBuf>,
+    },
+    /// Pack a v2 directory bundle into a portable zip archive
+    Bundle {
+        /// Directory bundle to pack
+        #[arg(long, default_value = "sysvista-output")]
+        input: PathBuf,
+        /// Destination zip path
+        #[arg(long)]
+        archive: PathBuf,
+        /// Omit content-addressed source bytes
+        #[arg(long)]
+        no_source: bool,
     },
 }
 
@@ -90,6 +102,21 @@ fn main() {
                 std::process::exit(1);
             });
             eprintln!("Schema written to {}", output.display());
+        }
+        Commands::Bundle {
+            input,
+            archive,
+            no_source,
+        } => {
+            let options = bundle::ArchiveOptions {
+                include_source: !no_source,
+                ..Default::default()
+            };
+            bundle::write_archive(&input, &archive, &options).unwrap_or_else(|e| {
+                eprintln!("Error writing archive: {e}");
+                std::process::exit(1);
+            });
+            eprintln!("Archive written to {}", archive.display());
         }
     }
 }
