@@ -44,11 +44,64 @@ export type Diagnostic =
       message: string;
       span?: SourceSpan | null;
       [k: string]: unknown;
+    }
+  | {
+      file_id: string;
+      id: string;
+      kind: "membership_conflict";
+      message: string;
+      modules: string[];
+      path: string;
+      [k: string]: unknown;
+    }
+  | {
+      id: string;
+      kind: "dangling_reference";
+      message: string;
+      missing_entity_id: string;
+      relationship_id: string;
+      [k: string]: unknown;
+    }
+  | {
+      file_id?: string | null;
+      id: string;
+      kind: "coverage";
+      message: string;
+      [k: string]: unknown;
+    }
+  | {
+      id: string;
+      kind: "contradiction";
+      message: string;
+      relationship_ids: string[];
+      [k: string]: unknown;
+    }
+  | {
+      evidence_id: string;
+      id: string;
+      kind: "stale_evidence";
+      message: string;
+      [k: string]: unknown;
+    }
+  | {
+      file_id: string;
+      id: string;
+      kind: "source_unavailable";
+      message: string;
+      path: string;
+      [k: string]: unknown;
     };
 export type Evidence =
   | {
       id: string;
       kind: "source";
+      span: SourceSpan;
+      [k: string]: unknown;
+    }
+  | {
+      content_hash: string;
+      id: string;
+      kind: "source_snapshot";
       span: SourceSpan;
       [k: string]: unknown;
     }
@@ -69,6 +122,18 @@ export type Evidence =
       [k: string]: unknown;
     };
 export type Finding =
+  | {
+      affected_entity_ids?: string[];
+      affected_file_ids?: string[];
+      id: string;
+      kind: "rule";
+      message: string;
+      navigation_target: NavigationTarget;
+      relationship_ids?: string[];
+      rule_id: string;
+      supporting_sites?: SourceSpan[];
+      [k: string]: unknown;
+    }
   | {
       entity_id: string;
       kind: "entity";
@@ -241,6 +306,7 @@ export interface Snapshot {
   entities?: CodeEntity[];
   evidence?: Evidence[];
   findings?: Finding[];
+  forbidden_dependencies?: ForbiddenDependencyRule[];
   manifest: Manifest;
   modules?: LogicalModule[];
   payload_contracts?: PayloadContract[];
@@ -280,17 +346,30 @@ export interface CodeEntity {
   span: SourceSpan;
   [k: string]: unknown;
 }
+export interface NavigationTarget {
+  entity_id?: string | null;
+  scope_id: string;
+  [k: string]: unknown;
+}
+export interface ForbiddenDependencyRule {
+  from: string;
+  to: string;
+  [k: string]: unknown;
+}
 export interface Manifest {
   analyzer_versions?: {
     [k: string]: string;
   };
+  files?: string[];
   inventory: InventoryCounts;
   inventory_entries?: InventoryEntry[];
   repository: string;
   root: string;
   scanned_at: string;
   schema_version: string;
+  source_included?: boolean;
   tool_version: string;
+  validation?: ValidationSummary;
   [k: string]: unknown;
 }
 export interface InventoryCounts {
@@ -306,12 +385,20 @@ export interface InventoryEntry {
   path: string;
   [k: string]: unknown;
 }
+export interface ValidationSummary {
+  diagnostics: number;
+  errors: number;
+  warnings: number;
+  [k: string]: unknown;
+}
 export interface LogicalModule {
   entity_ids?: string[];
   file_ids?: string[];
   id: string;
   name: string;
   scope_id: string;
+  selectors?: string[];
+  tags?: string[];
   [k: string]: unknown;
 }
 export interface PayloadContract {
@@ -324,15 +411,21 @@ export interface PayloadContract {
 export interface Projection {
   entity_ids?: string[];
   id: string;
+  kind?: string;
   name: string;
+  parent_scope_id?: string | null;
   relationship_ids?: string[];
   scope_id: string;
+  tags?: string[];
   [k: string]: unknown;
 }
 export interface SourceFile {
   analysis: AnalysisStatus;
+  byte_length?: number | null;
+  content_hash?: string | null;
   id: string;
   language?: string | null;
+  line_count?: number | null;
   path: string;
   [k: string]: unknown;
 }

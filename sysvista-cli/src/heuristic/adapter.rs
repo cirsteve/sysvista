@@ -330,7 +330,7 @@ fn attributes(
 }
 fn evidence_id(evidence: &Evidence) -> &str {
     match evidence {
-        Evidence::Source { id, .. } | Evidence::Text { id, .. } | Evidence::Analyzer { id, .. } => {
+        Evidence::Source { id, .. } | Evidence::SourceSnapshot { id, .. } | Evidence::Text { id, .. } | Evidence::Analyzer { id, .. } => {
             id
         }
     }

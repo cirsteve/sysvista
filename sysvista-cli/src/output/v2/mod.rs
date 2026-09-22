@@ -15,7 +15,7 @@ use std::{
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 
-pub use diagnostics::{Diagnostic, Finding};
+pub use diagnostics::{Diagnostic, Finding, NavigationTarget};
 #[allow(unused_imports)]
 pub use entities::{AnalysisStatus, CodeEntity, LogicalModule, SourceFile, SourceSpan};
 pub use ids::{
@@ -48,6 +48,19 @@ pub struct Manifest {
     pub inventory: InventoryCounts,
     #[serde(default)]
     pub inventory_entries: Vec<crate::discovery::InventoryEntry>,
+    #[serde(default)]
+    pub validation: ValidationSummary,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub source_included: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ValidationSummary {
+    pub diagnostics: u64,
+    pub errors: u64,
+    pub warnings: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -75,6 +88,14 @@ pub struct Snapshot {
     pub projections: Vec<Projection>,
     #[serde(default)]
     pub findings: Vec<Finding>,
+    #[serde(default)]
+    pub forbidden_dependencies: Vec<ForbiddenDependencyRule>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ForbiddenDependencyRule {
+    pub from: String,
+    pub to: String,
 }
 
 pub fn default_schema_path() -> PathBuf {

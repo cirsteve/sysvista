@@ -2,6 +2,7 @@ import type { CodeEntity, EntityId, FileId, Relationship, RelationshipId, ScopeI
 
 export interface ScopeSlice {
   scope_id: ScopeId;
+  child_scope_ids?: ScopeId[];
   child_ids: Array<EntityId | FileId>;
   owner_map: Record<string, EntityId>;
   crossing_relationship_ids: RelationshipId[];
