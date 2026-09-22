@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import ts from "typescript";
+import { LIBRARIES } from "embedded-libs";
 
 export interface Project { config?: string; program: ts.Program; ownedFiles: Set<string> }
 
@@ -58,6 +59,20 @@ export function createProjects(root: string, files: string[], explicitConfig?: s
     const paths = { ...(options.paths ?? {}) };
     for (const [name, target] of workspaces) paths[name] ??= [target];
     if (workspaces.size) options = { ...options, baseUrl: options.baseUrl ?? root, paths };
-    return { config: key === "<orphans>" ? undefined : key, program: ts.createProgram({ rootNames: roots, options }), ownedFiles: new Set(owned.map(ts.sys.resolvePath)) };
+    return { config: key === "<orphans>" ? undefined : key, program: ts.createProgram({ rootNames: roots, options, host: compilerHost(options) }), ownedFiles: new Set(owned.map(ts.sys.resolvePath)) };
   });
+}
+
+function compilerHost(options: ts.CompilerOptions): ts.CompilerHost {
+  const host = ts.createCompilerHost(options);
+  const getSourceFile = host.getSourceFile.bind(host);
+  const fileExists = host.fileExists.bind(host);
+  const readFile = host.readFile.bind(host);
+  host.fileExists = fileName => basename(fileName) in LIBRARIES || fileExists(fileName);
+  host.readFile = fileName => LIBRARIES[basename(fileName)] ?? readFile(fileName);
+  host.getSourceFile = (fileName, languageVersion, onError, shouldCreateNewSourceFile) => {
+    const embedded = LIBRARIES[basename(fileName)];
+    return embedded === undefined ? getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile) : ts.createSourceFile(fileName, embedded, languageVersion, true);
+  };
+  return host;
 }

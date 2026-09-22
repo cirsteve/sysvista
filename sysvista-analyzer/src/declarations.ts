@@ -15,6 +15,8 @@ export function extractDeclarations(program: ts.Program, root: string, ownedFile
   const checker = program.getTypeChecker(); const entities: Entity[] = []; const nodes = new Map<ts.Node, string>(); const symbols = new Map<ts.Symbol, string>(); const counts = new Map<string, number>();
   for (const source of program.getSourceFiles()) {
     if (!ownedFiles.has(ts.sys.resolvePath(source.fileName)) || source.fileName.includes("node_modules")) continue;
+    const moduleFile = relativePath(root, source.fileName);
+    entities.push({ name: "<module>", ownership_chain: "<module>", declaration_kind: "module", file: moduleFile, discriminator: 0, start_line: 1, start_column: 1, end_line: source.getLineAndCharacterOfPosition(source.end).line + 1, end_column: 1, attributes: {} });
     const visit = (node: ts.Node) => {
       if (named(node)) {
         const name = nameOf(node); const ownership_chain = [...owners(node), name].join("."); const declaration_kind = kindOf(node); const file = relativePath(root, source.fileName); const group = `${file}#${ownership_chain}#${declaration_kind}`; const discriminator = counts.get(group) ?? 0; counts.set(group, discriminator + 1); const key = `${group}#${discriminator}`; const span = spanOf(root, node);

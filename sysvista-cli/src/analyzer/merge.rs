@@ -25,6 +25,13 @@ pub fn merge(
     response: AnalyzeResponse,
     heuristic: HeuristicAnalysis,
 ) -> MergedAnalysis {
+    let HeuristicAnalysis {
+        entities: heuristic_entities,
+        relationships: heuristic_relationships,
+        evidence: heuristic_evidence,
+        claims: heuristic_claims,
+        diagnostics: heuristic_diagnostics,
+    } = heuristic;
     let mut key_to_id = HashMap::new();
     for entity in &response.entities {
         let file_id = v2::file_id(repository, &entity.file);
@@ -38,7 +45,7 @@ pub fn merge(
             ),
         );
     }
-    let mut entities = heuristic.entities;
+    let mut analyzer_entities = Vec::new();
     for entity in &response.entities {
         let file_id = v2::file_id(repository, &entity.file);
         let id = key_to_id[&key(entity)].clone();
@@ -54,7 +61,7 @@ pub fn merge(
             })
             .and_then(|owner| key_to_id.get(&key(owner)))
             .cloned();
-        entities.push(CodeEntity {
+        analyzer_entities.push(CodeEntity {
             id,
             name: entity.name.clone(),
             qualified_name: entity.ownership_chain.clone(),
@@ -76,10 +83,39 @@ pub fn merge(
                 .collect::<BTreeMap<_, _>>(),
         });
     }
+    let identity_map: HashMap<_, _> = heuristic_entities
+        .iter()
+        .filter_map(|heuristic| {
+            analyzer_entities
+                .iter()
+                .filter(|resolved| {
+                    resolved.file_id == heuristic.file_id
+                        && resolved.name == heuristic.name
+                        && (resolved.declaration_kind == "module"
+                            || spans_overlap(&resolved.span, &heuristic.span))
+                })
+                .min_by_key(|resolved| resolved.span.start_line.abs_diff(heuristic.span.start_line))
+                .map(|resolved| (heuristic.id.clone(), resolved.id.clone()))
+        })
+        .collect();
+    let mut entities: Vec<_> = heuristic_entities
+        .into_iter()
+        .filter(|entity| !identity_map.contains_key(&entity.id))
+        .collect();
+    entities.extend(analyzer_entities);
     entities.sort_by(|a, b| a.id.cmp(&b.id));
     entities.dedup_by(|a, b| a.id == b.id);
-    let mut relationships = heuristic.relationships;
-    let mut evidence = heuristic.evidence;
+    let mut relationship_identity = HashMap::new();
+    let mut relationships: Vec<_> = heuristic_relationships
+        .into_iter()
+        .map(|relationship| {
+            let old_id = relationship_id_ref(&relationship).clone();
+            let remapped = remap_relationship(relationship, &identity_map);
+            relationship_identity.insert(old_id, relationship_id_ref(&remapped).clone());
+            remapped
+        })
+        .collect();
+    let mut evidence = heuristic_evidence;
     for edge in response
         .relationships
         .iter()
@@ -153,7 +189,7 @@ pub fn merge(
                 .collect(),
         })
         .collect();
-    let mut diagnostics = heuristic.diagnostics;
+    let mut diagnostics = heuristic_diagnostics;
     diagnostics.extend(response.diagnostics.into_iter().map(|diagnostic| {
         Diagnostic::AnalyzerIssue {
             message: diagnostic.message,
@@ -166,7 +202,14 @@ pub fn merge(
         relationships,
         unresolved,
         evidence,
-        claims: heuristic.claims,
+        claims: heuristic_claims
+            .into_iter()
+            .map(|mut claim| {
+                claim.subject = remap_id(claim.subject, &identity_map);
+                remap_json(&mut claim.object, &identity_map, &relationship_identity);
+                claim
+            })
+            .collect(),
         payloads,
         diagnostics,
     }
@@ -177,6 +220,164 @@ fn key(entity: &super::contract::AnalyzerEntity) -> String {
         "{}#{}#{}#{}",
         entity.file, entity.ownership_chain, entity.declaration_kind, entity.discriminator
     )
+}
+fn spans_overlap(left: &SourceSpan, right: &SourceSpan) -> bool {
+    left.file_id == right.file_id
+        && left.start_line <= right.end_line
+        && right.start_line <= left.end_line
+}
+
+fn remap_id(id: EntityId, identities: &HashMap<EntityId, EntityId>) -> EntityId {
+    identities.get(&id).cloned().unwrap_or(id)
+}
+
+fn relationship_id_ref(relationship: &Relationship) -> &v2::RelationshipId {
+    match relationship {
+        Relationship::Imports { id, .. }
+        | Relationship::References { id, .. }
+        | Relationship::Calls { id, .. }
+        | Relationship::Contains { id, .. }
+        | Relationship::DependsOn { id, .. }
+        | Relationship::Handles { id, .. }
+        | Relationship::Persists { id, .. }
+        | Relationship::Transforms { id, .. }
+        | Relationship::Consumes { id, .. }
+        | Relationship::Produces { id, .. }
+        | Relationship::Dispatches { id, .. }
+        | Relationship::InvokesPrompt { id, .. } => id,
+    }
+}
+
+fn remap_relationship(
+    relationship: Relationship,
+    identities: &HashMap<EntityId, EntityId>,
+) -> Relationship {
+    macro_rules! remap {
+        ($kind:literal, $source:ident, $target:ident, $origin:ident, $evidence_id:ident) => {
+            make_relationship(
+                $kind,
+                remap_id($source, identities),
+                remap_id($target, identities),
+                $origin,
+                $evidence_id,
+            )
+        };
+    }
+    match relationship {
+        Relationship::Imports {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("imports", source, target, origin, evidence_id),
+        Relationship::References {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("references", source, target, origin, evidence_id),
+        Relationship::Calls {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("calls", source, target, origin, evidence_id),
+        Relationship::Contains {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("contains", source, target, origin, evidence_id),
+        Relationship::DependsOn {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("depends_on", source, target, origin, evidence_id),
+        Relationship::Handles {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("handles", source, target, origin, evidence_id),
+        Relationship::Persists {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("persists", source, target, origin, evidence_id),
+        Relationship::Transforms {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("transforms", source, target, origin, evidence_id),
+        Relationship::Consumes {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("consumes", source, target, origin, evidence_id),
+        Relationship::Produces {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("produces", source, target, origin, evidence_id),
+        Relationship::Dispatches {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("dispatches", source, target, origin, evidence_id),
+        Relationship::InvokesPrompt {
+            source,
+            target,
+            origin,
+            evidence_id,
+            ..
+        } => remap!("invokes_prompt", source, target, origin, evidence_id),
+    }
+}
+
+fn remap_json(
+    value: &mut serde_json::Value,
+    entity_ids: &HashMap<EntityId, EntityId>,
+    relationship_ids: &HashMap<v2::RelationshipId, v2::RelationshipId>,
+) {
+    match value {
+        serde_json::Value::String(text) => {
+            if let Some((_, replacement)) = entity_ids
+                .iter()
+                .find(|(id, _)| id.as_ref() == text.as_str())
+            {
+                *text = replacement.as_ref().to_owned();
+            } else if let Some((_, replacement)) = relationship_ids
+                .iter()
+                .find(|(id, _)| id.as_ref() == text.as_str())
+            {
+                *text = replacement.as_ref().to_owned();
+            }
+        }
+        serde_json::Value::Array(values) => values
+            .iter_mut()
+            .for_each(|value| remap_json(value, entity_ids, relationship_ids)),
+        serde_json::Value::Object(values) => values
+            .values_mut()
+            .for_each(|value| remap_json(value, entity_ids, relationship_ids)),
+        _ => {}
+    }
 }
 fn convert_span(repository: &str, span: AnalyzerSpan) -> SourceSpan {
     SourceSpan {

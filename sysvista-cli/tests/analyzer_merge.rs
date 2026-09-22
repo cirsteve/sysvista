@@ -1,3 +1,4 @@
+use std::path::Path;
 use sysvista_cli::{
     analyzer::{
         self,
@@ -6,6 +7,7 @@ use sysvista_cli::{
     heuristic::HeuristicAnalysis,
     output::v2::{self, Relationship},
 };
+use sysvista_cli::{discovery::Config, scanner};
 
 fn entity(file: &str, name: &str) -> AnalyzerEntity {
     AnalyzerEntity {
@@ -20,6 +22,49 @@ fn entity(file: &str, name: &str) -> AnalyzerEntity {
         end_column: 10,
         attributes: Default::default(),
     }
+}
+
+#[test]
+fn on_disk_cross_stage_import_has_one_identity_and_both_origins() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/analyzer_merge");
+    let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
+    let source_file_id = snapshot
+        .source_files
+        .iter()
+        .find(|file| file.path == "source.ts")
+        .unwrap()
+        .id
+        .clone();
+    let module = snapshot
+        .entities
+        .iter()
+        .find(|entity| entity.name == "<module>" && entity.file_id == source_file_id)
+        .unwrap();
+    let target_entities: Vec<_> = snapshot
+        .entities
+        .iter()
+        .filter(|entity| entity.name == "Target")
+        .collect();
+    assert_eq!(
+        target_entities.len(),
+        1,
+        "heuristic and resolved declarations must be reconciled"
+    );
+    let target = target_entities[0];
+    let origins: Vec<_> = snapshot
+        .relationships
+        .iter()
+        .filter_map(|relationship| match relationship {
+            Relationship::Imports {
+                source,
+                target: relationship_target,
+                origin,
+                ..
+            } if source == &module.id && relationship_target == &target.id => Some(origin.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(origins, vec!["resolved", "heuristic"]);
 }
 fn origin(relationship: &Relationship) -> &str {
     match relationship {

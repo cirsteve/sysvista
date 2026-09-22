@@ -17,6 +17,7 @@ sysvista-analyzer/dist/
 !sysvista-analyzer/package-lock.json
 !sysvista-analyzer/tsconfig.json
 !sysvista-analyzer/test/fixtures/*.json
+!sysvista-cli/tests/fixtures/analyzer_merge/*.json
 !schema/sysvista-v2.schema.json
 
 # IDE
