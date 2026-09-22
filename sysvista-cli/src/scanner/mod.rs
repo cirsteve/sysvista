@@ -19,13 +19,13 @@ use crate::output::schema::{DetectedComponent, ScanStats, SysVistaOutput};
 use crate::{
     discovery::{Config, Inventory, InventoryOutcome},
     output::{
-        schema::ComponentKind,
         v2::{
-            self, AnalysisStatus, CodeEntity, Diagnostic, InventoryCounts, Manifest, Relationship,
-            Snapshot, SourceFile, SourceSpan,
+            self, AnalysisStatus, Diagnostic, InventoryCounts, Manifest, Snapshot, SourceFile,
         },
     },
 };
+#[cfg(test)]
+use crate::output::schema::ComponentKind;
 
 /// Create a deterministic ID from kind + name + file
 pub fn make_id(kind: &str, name: &str, file: &str) -> String {
@@ -143,8 +143,6 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let (repository, portable) = repository_identity(root, config);
     let mut inventory = Inventory::discover(root, config)?;
     let mut source_files = Vec::new();
-    let mut components = Vec::new();
-    let mut file_contents = HashMap::new();
     let mut diagnostics = Vec::new();
 
     if !portable {
@@ -204,47 +202,12 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     .unwrap_or("unknown")
                     .to_owned();
                 match std::fs::read_to_string(&path) {
-                    Ok(content) => {
-                        let detected = std::panic::catch_unwind(|| {
-                            detect_components(&content, &language, &entry.path)
-                        });
-                        match detected {
-                            Ok(mut detected) => {
-                                components.append(&mut detected);
-                                file_contents.insert(entry.path.clone(), content);
-                                source_files.push(SourceFile {
-                                    id,
-                                    path: entry.path.clone(),
-                                    language: Some(language.clone()),
-                                    analysis: AnalysisStatus::Parsed {
-                                        analyzer: format!("builtin-{language}"),
-                                    },
-                                });
-                            }
-                            Err(_) => {
-                                let diagnostic_id = v2::stable_id(
-                                    "diagnostic",
-                                    &["failed", &entry.path, "analyzer panic"],
-                                );
-                                entry.outcome = InventoryOutcome::Failed {
-                                    diagnostic_id: diagnostic_id.clone(),
-                                };
-                                diagnostics.push(Diagnostic::FailedFile {
-                                    id: diagnostic_id,
-                                    path: entry.path.clone(),
-                                    message: "analyzer failed".into(),
-                                });
-                                source_files.push(SourceFile {
-                                    id,
-                                    path: entry.path.clone(),
-                                    language: Some(language),
-                                    analysis: AnalysisStatus::Failed {
-                                        message: "analyzer failed".into(),
-                                    },
-                                });
-                            }
-                        }
-                    }
+                    Ok(_) => source_files.push(SourceFile {
+                        id,
+                        path: entry.path.clone(),
+                        language: Some(language.clone()),
+                        analysis: AnalysisStatus::Parsed { analyzer: if language == "typescript" || language == "javascript" { "typescript-compiler-api".into() } else { "builtin-heuristic".into() } },
+                    }),
                     Err(error) => {
                         let message = error.to_string();
                         entry.outcome = InventoryOutcome::Unreadable {
@@ -269,93 +232,12 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         }
     }
 
-    components.sort_by(|a, b| {
-        (
-            &a.source.file,
-            a.source.line_start,
-            &a.name,
-            kind_name(&a.kind),
-        )
-            .cmp(&(
-                &b.source.file,
-                b.source.line_start,
-                &b.name,
-                kind_name(&b.kind),
-            ))
-    });
-    assign_scan_component_ids(&mut components);
-    let file_ids: HashMap<_, _> = source_files
-        .iter()
-        .map(|file| (file.path.clone(), file.id.clone()))
-        .collect();
-    let mut sibling_ordinals: HashMap<(String, String, String), usize> = HashMap::new();
-    let mut old_to_new = HashMap::new();
-    let entities: Vec<_> = components
-        .iter()
-        .filter_map(|component| {
-            let file_id = file_ids.get(&component.source.file)?.clone();
-            let declaration_kind = kind_name(&component.kind).to_owned();
-            let key = (
-                component.source.file.clone(),
-                component.name.clone(),
-                declaration_kind.clone(),
-            );
-            let ordinal = sibling_ordinals.entry(key).or_default();
-            let id = v2::entity_id(&file_id, &component.name, &declaration_kind, *ordinal);
-            *ordinal += 1;
-            old_to_new.insert(component.id.clone(), id.clone());
-            let line = component.source.line_start.unwrap_or(1);
-            Some(CodeEntity {
-                id,
-                name: component.name.clone(),
-                qualified_name: component.name.clone(),
-                declaration_kind,
-                file_id: file_id.clone(),
-                scope_id: v2::scope_id(&file_id),
-                owner_id: None,
-                span: SourceSpan {
-                    file_id,
-                    start_line: line,
-                    start_column: 1,
-                    end_line: component.source.line_end.unwrap_or(line),
-                    end_column: 1,
-                },
-                attributes: component_attributes(component),
-            })
-        })
-        .collect();
-
-    let legacy_edges = relationships::infer_edges(&components, &file_contents)
-        .into_iter()
-        .chain(relationships::infer_flow_edges(&components, &file_contents))
-        .chain(relationships::infer_call_edges(&components, &file_contents));
-    let mut v2_relationships = Vec::new();
-    for edge in legacy_edges {
-        let (Some(source), Some(target)) =
-            (old_to_new.get(&edge.from_id), old_to_new.get(&edge.to_id))
-        else {
-            continue;
-        };
-        let origin = "inferred".to_string();
-        let kind = relationship_kind(edge.label.as_deref());
-        let id = v2::relationship_id(source, target, kind, &origin);
-        v2_relationships.push(make_relationship(
-            kind,
-            id,
-            source.clone(),
-            target.clone(),
-            origin,
-        ));
-    }
-    v2_relationships.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
-    v2_relationships.dedup_by(|a, b| a.sort_key() == b.sort_key());
-
     // The legacy detectors are exposed as one explicit stage. Keep the source-file
     // accounting above, but use the stage output for all v2 graph values.
     let heuristic = crate::heuristic::analyze(root, &repository, &inventory, config);
-    diagnostics.extend(heuristic.diagnostics);
     let analyzer_files: Vec<_> = source_files.iter().filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript"))).map(|file| file.path.clone()).collect();
     let mut analyzer_versions = std::collections::BTreeMap::new();
+    let mut analyzer_response = None;
     if !analyzer_files.is_empty() {
         let request = crate::analyzer::AnalyzeRequest {
             contract_version: crate::analyzer::CONTRACT_VERSION,
@@ -364,11 +246,14 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             tsconfig: None,
         };
         match crate::analyzer::analyze(&request) {
-            Ok(response) => { analyzer_versions.insert("typescript".into(), response.analyzer_version); }
+            Ok(response) => { analyzer_versions.insert("typescript".into(), response.analyzer_version.clone()); analyzer_response = Some(response); }
             Err(crate::analyzer::AnalyzerError::ContractMismatch { expected, actual }) => diagnostics.push(Diagnostic::AnalyzerContractMismatch { message: format!("analyzer contract mismatch: expected {expected}, got {actual}"), severity: "error".into() }),
             Err(error) => diagnostics.push(Diagnostic::AnalyzerUnavailable { message: error.to_string(), severity: "error".into() }),
         }
     }
+    let response = analyzer_response.unwrap_or(crate::analyzer::AnalyzeResponse { contract_version: crate::analyzer::CONTRACT_VERSION, analyzer_version: "unavailable".into(), entities: Vec::new(), relationships: Vec::new(), unresolved: Vec::new(), diagnostics: Vec::new(), payloads: Vec::new() });
+    let merged = crate::analyzer::merge(&repository, response, heuristic);
+    diagnostics.extend(merged.diagnostics);
     let counts = inventory_counts(&inventory);
     Ok(Snapshot {
         manifest: Manifest {
@@ -382,29 +267,20 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             inventory_entries: inventory.entries,
         },
         source_files,
-        entities: heuristic.entities,
+        entities: merged.entities,
         modules: Vec::new(),
-        relationships: heuristic.relationships,
-        unresolved_references: Vec::new(),
-        evidence: heuristic.evidence,
-        claims: heuristic.claims,
-        payload_contracts: Vec::new(),
+        relationships: merged.relationships,
+        unresolved_references: merged.unresolved,
+        evidence: merged.evidence,
+        claims: merged.claims,
+        payload_contracts: merged.payloads,
         diagnostics,
         projections: Vec::new(),
         findings: Vec::new(),
     })
 }
 
-fn detect_components(content: &str, language: &str, file: &str) -> Vec<DetectedComponent> {
-    let mut components = Vec::new();
-    components.extend(models::detect_models(content, language, file));
-    components.extend(services::detect_services(content, language, file));
-    components.extend(transports::detect_transports(content, language, file));
-    components.extend(transforms::detect_transforms(content, language, file));
-    components.extend(prompts::detect_prompts(content, language, file));
-    components
-}
-
+#[cfg(test)]
 fn assign_scan_component_ids(components: &mut [DetectedComponent]) {
     for (index, component) in components.iter_mut().enumerate() {
         component.id = v2::stable_id(
@@ -419,6 +295,7 @@ fn assign_scan_component_ids(components: &mut [DetectedComponent]) {
     }
 }
 
+#[cfg(test)]
 fn kind_name(kind: &ComponentKind) -> &'static str {
     match kind {
         ComponentKind::Model => "model",
@@ -429,6 +306,7 @@ fn kind_name(kind: &ComponentKind) -> &'static str {
     }
 }
 
+#[cfg(test)]
 fn component_attributes(
     component: &DetectedComponent,
 ) -> std::collections::BTreeMap<String, serde_json::Value> {
@@ -461,57 +339,6 @@ fn component_attributes(
         attributes.insert("produces".into(), serde_json::json!(value));
     }
     attributes
-}
-
-fn relationship_kind(label: Option<&str>) -> &'static str {
-    match label.unwrap_or_default().to_ascii_lowercase().as_str() {
-        "imports" | "import" => "imports",
-        "calls" | "call" => "calls",
-        "contains" => "contains",
-        "depends_on" | "depends on" => "depends_on",
-        "handles" => "handles",
-        "persists" => "persists",
-        "transforms" => "transforms",
-        "consumes" => "consumes",
-        "produces" => "produces",
-        "dispatches" => "dispatches",
-        "invokes_prompt" | "invokes prompt" => "invokes_prompt",
-        _ => "references",
-    }
-}
-
-fn make_relationship(
-    kind: &str,
-    id: v2::RelationshipId,
-    source: v2::EntityId,
-    target: v2::EntityId,
-    origin: String,
-) -> Relationship {
-    macro_rules! rel {
-        ($variant:ident) => {
-            Relationship::$variant {
-                id,
-                source,
-                target,
-                origin,
-                evidence_id: None,
-            }
-        };
-    }
-    match kind {
-        "imports" => rel!(Imports),
-        "calls" => rel!(Calls),
-        "contains" => rel!(Contains),
-        "depends_on" => rel!(DependsOn),
-        "handles" => rel!(Handles),
-        "persists" => rel!(Persists),
-        "transforms" => rel!(Transforms),
-        "consumes" => rel!(Consumes),
-        "produces" => rel!(Produces),
-        "dispatches" => rel!(Dispatches),
-        "invokes_prompt" => rel!(InvokesPrompt),
-        _ => rel!(References),
-    }
 }
 
 fn inventory_counts(inventory: &Inventory) -> InventoryCounts {

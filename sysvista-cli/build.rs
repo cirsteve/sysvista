@@ -9,7 +9,10 @@ fn main() {
     } else {
         // Keep ordinary cargo builds usable before npm setup. CI and release builds
         // build the real bundle first; this fallback reports itself as unavailable.
-        fs::write(destination, b"process.stderr.write('embedded analyzer was not built\\n');process.exit(78);")
-            .expect("write analyzer fallback");
+        fs::write(
+            destination,
+            b"process.stderr.write('embedded analyzer was not built\\n');process.exit(78);",
+        )
+        .expect("write analyzer fallback");
     }
 }

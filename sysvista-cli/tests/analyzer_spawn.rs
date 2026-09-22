@@ -1,6 +1,11 @@
-use sysvista_cli::{analyzer::{self, CONTRACT_VERSION}, discovery::Config, output::v2::Diagnostic, scanner};
 use std::path::Path;
 use std::sync::Mutex;
+use sysvista_cli::{
+    analyzer::{self, CONTRACT_VERSION},
+    discovery::Config,
+    output::v2::Diagnostic,
+    scanner,
+};
 
 static PATH_LOCK: Mutex<()> = Mutex::new(());
 
@@ -17,8 +22,14 @@ fn missing_node_is_an_error_not_a_panic() {
     let old = std::env::var_os("PATH");
     unsafe { std::env::set_var("PATH", "") };
     let result = analyzer::handshake();
-    match old { Some(value) => unsafe { std::env::set_var("PATH", value) }, None => unsafe { std::env::remove_var("PATH") } }
-    assert!(matches!(result, Err(analyzer::AnalyzerError::Unavailable(_))));
+    match old {
+        Some(value) => unsafe { std::env::set_var("PATH", value) },
+        None => unsafe { std::env::remove_var("PATH") },
+    }
+    assert!(matches!(
+        result,
+        Err(analyzer::AnalyzerError::Unavailable(_))
+    ));
 }
 
 #[test]
@@ -28,6 +39,9 @@ fn scan_reports_missing_node_and_keeps_heuristic_output() {
     let old = std::env::var_os("PATH");
     unsafe { std::env::set_var("PATH", "") };
     let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
-    match old { Some(value) => unsafe { std::env::set_var("PATH", value) }, None => unsafe { std::env::remove_var("PATH") } }
+    match old {
+        Some(value) => unsafe { std::env::set_var("PATH", value) },
+        None => unsafe { std::env::remove_var("PATH") },
+    }
     assert!(snapshot.diagnostics.iter().any(|diagnostic| matches!(diagnostic, Diagnostic::AnalyzerUnavailable { severity, .. } if severity == "error")));
 }

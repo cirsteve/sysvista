@@ -214,6 +214,76 @@
         {
           "type": "object",
           "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analyzer_unavailable"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analyzer_contract_mismatch"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analyzer_issue"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "span": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceSpan"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "id": {
               "type": "string"
             },
@@ -335,6 +405,12 @@
             "analyzer": {
               "type": "string"
             },
+            "confidence": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "detail": {
               "type": "string"
             },
@@ -344,6 +420,18 @@
             "kind": {
               "type": "string",
               "const": "analyzer"
+            },
+            "origin": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rule": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "required": [

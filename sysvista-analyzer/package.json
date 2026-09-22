@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --outfile=dist/analyzer.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --banner:js=\"import{createRequire}from'node:module';import{fileURLToPath}from'node:url';const require=createRequire(import.meta.url),__filename=fileURLToPath(import.meta.url),__dirname=fileURLToPath(new URL('.',import.meta.url));\" --outfile=dist/analyzer.js",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test test/*.test.ts"
   },
