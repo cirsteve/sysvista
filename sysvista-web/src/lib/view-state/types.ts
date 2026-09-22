@@ -12,6 +12,9 @@ export interface ViewState {
   scopeId: ScopeId;
   filters: ViewFilters;
   selection: EntityId | string | null;
+  selectedEntities: EntityId[];
+  lens: "structure" | "flow";
+  flowHops: number;
   viewport: Viewport;
 }
 
@@ -20,5 +23,8 @@ export const defaultViewState = (snapshotId = "", scopeId = "scope:root" as Scop
   scopeId,
   filters: { kinds: [], origins: [], query: "" },
   selection: null,
+  selectedEntities: [],
+  lens: "structure",
+  flowHops: 3,
   viewport: { x: 0, y: 0, zoom: 1 },
 });

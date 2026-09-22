@@ -1,8 +1,6 @@
-import { FolderOpen, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 import type { LoadedSnapshot } from "../../lib/loader";
-import { formatLoadError, loadFromFiles, setupDropZone } from "../../lib/loader";
 import { ThemeToggle } from "../atoms/ThemeToggle";
+import { ImportDialog } from "./ImportDialog";
 
 interface ToolbarProps {
   projectName?: string;
@@ -10,30 +8,24 @@ interface ToolbarProps {
   onToggleTheme: () => void;
   onLoad: (data: LoadedSnapshot) => void;
   onError: (message: string) => void;
+  lens: "structure" | "flow";
+  flowHops: number;
+  onLensChange: (lens: "structure" | "flow") => void;
+  onFlowHopsChange: (hops: number) => void;
 }
 
-export function Toolbar({ projectName, theme, onToggleTheme, onLoad, onError }: ToolbarProps) {
-  const file = useRef<HTMLInputElement>(null);
-  const bundle = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  useEffect(() => { bundle.current?.setAttribute("webkitdirectory", ""); }, []);
-  useEffect(() => setupDropZone(document.body, onLoad, onError, setIsDragging), [onError, onLoad]);
-  const change = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!event.target.files?.length) return;
-    const result = await loadFromFiles(event.target.files);
-    if (result.ok) onLoad(result.value); else onError(formatLoadError(result.error));
-    event.target.value = "";
-  };
+export function Toolbar({ projectName, theme, onToggleTheme, onLoad, onError, lens, flowHops, onLensChange, onFlowHopsChange }: ToolbarProps) {
   return (
     <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
-      {isDragging && <div className="pointer-events-none fixed inset-3 z-50 grid place-items-center rounded-xl border-2 border-dashed border-sky-500 bg-sky-50/90 text-lg font-semibold text-sky-800 dark:bg-slate-950/90 dark:text-sky-200">Drop SysVista JSON or bundle files to load</div>}
       <div className="flex items-center gap-2"><strong>SysVista</strong>{projectName && <span className="text-sm text-[var(--muted)]">/ {projectName}</span>}</div>
       <div className="flex items-center gap-2">
-        <button className="toolbar-button" onClick={() => file.current?.click()}><Upload className="h-4 w-4" /> Load JSON</button>
-        <button className="toolbar-button" onClick={() => bundle.current?.click()}><FolderOpen className="h-4 w-4" /> Load bundle</button>
+        <ImportDialog onLoad={onLoad} onError={onError} />
+        <div className="flex rounded border border-[var(--border)]" aria-label="Diagram lens">
+          <button type="button" className={`px-2 py-1 text-xs ${lens === "structure" ? "bg-sky-600 text-white" : ""}`} onClick={() => onLensChange("structure")}>Structure</button>
+          <button type="button" className={`px-2 py-1 text-xs ${lens === "flow" ? "bg-sky-600 text-white" : ""}`} onClick={() => onLensChange("flow")}>Flow</button>
+        </div>
+        {lens === "flow" && <label className="flex items-center gap-1 text-xs">Hops <input aria-label="Flow hops" className="w-12 rounded border border-[var(--border)] bg-transparent px-1 py-1" type="number" min={0} max={8} value={flowHops} onChange={(event) => onFlowHopsChange(Number(event.target.value))} /></label>}
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        <input ref={file} hidden type="file" accept=".json" onChange={change} />
-        <input ref={bundle} hidden type="file" accept=".json" multiple onChange={change} />
       </div>
     </header>
   );

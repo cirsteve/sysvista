@@ -7,7 +7,8 @@ describe("view-state hash", () => {
   const state: ViewState = {
     snapshotId: "snapshot-7", scopeId: "scope:child" as ScopeId,
     filters: { kinds: ["module", "symbol"], origins: ["analyzer"], query: "router" },
-    selection: "entity-3", viewport: { x: 12.5, y: -4, zoom: 1.75 },
+    selection: "entity-3", selectedEntities: ["entity-3" as never], lens: "flow", flowHops: 4,
+    viewport: { x: 12.5, y: -4, zoom: 1.75 },
   };
 
   it("round-trips every field", () => {

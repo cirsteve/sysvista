@@ -39,7 +39,6 @@ function scan(bytes: Uint8Array, cap: number, requested?: string): Promise<ScanR
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': ${validated.reason}`));
         return;
       }
-      entries.push(validated.path);
       if (entry.originalSize === undefined) {
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': uncompressed size is unavailable`));
         return;
@@ -48,6 +47,7 @@ function scan(bytes: Uint8Array, cap: number, requested?: string): Promise<ScanR
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': ${entry.originalSize} bytes exceeds ${cap} byte cap`));
         return;
       }
+      entries.push(validated.path);
       const shouldReadMetadata = requested === undefined && !entry.name.startsWith("source/");
       if (!shouldReadMetadata && entry.name !== requested) return;
       pending += 1;

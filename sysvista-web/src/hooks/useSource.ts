@@ -8,24 +8,22 @@ export type SourceResult =
   | { kind: "text"; text: string };
 
 export function useSource(loaded: LoadedSnapshot | null, fileId?: FileId): SourceResult {
-  const [result, setResult] = useState<SourceResult>({ kind: "idle" });
+  const sources = loaded?.sources;
+  const indexed = fileId ? sources?.index.get(fileId) : undefined;
+  const requestKey = sources?.included && indexed?.source_available && indexed.content_hash ? indexed.content_hash : undefined;
+  const [resolved, setResolved] = useState<{ key: string; result: SourceResult }>();
   useEffect(() => {
     let active = true;
-    const sources = loaded?.sources;
-    const indexed = fileId ? sources?.index.get(fileId) : undefined;
-    if (!fileId) { setResult({ kind: "idle" }); return; }
-    if (!sources?.included || !indexed?.source_available || !indexed.content_hash) {
-      setResult({ kind: "unavailable" });
-      return;
-    }
-    setResult({ kind: "loading" });
-    void sources.read(indexed.content_hash).then((bytes) => {
+    if (!requestKey || !sources) return;
+    void sources.read(requestKey).then((bytes) => {
       if (!active) return;
-      if (!bytes) { setResult({ kind: "unavailable" }); return; }
+      if (!bytes) { setResolved({ key: requestKey, result: { kind: "unavailable" } }); return; }
       const decoded = decodeSource(bytes);
-      setResult(decoded.kind === "binary" ? { kind: "binary" } : decoded);
-    }, () => active && setResult({ kind: "unavailable" }));
+      setResolved({ key: requestKey, result: decoded.kind === "binary" ? { kind: "binary" } : decoded });
+    }, () => active && setResolved({ key: requestKey, result: { kind: "unavailable" } }));
     return () => { active = false; };
-  }, [fileId, loaded]);
-  return result;
+  }, [requestKey, sources]);
+  if (!fileId) return { kind: "idle" };
+  if (!requestKey) return { kind: "unavailable" };
+  return resolved?.key === requestKey ? resolved.result : { kind: "loading" };
 }

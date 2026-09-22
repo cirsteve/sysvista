@@ -56,18 +56,19 @@ async function highlightedHtml(text: string, language: string, span?: SourceSpan
 
 export function SourceView({ source, language, span }: SourceViewProps) {
   const target = useRef<HTMLDivElement>(null);
-  const [html, setHtml] = useState<string>();
+  const [highlighted, setHighlighted] = useState<{ key: string; html: string }>();
   const selectedLanguage = aliases[language ?? ""] ?? language ?? "text";
   const text = source.kind === "text" ? source.text : "";
   const lines = useMemo(() => text.split("\n"), [text]);
+  const highlightKey = `${selectedLanguage}:${span?.start_line ?? 0}:${span?.end_line ?? 0}:${text}`;
+  const html = highlighted?.key === highlightKey ? highlighted.html : undefined;
 
   useEffect(() => {
     let active = true;
-    setHtml(undefined);
     if (!text || !LANGUAGES.has(selectedLanguage)) return;
-    void highlightedHtml(text, selectedLanguage, span).then((value) => active && setHtml(value));
+    void highlightedHtml(text, selectedLanguage, span).then((value) => active && setHighlighted({ key: highlightKey, html: value }));
     return () => { active = false; };
-  }, [selectedLanguage, span, text]);
+  }, [highlightKey, selectedLanguage, span, text]);
 
   useEffect(() => {
     if (!span) return;

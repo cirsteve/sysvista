@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { strToU8, zipSync } from "fflate";
 import sample from "../test/fixtures/v1/sample-output.json";
-import { loadFromFile, loadFromFiles, validate } from "./loader";
+import { loadFromArchive, loadFromFile, loadFromFiles, validate } from "./loader";
 
 const manifest = { schema_version: "2", repository: "example/repo", scanned_at: "2026-09-21T00:00:00Z", root: "/repo", tool_version: "0.1.0", inventory: { included: 1, excluded: 0, unsupported: 0, unreadable: 0, failed: 0 } };
 const jsonFile = (name: string, value: unknown, relativePath = name) => ({
@@ -57,5 +58,20 @@ describe("loader validate", () => {
       expect(result.error.kind).toBe("references");
       expect(JSON.stringify(result.error)).toContain("rel-dangling");
     }
+  });
+  it("loads archive metadata and lazily resolves content-addressed source", async () => {
+    const hash = "abc123";
+    const archive = zipSync({
+      "manifest.json": strToU8(JSON.stringify({ ...manifest, source_included: true })),
+      "graph.json": strToU8(JSON.stringify({ entities: [], relationships: [] })),
+      "diagnostics.json": strToU8("[]"),
+      "findings.json": strToU8("[]"),
+      "index/scopes.json": strToU8('{"scopes":[]}'),
+      "source-index.json": strToU8(JSON.stringify({ files: [{ file_id: "f", path: "a.ts", content_hash: hash, byte_length: 2, source_available: true }] })),
+      [`source/${hash}`]: strToU8("ok"),
+    });
+    const result = await loadFromArchive(archive);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(new TextDecoder().decode(await result.value.sources?.read(hash))).toBe("ok");
   });
 });
