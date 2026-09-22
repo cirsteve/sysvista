@@ -3,9 +3,13 @@
 ## Relationship corpus
 
 `scripts/validate-corpus.sh` scans every labeled project in `corpus/cases`, runs the
-shared snapshot validator, and reports precision and recall for each relationship kind in
-each case. The 2026-09-22 baseline measured `1.000` aggregate precision and recall for
-all kinds. The enforced `0.980` floors and ratchet policy are documented in
+shared snapshot validator, and reports precision and recall for each relationship kind
+and origin in each case. The first baseline reported `1.000` for all kinds, but ten of
+the twelve had no expectations and scored 0/0 as perfect. The corpus now includes
+Python and Rust heuristic cases, reports a zero denominator as unmeasured, and lists
+`contains` and `depends_on` as unmeasured because nothing emits them. Resolved imports
+and calls measure `1.000`; the heuristic kinds measure what the detectors actually find.
+Floors per kind and origin are in `corpus/floors.json`; the policy is documented in
 `corpus/README.md`.
 
 ## Reference machine

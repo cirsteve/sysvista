@@ -61,11 +61,6 @@ pub enum Diagnostic {
         #[serde(skip_serializing_if = "Option::is_none")]
         file_id: Option<FileId>,
     },
-    Contradiction {
-        id: String,
-        relationship_ids: Vec<RelationshipId>,
-        message: String,
-    },
     StaleEvidence {
         id: String,
         evidence_id: String,

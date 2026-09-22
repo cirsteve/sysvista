@@ -8,7 +8,9 @@ pub fn derive(snapshot: &Snapshot) -> Vec<Finding> {
             out.push(super::rule(snapshot,"membership_conflict",format!("{path} has conflicting module membership"),entities,vec![file_id.clone()],Vec::new(),Vec::new()));
         }
     }
-    if let Some(module)=snapshot.modules.iter().find(|m|m.name=="Unassigned") {
+    // Without configured modules every file is unassigned; that is not a finding.
+    let configured = snapshot.modules.iter().any(|m| m.name != "Unassigned");
+    if let Some(module)=snapshot.modules.iter().find(|m|m.name=="Unassigned").filter(|_| configured) {
         for file in &module.file_ids {
             if snapshot.diagnostics.iter().any(|d|matches!(d,Diagnostic::MembershipConflict{file_id,..} if file_id==file)){continue;}
             let entities=snapshot.entities.iter().filter(|e|&e.file_id==file).map(|e|e.id.clone()).collect();
