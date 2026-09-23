@@ -10,6 +10,7 @@ import type {
   ScopeRenderer,
   ScopeRendererEvent,
   ScopeRendererListener,
+  ScopeRenderResult,
   Viewport,
 } from "./types";
 
@@ -34,7 +35,7 @@ export class FakeScopeRenderer implements ScopeRenderer {
   async render(projection: ScopeProjection) {
     return { spec: this.toDiagramSpec(projection), diagram: null };
   }
-  async renderSpec(spec: DiagramSpec) { return { spec, diagram: null }; }
+  async renderSpec(spec: DiagramSpec): Promise<ScopeRenderResult> { return { spec, diagram: null }; }
   subscribe(listener: ScopeRendererListener) {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
