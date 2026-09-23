@@ -51,7 +51,7 @@ export class FakeScopeRenderer implements ScopeRenderer {
 export function fixtureProjection(): ScopeProjection {
   const snapshot = fixture.snapshot as unknown as Snapshot;
   const index = fixture.index as unknown as ScopeIndex;
-  const scopeId = "root" as ScopeId;
+  const scopeId = snapshot.manifest.root_scope_id as ScopeId;
   return { snapshot, index, projected: projectScope(snapshot, index, scopeId) };
 }
 
