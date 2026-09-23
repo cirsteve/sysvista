@@ -52,7 +52,7 @@ export function validate(data: unknown): Result<LoadedSnapshot, LoadError> {
   const manifest = isRecord(data.manifest) ? data.manifest : undefined;
   if (manifest?.schema_version !== "3") return failure({ kind: "format", message: `Expected SysVista schema version 3; received ${String(manifest?.schema_version ?? "missing")}` });
   const schemaResult = validateSnapshot(bundleSnapshot(data));
-  if (!schemaResult.ok) return failure({ kind: "validation", message: "Invalid SysVista v2 snapshot", errors: schemaResult.error });
+  if (!schemaResult.ok) return failure({ kind: "validation", message: "Invalid SysVista schema-version-3 snapshot", errors: schemaResult.error });
   if (!schemaResult.value.scope_index) return failure({ kind: "format", message: "Schema version 3 requires index/scopes.json" });
   const refs = validateReferences(schemaResult.value);
   return refs.ok ? { ok: true, value: { snapshot: refs.value, hierarchy: buildHierarchyIndex(refs.value), origin: "v2" } }

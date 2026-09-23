@@ -17,6 +17,11 @@ describe("loader validate", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain("3");
   });
+  it("identifies schema version 3 when snapshot validation fails", () => {
+    const result = validate({ manifest, scope_index: emptyIndex, source_files: "invalid" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain("schema-version-3 snapshot");
+  });
   it("adapts v1 and supplies one legacy diagnostic with unknown coverage", () => {
     const result = validate(sample);
     expect(result.ok).toBe(true);
