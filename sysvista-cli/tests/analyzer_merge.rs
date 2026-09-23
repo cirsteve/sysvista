@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, path::Path};
 use sysvista_cli::{
     analyzer::{
         self,
-        contract::{AnalyzerDiagnostic, AnalyzerEntity, AnalyzerRelationship, AnalyzerSpan},
+        contract::{AnalyzerDiagnostic, AnalyzerEntity, AnalyzerPayload, AnalyzerRelationship, AnalyzerSpan},
     },
     heuristic::HeuristicAnalysis,
     output::v2::{self, Diagnostic, Evidence, Relationship},
@@ -66,6 +66,8 @@ fn on_disk_cross_stage_import_has_one_identity_and_both_origins() {
         })
         .collect();
     assert_eq!(origins, vec!["resolved", "heuristic"]);
+    assert!(snapshot.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+        Diagnostic::PayloadIdentityConflict { name, .. } if name == "Payload")));
 }
 fn origin(relationship: &Relationship) -> &str {
     match relationship {
@@ -106,6 +108,21 @@ fn response(entities: Vec<AnalyzerEntity>, relationships: Vec<AnalyzerRelationsh
         diagnostics: vec![],
         payloads: vec![],
     }
+}
+
+#[test]
+fn same_payload_name_in_distinct_files_is_a_diagnostic() {
+    let mut first = entity("source.ts", "Payload");
+    first.declaration_kind = "interface".into();
+    let mut second = entity("target.ts", "Payload");
+    second.declaration_kind = "interface".into();
+    let mut response = response(vec![first, second], vec![]);
+    response.payloads = vec![AnalyzerPayload { name: "Payload".into(), producers: vec![], consumers: vec![] }];
+    let files = files(&["source.ts", "target.ts"]);
+    let merged = analyzer::merge(&context(&files), response, HeuristicAnalysis::default());
+    assert_eq!(merged.payloads.len(), 1);
+    assert!(merged.diagnostics.iter().any(|diagnostic| matches!(diagnostic,
+        Diagnostic::PayloadIdentityConflict { name, file_ids, .. } if name == "Payload" && file_ids.len() == 2)));
 }
 
 fn span(file: &str, line: u32) -> AnalyzerSpan {

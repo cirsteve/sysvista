@@ -1,6 +1,6 @@
 # SysVista bundle format
 
-A v2 directory bundle contains:
+A schema version 3 directory bundle contains:
 
 - `manifest.json`: schema/tool metadata, inventory and validation summary, the canonical file list, and `source_included`.
 - `graph.json`: entities, relationships, modules, projections, unresolved references, evidence, claims, payload contracts, findings, and forbidden-dependency rules. Findings are also emitted separately for direct post-analysis consumption.
@@ -14,3 +14,7 @@ A v2 directory bundle contains:
 All entry names are portable, relative, normalized `/`-separated paths. Writers reject absolute paths, drive prefixes, backslashes, empty components, and any `.` or `..` component with a typed `UnsafePath` error.
 
 The source index contains every discovered `FileId`; hash and byte-length fields are absent when those values could not be captured, and `source_available` is then false. The default source-entry cap is 2 MiB. Oversized source is omitted, remains present in `source-index.json` with `source_available: false`, and produces a `source_unavailable` diagnostic. The default total uncompressed archive cap is 512 MiB. Source files are re-hashed and length-checked before applying the archive entry cap, so changed files cannot be silently omitted or archived under stale metadata.
+
+The manifest names `root_scope_id`, and `index/scopes.json` is a `ScopeIndex` of navigation slices. Each slice has `children` tagged as `directory`, `file`, `module`, or `symbol`; `child_ids` is no longer present. A directory or package replaces the directory at its path, so physical containment is acyclic. Package marker precedence is `package.json`, then `Cargo.toml`, then `pyproject.toml`. File children use the source file's `FileId`; the analyzer's per-file `<module>` entity is hidden and resolves to that file through `owner_map`. Symbol scopes exist only for declarations with nested children, while nested entities carry their owner's scope ID. Logical modules are direct root children with one owner per file. The viewer renders exactly the children emitted by the CLI; `[viewer] visible_extensions` defaults to `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `rs`, and `py`, and hidden files remain in `source_files`.
+
+Projection `entity_ids` remain transitive membership. `owner_map` maps descendant entity IDs to their visible representative IDs. A file has only one logical module owner, so multi-membership double counting does not arise. `[findings.unresolved] exclude_reasons` filters references before per-file counts are computed. A payload name that matches type declarations in multiple files produces a `payload_identity_conflict` diagnostic without splitting the payload or creating a finding.

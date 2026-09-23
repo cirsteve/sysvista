@@ -64,6 +64,7 @@ function cycleBackEdges(
 }
 
 export function expandFlow(snapshot: Snapshot, root: FlowRoot, horizon = 3): FlowGraph {
+  if (!Number.isFinite(horizon)) throw new RangeError("flow hops must be finite");
   const boundedHorizon = Math.min(8, Math.max(0, Math.floor(horizon)));
   const entities = new Map<EntityId, CodeEntity>((snapshot.entities ?? []).map((entity) => [entity.id, entity]));
   const calls = (snapshot.relationships ?? []).filter((relationship) => relationship.kind === "calls");

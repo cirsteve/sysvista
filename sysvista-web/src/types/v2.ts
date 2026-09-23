@@ -14,6 +14,9 @@ export type Diagnostic = Generated.Diagnostic;
 export type Evidence = Generated.Evidence;
 export type InventoryCounts = Generated.InventoryCounts;
 export type Manifest = Generated.Manifest;
+export type ScopeChild = Generated.ScopeChild;
+export type ScopeIndex = Generated.ScopeIndex;
+export type ScopeSlice = Generated.ScopeSlice;
 
 export type SourceSpan = Omit<Generated.SourceSpan, "file_id" | "start_line" | "start_column" | "end_line" | "end_column"> & {
   file_id: FileId;
@@ -39,6 +42,9 @@ export type CodeEntity = Omit<
 > & {
   file_id: FileId;
   id: EntityId;
+  name: string;
+  qualified_name: string;
+  declaration_kind: string;
   owner_id?: EntityId | null;
   scope_id: ScopeId;
   span: SourceSpan;
@@ -51,6 +57,7 @@ export type LogicalModule = Omit<
   entity_ids?: EntityId[];
   file_ids?: FileId[];
   id: ModuleId;
+  name: string;
   scope_id: ScopeId;
 };
 
@@ -101,6 +108,8 @@ export type Projection = Omit<
   entity_ids?: EntityId[];
   relationship_ids?: RelationshipId[];
   scope_id: ScopeId;
+  name: string;
+  kind: string;
 };
 
 type BrandedFinding<T> = T extends { kind: "entity"; entity_id: string }
@@ -123,7 +132,11 @@ export type Snapshot = Omit<
   | "relationships"
   | "source_files"
   | "unresolved_references"
+  | "manifest"
+  | "scope_index"
 > & {
+  manifest: Manifest;
+  scope_index?: ScopeIndex | null;
   claims?: Claim[];
   diagnostics?: Diagnostic[];
   entities?: CodeEntity[];

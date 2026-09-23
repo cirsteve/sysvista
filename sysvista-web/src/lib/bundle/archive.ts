@@ -19,6 +19,7 @@ interface ScanResult {
   diagnostics: Diagnostic[];
   metadata: Map<string, Uint8Array>;
   value?: Uint8Array;
+  inflatedBytes: number;
 }
 
 /**
@@ -26,7 +27,7 @@ interface ScanResult {
  * No entry is started until its path and per-entry, aggregate, and count limits
  * pass; a later scan reads one requested source without retaining every source.
  */
-function scan(bytes: Uint8Array, cap: number, totalCap: number, entryCountCap: number, requested?: string): Promise<ScanResult> {
+function scan(bytes: Uint8Array, cap: number, totalCap: number, entryCountCap: number, requested?: string, alreadyInflated = 0): Promise<ScanResult> {
   return new Promise((resolve, reject) => {
     const entries: string[] = [];
     const diagnostics: Diagnostic[] = [];
@@ -35,8 +36,8 @@ function scan(bytes: Uint8Array, cap: number, totalCap: number, entryCountCap: n
     let pending = 0;
     let pushed = false;
     let encountered = 0;
-    let acceptedBytes = 0;
-    const finish = () => { if (pushed && pending === 0) resolve({ entries, diagnostics, metadata, value }); };
+    let inflatedBytes = 0;
+    const finish = () => { if (pushed && pending === 0) resolve({ entries, diagnostics, metadata, value, inflatedBytes }); };
     const unzip = new Unzip((entry) => {
       encountered += 1;
       if (encountered > entryCountCap) {
@@ -52,29 +53,29 @@ function scan(bytes: Uint8Array, cap: number, totalCap: number, entryCountCap: n
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': uncompressed size is unavailable`));
         return;
       }
-      if (entry.originalSize > cap) {
+      const shouldReadMetadata = requested === undefined && !entry.name.startsWith("source/");
+      const shouldRead = shouldReadMetadata || entry.name === requested;
+      if (!shouldRead) { entries.push(validated.path); return; }
+      if (!shouldReadMetadata && entry.originalSize > cap) {
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': ${entry.originalSize} bytes exceeds ${cap} byte cap`));
         return;
       }
-      if (acceptedBytes + entry.originalSize > totalCap) {
+      if (alreadyInflated + inflatedBytes + entry.originalSize > totalCap) {
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': total uncompressed size exceeds ${totalCap} byte cap`));
         return;
       }
-      acceptedBytes += entry.originalSize;
       entries.push(validated.path);
-      const shouldReadMetadata = requested === undefined && !entry.name.startsWith("source/");
-      if (!shouldReadMetadata && entry.name !== requested) return;
       pending += 1;
       const chunks: Uint8Array[] = [];
       let length = 0;
       entry.ondata = (error, chunk, final) => {
         if (error) { reject(error); return; }
         length += chunk.length;
-        if (length > cap) {
+        inflatedBytes += chunk.length;
+        if ((!shouldReadMetadata && length > cap) || alreadyInflated + inflatedBytes > totalCap) {
           entry.terminate();
-          diagnostics.push(warning(`Rejected archive entry '${entry.name}': expanded data exceeds ${cap} byte cap`));
+          reject(new Error(`Rejected archive entry '${entry.name}': inflated byte cap exceeded`));
           pending -= 1;
-          finish();
           return;
         }
         chunks.push(chunk);
@@ -112,13 +113,26 @@ export async function openBundleArchive(
 ): Promise<OpenedBundleArchive> {
   const initial = await scan(bytes, cap, totalCap, entryCountCap);
   const allowed = new Set(initial.entries);
+  let charged = initial.inflatedBytes;
+  const cache = new Map<string, Uint8Array>();
+  let pendingRead: Promise<unknown> = Promise.resolve();
   return {
     entries: initial.entries,
     diagnostics: initial.diagnostics,
     metadata: initial.metadata,
-    async read(path) {
-      if (!allowed.has(path)) return undefined;
-      return (await scan(bytes, cap, totalCap, entryCountCap, path)).value;
+    read(path) {
+      // Each lazy scan must see the bytes charged by every preceding read.
+      const read = pendingRead.then(async () => {
+        if (!allowed.has(path)) return undefined;
+        const cached = cache.get(path);
+        if (cached) return cached;
+        const result = await scan(bytes, cap, totalCap, entryCountCap, path, charged);
+        charged += result.inflatedBytes;
+        if (result.value) cache.set(path, result.value);
+        return result.value;
+      });
+      pendingRead = read.then(() => undefined, () => undefined);
+      return read;
     },
   };
 }

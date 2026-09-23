@@ -1,19 +1,10 @@
 import type { EntityId, Relationship, ScopeId } from "../../types/v2";
 import type { AggregateRelationship, InternalRelationshipSummary } from "./types";
 
-const stableHash = (value: string) => {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index++) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(16).padStart(8, "0");
-};
-
 export function aggregateCrossingRelationships(
   scopeId: ScopeId,
   relationships: Relationship[],
-  ownerByEntity: Map<EntityId, EntityId>,
+  ownerByEntity: Map<EntityId, string>,
 ): AggregateRelationship[] {
   const groups = new Map<string, AggregateRelationship>();
   for (const relationship of relationships) {
@@ -23,7 +14,7 @@ export function aggregateCrossingRelationships(
     const key = `${source}\0${target}\0${relationship.kind}\0${relationship.origin}`;
     const existing = groups.get(key);
     if (existing) existing.relationshipIds.push(relationship.id);
-    else groups.set(key, { id: `aggregate:${stableHash(`${scopeId}\0${key}`)}`, source, target,
+    else groups.set(key, { id: `aggregate:${JSON.stringify([scopeId, source, target, relationship.kind, relationship.origin])}`, source, target,
       kind: relationship.kind, origin: String(relationship.origin), relationshipIds: [relationship.id] });
   }
   return [...groups.values()].map((item) => ({ ...item, relationshipIds: item.relationshipIds.sort() }))
@@ -31,9 +22,9 @@ export function aggregateCrossingRelationships(
 }
 
 export function summarizeInternalRelationships(
-  relationships: Relationship[], ownerByEntity: Map<EntityId, EntityId>,
+  relationships: Relationship[], ownerByEntity: Map<EntityId, string>,
 ): InternalRelationshipSummary[] {
-  const summaries = new Map<EntityId, InternalRelationshipSummary>();
+  const summaries = new Map<string, InternalRelationshipSummary>();
   for (const relationship of relationships) {
     const source = ownerByEntity.get(relationship.source);
     const target = ownerByEntity.get(relationship.target);

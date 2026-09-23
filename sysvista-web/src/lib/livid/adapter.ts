@@ -46,15 +46,16 @@ function objectSchema<T extends object>(required: readonly (keyof T)[]): Standar
 
 const registry = defineRegistry({
   nodeTypes: {
-    module: { label: "Module", detail: objectSchema<ModuleDetails>(["name"]), shape: "rounded", glyph: "square", isRouter: false },
-    file: { label: "File", detail: objectSchema<FileDetails>(["path"]), shape: "rect", glyph: "bar", isRouter: false },
-    symbol: { label: "Symbol", detail: objectSchema<SymbolDetails>(["qualifiedName"]), shape: "stadium", glyph: "dot", isRouter: false },
-    boundary: { label: "Boundary", detail: objectSchema<BoundaryDetails>(["externalTargetId"]), shape: "hexagon", glyph: "chevron", isRouter: false },
-    flow: { label: "Flow function", detail: objectSchema<FlowDetails>(["truncationCount"]), shape: "stadium", glyph: "chevron", isRouter: false },
+    directory: { label: "Directory", detail: objectSchema<{ name: string }>(["name"]), shape: "rounded", glyph: "square", states: { highlight: { tint: "accent" } }, isRouter: false },
+    module: { label: "Module", detail: objectSchema<ModuleDetails>(["name"]), shape: "rounded", glyph: "square", states: { highlight: { tint: "accent" } }, isRouter: false },
+    file: { label: "File", detail: objectSchema<FileDetails>(["path"]), shape: "rect", glyph: "bar", states: { highlight: { tint: "accent" } }, isRouter: false },
+    symbol: { label: "Symbol", detail: objectSchema<SymbolDetails>(["qualifiedName"]), shape: "stadium", glyph: "dot", states: { highlight: { tint: "accent" } }, isRouter: false },
+    boundary: { label: "Boundary", detail: objectSchema<BoundaryDetails>(["externalTargetId"]), shape: "hexagon", glyph: "chevron", states: { highlight: { tint: "accent" } }, isRouter: false },
+    flow: { label: "Flow function", detail: objectSchema<FlowDetails>(["truncationCount"]), shape: "stadium", glyph: "chevron", states: { highlight: { tint: "accent" } }, isRouter: false },
   },
   edgeTypes: {
-    "aggregate-edge": { label: "Dependency", detail: objectSchema<AggregateEdgeDetails>(["count", "origin"]) },
-    "flow-edge": { label: "Direct call", detail: objectSchema<{ backEdge: boolean }>(["backEdge"]) },
+    "aggregate-edge": { label: "Dependency", detail: objectSchema<AggregateEdgeDetails>(["count", "origin"]), states: { highlight: { tint: "accent" } } },
+    "flow-edge": { label: "Direct call", detail: objectSchema<{ backEdge: boolean }>(["backEdge"]), states: { highlight: { tint: "accent" } } },
   },
 });
 
@@ -100,6 +101,7 @@ export class LividScopeRenderer implements ScopeRenderer {
   }
 
   async renderSpec(spec: DiagramSpec) {
+    if (spec.overBudget) return { spec, diagram: null };
     const valid = validateDiagram(registry, asLividSpec(spec));
     if (!valid.ok) {
       return { spec, diagram: null, diagnostic: diagnostic("validation", valid.error.map(formatError)) };

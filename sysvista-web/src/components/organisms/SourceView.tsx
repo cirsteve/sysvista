@@ -75,6 +75,7 @@ export function SourceView({ source, language, span }: SourceViewProps) {
     requestAnimationFrame(() => target.current?.querySelector(`[data-line="${span.start_line}"]`)?.scrollIntoView({ block: "center" }));
   }, [html, span]);
 
+  if (source.kind === "error") return <p role="alert" className="p-4 text-sm text-red-600">{source.message}</p>;
   if (source.kind === "unavailable") return <p className="p-4 text-sm text-[var(--muted)]">source unavailable</p>;
   if (source.kind === "binary") return <p className="p-4 text-sm text-[var(--muted)]">binary, not rendered</p>;
   if (source.kind === "loading") return <p className="p-4 text-sm text-[var(--muted)]">Loading source…</p>;

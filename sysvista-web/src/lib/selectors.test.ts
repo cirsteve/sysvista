@@ -5,7 +5,9 @@ import { owningScopeForEntity, selectEvidenceComposition } from "./selectors";
 
 describe("review selectors", () => {
   it("returns an entity hit's owning scope", () => {
-    expect(owningScopeForEntity(fixture.snapshot as unknown as Snapshot, "a1")).toBe("a-scope");
+    const snapshot = fixture.snapshot as unknown as Snapshot;
+    const entity = snapshot.entities![0];
+    expect(owningScopeForEntity(snapshot, entity.id)).toBe(entity.scope_id);
   });
 
   it("counts aggregate-edge evidence by origin", () => {

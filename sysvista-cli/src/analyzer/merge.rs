@@ -116,6 +116,14 @@ pub fn merge(
     entities.extend(analyzer_entities);
     entities.sort_by(|a, b| a.id.cmp(&b.id));
     entities.dedup_by(|a, b| a.id == b.id);
+    let owner_names: HashMap<_, _> = entities.iter().map(|entity| (entity.id.clone(), entity.name.clone())).collect();
+    for entity in &mut entities {
+        if let Some(owner) = &entity.owner_id {
+            if owner_names.get(owner).is_some_and(|name| name != "<module>") {
+                entity.scope_id = v2::ScopeId(v2::stable_id("scope", &["symbol", owner.as_ref()]));
+            }
+        }
+    }
     let mut relationship_identity = HashMap::new();
     let mut relationships: Vec<_> = heuristic_relationships
         .into_iter()
@@ -184,7 +192,7 @@ pub fn merge(
             })
         })
         .collect();
-    let payloads = response
+    let payloads: Vec<PayloadContract> = response
         .payloads
         .into_iter()
         .map(|payload| PayloadContract {
@@ -203,6 +211,21 @@ pub fn merge(
         })
         .collect();
     let mut diagnostics = heuristic_diagnostics;
+    for payload in &payloads {
+        let mut files: BTreeSet<_> = entities.iter()
+            .filter(|entity| entity.name == payload.name && matches!(entity.declaration_kind.as_str(), "interface" | "type_alias" | "class" | "struct" | "enum" | "model" | "type"))
+            .map(|entity| entity.file_id.clone()).collect();
+        if files.len() > 1 {
+            let file_ids: Vec<_> = files.iter().cloned().collect();
+            let joined = files.iter().map(|id| id.as_ref()).collect::<Vec<_>>().join("|");
+            diagnostics.push(Diagnostic::PayloadIdentityConflict {
+                id: v2::stable_id("diagnostic", &["payload_identity_conflict", &payload.name, &joined]),
+                name: payload.name.clone(), file_ids,
+                message: format!("payload {} matches type declarations in multiple files", payload.name),
+            });
+            files.clear();
+        }
+    }
     for diagnostic in response.diagnostics {
         let span = diagnostic
             .span

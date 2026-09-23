@@ -42,12 +42,16 @@ impl<'a> Index<'a> {
 
 /// Derive canonical findings using only data contained in the snapshot.
 pub fn derive(snapshot: &Snapshot) -> Vec<Finding> {
+    derive_with_exclusions(snapshot, &[])
+}
+
+pub fn derive_with_exclusions(snapshot: &Snapshot, excluded_reasons: &[String]) -> Vec<Finding> {
     let index = Index::new(snapshot);
     let mut findings = Vec::new();
     findings.extend(cycles::derive(snapshot, &index));
     findings.extend(forbidden::derive(snapshot, &index));
     findings.extend(membership::derive(snapshot, &index));
-    findings.extend(unresolved::derive(snapshot, &index));
+    findings.extend(unresolved::derive(snapshot, &index, excluded_reasons));
     findings.extend(gaps::derive(snapshot, &index));
     findings.sort_by_key(|item| serde_json::to_string(item).unwrap_or_default());
     findings

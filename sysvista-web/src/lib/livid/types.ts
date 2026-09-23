@@ -8,7 +8,7 @@ import type {
 } from "../../types/v2";
 import type { ProjectedScope, ScopeIndex } from "../projection/types";
 
-export type PresentationType = "module" | "file" | "symbol" | "boundary" | "flow" | "aggregate-edge" | "flow-edge";
+export type PresentationType = "directory" | "module" | "file" | "symbol" | "boundary" | "flow" | "aggregate-edge" | "flow-edge";
 
 export interface DetailField {
   key: string;
@@ -36,6 +36,7 @@ export interface ModuleDetails {
   fileIds: string[];
   entityIds: string[];
 }
+export interface DirectoryDetails { name: string }
 
 export interface FileDetails {
   path: string;
@@ -51,7 +52,7 @@ export interface SymbolDetails {
   span: SourceSpan;
 }
 
-export interface BoundaryDetails { externalTargetId: EntityId }
+export interface BoundaryDetails { externalTargetId: string }
 export interface FlowDetails {
   depth: number;
   branch: boolean;
@@ -60,6 +61,7 @@ export interface FlowDetails {
 }
 
 export type DiagramNode =
+  | DiagramNodeBase<"directory", DirectoryDetails>
   | DiagramNodeBase<"module", ModuleDetails>
   | DiagramNodeBase<"file", FileDetails>
   | DiagramNodeBase<"symbol", SymbolDetails>
@@ -104,6 +106,8 @@ export interface DiagramSpec {
   semanticsProfile: string;
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  overBudget?: true;
+  items?: import("../projection/types").VisibleItem[];
 }
 
 export interface ScopeProjection {

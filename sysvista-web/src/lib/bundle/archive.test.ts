@@ -3,15 +3,14 @@ import { describe, expect, it } from "vitest";
 import { openBundleArchive } from "./archive";
 
 describe("openBundleArchive", () => {
-  it("rejects an oversized entry and continues loading the rest", async () => {
+  it("rejects an oversized source on lazy read while retaining metadata", async () => {
     const archive = zipSync({
-      "too-large.json": strToU8("1234567890123456789012345678901"),
+      "source/too-large": strToU8("1234567890123456789012345678901"),
       "manifest.json": strToU8('{"schema_version":"2"}'),
     });
     const opened = await openBundleArchive(archive, 30);
-    expect(opened.diagnostics.map(({ message }) => message).join(" ")).toContain("too-large.json");
     expect(new TextDecoder().decode(opened.metadata.get("manifest.json"))).toContain("schema_version");
-    expect(opened.metadata.has("too-large.json")).toBe(false);
+    expect(await opened.read("source/too-large")).toBeUndefined();
   });
 
   it("never exposes unsafe entries and lazily reads source by path", async () => {
@@ -38,5 +37,34 @@ describe("openBundleArchive", () => {
     const countBounded = await openBundleArchive(archive, 20, 1_000, 2);
     expect(countBounded.entries).toEqual(["one.json", "two.json"]);
     expect(countBounded.diagnostics.some(({ message }) => message.includes("entry cap exceeded"))).toBe(true);
+  });
+
+  it("charges lazy source bytes only when opened", async () => {
+    const archive = zipSync({ "manifest.json": strToU8("{}"), "source/one": strToU8("12345678"), "source/two": strToU8("abcdefgh") });
+    const opened = await openBundleArchive(archive, 10, 12);
+    expect(opened.entries).toContain("source/two");
+    expect(new TextDecoder().decode(await opened.read("source/one"))).toBe("12345678");
+    expect(await opened.read("source/two")).toBeUndefined();
+  });
+
+  it("serializes concurrent lazy reads against the aggregate cap", async () => {
+    const archive = zipSync({
+      "manifest.json": strToU8("{}"),
+      "source/one": strToU8("12345678"),
+      "source/two": strToU8("abcdefgh"),
+    });
+    const opened = await openBundleArchive(archive, 10, 12);
+    const [first, second] = await Promise.all([opened.read("source/one"), opened.read("source/two")]);
+    expect(new TextDecoder().decode(first)).toBe("12345678");
+    expect(second).toBeUndefined();
+  });
+
+  it("aborts inflation when an entry understates its expanded size", async () => {
+    const bytes = zipSync({ "source/understated": strToU8("x".repeat(100)) });
+    const forged = bytes.slice();
+    // ZIP local-header uncompressed size; fflate reads this before inflation.
+    forged.set([1, 0, 0, 0], 22);
+    const opened = await openBundleArchive(forged, 10, 200);
+    await expect(opened.read("source/understated")).rejects.toThrow("inflated byte cap");
   });
 });

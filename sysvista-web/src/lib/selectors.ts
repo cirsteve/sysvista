@@ -1,12 +1,7 @@
 import type { EntityId, Manifest, Snapshot } from "../types/v2";
 import type { AggregateDiagramEdge, DiagramSpec } from "./livid/types";
 import type { ViewState } from "./view-state/types";
-import type { ViewHistory } from "./view-state/history";
-
-interface HistoryState { history: ViewHistory }
-
-export const selectCanGoBack = ({ history }: HistoryState) => history.cursor > 0;
-export const selectCanGoForward = ({ history }: HistoryState) => history.cursor < history.entries.length - 1;
+import { buildHierarchyIndex } from "./hierarchy/index";
 export const selectManifestTitle = (snapshot: Snapshot | null) => snapshot ? String((snapshot.manifest as Manifest).repository) : undefined;
 
 export const selectVisibleNodes = (spec: DiagramSpec, state: ViewState) => {
@@ -35,4 +30,4 @@ export const selectEntity = (snapshot: Snapshot, id: string | null) =>
   (snapshot.entities ?? []).find((entity) => entity.id === id) ?? null;
 
 export const owningScopeForEntity = (snapshot: Snapshot, id: EntityId | string) =>
-  (snapshot.entities ?? []).find((entity) => entity.id === id)?.scope_id ?? null;
+  buildHierarchyIndex(snapshot).scopeOf(id) ?? null;

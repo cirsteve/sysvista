@@ -5,6 +5,7 @@ import type { FileId } from "../types/v2";
 
 export type SourceResult =
   | { kind: "idle" | "loading" | "unavailable" | "binary" }
+  | { kind: "error"; message: string }
   | { kind: "text"; text: string };
 
 export function useSource(loaded: LoadedSnapshot | null, fileId?: FileId): SourceResult {
@@ -20,7 +21,7 @@ export function useSource(loaded: LoadedSnapshot | null, fileId?: FileId): Sourc
       if (!bytes) { setResolved({ key: requestKey, result: { kind: "unavailable" } }); return; }
       const decoded = decodeSource(bytes);
       setResolved({ key: requestKey, result: decoded.kind === "binary" ? { kind: "binary" } : decoded });
-    }, () => active && setResolved({ key: requestKey, result: { kind: "unavailable" } }));
+    }, (cause) => active && setResolved({ key: requestKey, result: { kind: "error", message: cause instanceof Error ? cause.message : "Source verification failed" } }));
     return () => { active = false; };
   }, [requestKey, sources]);
   if (!fileId) return { kind: "idle" };

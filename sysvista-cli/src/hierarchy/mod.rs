@@ -8,6 +8,16 @@ use crate::{
 };
 
 pub fn derive(snapshot: &mut Snapshot, inventory: &Inventory, config: &Config) {
+    let owners: std::collections::BTreeMap<_, _> = snapshot.entities.iter()
+        .map(|e| (e.id.clone(), e.name.clone())).collect();
+    for entity in &mut snapshot.entities {
+        if let Some(owner) = &entity.owner_id {
+            if owners.get(owner).is_some_and(|name| name != "<module>") {
+                entity.scope_id = crate::output::v2::ScopeId(crate::output::v2::stable_id(
+                    "scope", &["symbol", owner.as_ref()]));
+            }
+        }
+    }
     snapshot.forbidden_dependencies = config.forbidden_dependencies.iter().map(|rule| crate::output::v2::ForbiddenDependencyRule { from: rule.from.clone(), to: rule.to.clone() }).collect();
     snapshot.projections = physical::derive(
         &snapshot.manifest.repository,
@@ -27,7 +37,7 @@ pub fn derive(snapshot: &mut Snapshot, inventory: &Inventory, config: &Config) {
             name: module.name.clone(),
             scope_id: module.scope_id.clone(),
             kind: "logical_module".into(),
-            parent_scope_id: None,
+            parent_scope_id: Some(snapshot.manifest.root_scope_id.clone()),
             tags: module.tags.clone(),
             entity_ids: module.entity_ids.clone(),
             relationship_ids: Vec::new(),

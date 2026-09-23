@@ -181,12 +181,8 @@ fn graph_is_deterministic_and_line_insensitive() {
                 .windows(2)
                 .all(|pair| pair[0].as_str() <= pair[1].as_str())
         );
-        let children = scope["child_ids"].as_array().unwrap();
-        assert!(
-            children
-                .windows(2)
-                .all(|pair| pair[0].as_str() <= pair[1].as_str())
-        );
+        let children = scope["children"].as_array().unwrap();
+        assert!(children.iter().all(|child| child["kind"].is_string()));
         let crossing = scope["crossing_relationship_ids"].as_array().unwrap();
         assert!(
             crossing

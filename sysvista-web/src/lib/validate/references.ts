@@ -1,5 +1,6 @@
 import type { Claim, Evidence, Finding, LogicalModule, PayloadContract, Projection, Snapshot } from "../../types/v2";
 import type { Result } from "../result";
+import { buildHierarchyIndex } from "../hierarchy/index";
 
 export interface ReferenceError {
   ownerId: string;
@@ -13,8 +14,41 @@ const missing = (errors: ReferenceError[], ownerId: string, field: string, targe
 
 export function validateReferences(snapshot: Snapshot): Result<Snapshot, ReferenceError[]> {
   const errors: ReferenceError[] = [];
+  const hierarchy = snapshot.scope_index ? buildHierarchyIndex(snapshot) : undefined;
   const files = new Set<string>((snapshot.source_files ?? []).map(({ id }) => id));
   const entities = new Set<string>((snapshot.entities ?? []).map(({ id }) => id));
+  const modules = new Set<string>((snapshot.modules ?? []).map(({ id }) => id));
+  if (snapshot.scope_index) {
+    if (!hierarchy) throw new Error("hierarchy index unavailable");
+    if (!hierarchy.scopes.has(hierarchy.rootScopeId)) missing(errors, "manifest", "root_scope_id", hierarchy.rootScopeId);
+    for (const scope of hierarchy.scopes.values()) {
+      const visible = new Set(scope.children.map((child) => child.kind === "file" ? child.file_id : child.kind === "module" ? child.module_id : child.kind === "symbol" ? child.entity_id : child.scope_id));
+      for (const child of scope.children) {
+        if (child.scope_id && !hierarchy.scopes.has(child.scope_id as import("../../types/v2").ScopeId))
+          missing(errors, scope.scope_id, "children.scope_id", child.scope_id);
+        if (child.kind === "file" && !files.has(child.file_id)) missing(errors, scope.scope_id, "children.file_id", child.file_id);
+        if (child.kind === "module" && !modules.has(child.module_id)) missing(errors, scope.scope_id, "children.module_id", child.module_id);
+        if (child.kind === "symbol" && !entities.has(child.entity_id)) missing(errors, scope.scope_id, "children.entity_id", child.entity_id);
+      }
+      for (const [entityId, target] of Object.entries(scope.owner_map)) {
+        if (!entities.has(entityId)) missing(errors, scope.scope_id, "owner_map.entity_id", entityId);
+        if (!visible.has(target)) missing(errors, entityId, "owner_map", target);
+      }
+    }
+    const active = new Set<string>();
+    const done = new Set<string>();
+    const walk = (id: string): void => {
+      if (active.has(id)) { missing(errors, id, "containment_cycle", id); return; }
+      if (done.has(id)) return;
+      active.add(id);
+      for (const child of hierarchy.itemsOf(id as import("../../types/v2").ScopeId)) {
+        if (child.scope_id) walk(child.scope_id);
+      }
+      active.delete(id); done.add(id);
+    };
+    walk(hierarchy.rootScopeId);
+    for (const scopeId of hierarchy.scopes.keys()) walk(scopeId);
+  }
   const relationships = new Set<string>((snapshot.relationships ?? []).map(({ id }) => id));
   const evidenceItems = (snapshot.evidence ?? []) as Evidence[];
   const evidence = new Set(evidenceItems.map(({ id }) => id));
@@ -61,6 +95,11 @@ export function validateReferences(snapshot: Snapshot): Result<Snapshot, Referen
     }
     if (finding.kind === "relationship" && !relationships.has(String(finding.relationship_id))) {
       missing(errors, `finding:${message}`, "relationship_id", String(finding.relationship_id));
+    }
+    if (finding.kind === "rule" && hierarchy) {
+      const target = finding.navigation_target as { scope_id: string };
+      if (!hierarchy.scopes.has(target.scope_id as import("../../types/v2").ScopeId))
+        missing(errors, `finding:${message}`, "navigation_target.scope_id", target.scope_id);
     }
   }
   return errors.length === 0 ? { ok: true, value: snapshot } : { ok: false, error: errors };
