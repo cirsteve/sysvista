@@ -80,11 +80,23 @@ function mergePayloads(payloads: Payload[]): Payload[] {
   return [...byName].sort(([a], [b]) => compare(a, b)).map(([name, { producers, consumers }]) => ({ name, producers: [...producers].sort(compare), consumers: [...consumers].sort(compare) }));
 }
 
-/** Remove host paths from compiler messages: the scan root becomes relative and the embedded library directory is named. */
+/**
+ * Remove host paths from compiler messages: the scan root becomes relative, the
+ * embedded library directory is named, and any other absolute path (a referenced
+ * config outside the root) keeps only its file name. Both separator styles are
+ * matched, since Windows messages use backslashes.
+ */
 function scrubber(root: string): (message: string) => string {
-  const rootPath = ts.sys.resolvePath(root).replaceAll("\\", "/").replace(/\/$/, "");
-  const libraries = libraryDirectory().replaceAll("\\", "/");
-  return message => message.replaceAll(`${libraries}/`, "<typescript-lib>/").replaceAll(`${rootPath}/`, "").replaceAll(rootPath, ".");
+  // Kept local: the entry block above runs before module-level constants are initialised.
+  // An absolute POSIX or Windows path that starts a word or a quotation; group 1 is its last segment.
+  const absolutePath = /(?<=^|[\s'"`(])(?:[A-Za-z]:)?[\\/](?:[^\s'"`\\/]+[\\/])*([^\s'"`\\/]+)/g;
+  const forms = (path: string) => { const posix = path.replaceAll("\\", "/").replace(/\/$/, ""); return [[posix, "/"], [posix.replaceAll("/", "\\"), "\\"]] as const; };
+  const libraries = forms(libraryDirectory()); const rootPaths = forms(ts.sys.resolvePath(root));
+  return message => {
+    for (const [path, separator] of libraries) message = message.replaceAll(`${path}${separator}`, "<typescript-lib>/");
+    for (const [path, separator] of rootPaths) message = message.replaceAll(`${path}${separator}`, "").replaceAll(path, ".");
+    return message.replace(absolutePath, "<external>/$1");
+  };
 }
 
 function unique<T>(values: T[], key: (value: T) => string): T[] { const seen = new Set<string>(); return values.filter(value => { const id = key(value); if (seen.has(id)) return false; seen.add(id); return true; }); }

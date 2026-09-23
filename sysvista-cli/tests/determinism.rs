@@ -71,6 +71,11 @@ fn graph_is_deterministic_and_line_insensitive() {
         first.diagnostics.iter().any(|diagnostic| matches!(diagnostic, v2::Diagnostic::AnalyzerIssue { message, .. } if message.contains("missing.ts"))),
         "the fixture's missing tsconfig file must produce a path-bearing compiler message"
     );
+    assert!(
+        first.diagnostics.iter().any(|diagnostic| matches!(diagnostic, v2::Diagnostic::AnalyzerIssue { message, .. } if message.contains("<external>/tsconfig.json"))),
+        "a missing reference outside the root must be named without its host path: {:#?}",
+        first.diagnostics
+    );
     let first_output = temp.0.join("first");
     let second_output = temp.0.join("second");
     v2::write_bundle(&first, &first_output).unwrap();

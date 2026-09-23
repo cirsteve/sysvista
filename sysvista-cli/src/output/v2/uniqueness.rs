@@ -50,11 +50,24 @@ pub fn dedup_records(snapshot: &mut Snapshot) -> Vec<Diagnostic> {
             });
         }
     }
-    let mut seen = BTreeSet::new();
-    snapshot.evidence.retain(|item| seen.insert(evidence_id(item).to_owned()));
-    let mut seen = BTreeSet::new();
-    snapshot.claims.retain(|item| seen.insert(item.id.clone()));
+    keep_first(&mut snapshot.source_files, |f| Some(f.id.as_ref()));
+    keep_first(&mut snapshot.entities, |e| Some(e.id.as_ref()));
+    keep_first(&mut snapshot.modules, |m| Some(m.id.as_ref()));
+    keep_first(&mut snapshot.relationships, |r| Some(r.sort_key().0.as_ref()));
+    keep_first(&mut snapshot.evidence, |e| Some(evidence_id(e)));
+    keep_first(&mut snapshot.claims, |c| Some(c.id.as_str()));
+    keep_first(&mut snapshot.projections, |p| Some(p.id.as_str()));
+    keep_first(&mut snapshot.findings, |finding| match finding {
+        Finding::Rule { id, .. } => Some(id.as_str()),
+        _ => None,
+    });
     diagnostics
+}
+
+/// Keep the first record for each id; records without an id are all kept.
+fn keep_first<T>(items: &mut Vec<T>, id: impl Fn(&T) -> Option<&str>) {
+    let mut seen = BTreeSet::new();
+    items.retain(|item| id(item).is_none_or(|id| seen.insert(id.to_owned())));
 }
 
 fn evidence_id(evidence: &Evidence) -> &str {

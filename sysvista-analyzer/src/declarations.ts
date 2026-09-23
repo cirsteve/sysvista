@@ -14,10 +14,12 @@ export interface Declarations { entities: Entity[]; nodes: Map<ts.Node, string>;
 function isFunctionInitializer(node: ts.Expression | undefined): boolean {
   return !!node && (ts.isArrowFunction(node) || ts.isFunctionExpression(node));
 }
-function named(node: ts.Node): node is ts.Declaration & { name: ts.DeclarationName } {
-  return (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node) || ts.isMethodDeclaration(node) || ts.isConstructorDeclaration(node) || ts.isVariableDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) || (ts.isPropertyDeclaration(node) && isFunctionInitializer(node.initializer))) && !!node.name;
+type Modelled = (ts.Declaration & { name: ts.DeclarationName }) | ts.ConstructorDeclaration;
+/** Constructors have no name node, so they are matched before the name check. */
+function named(node: ts.Node): node is Modelled {
+  return ts.isConstructorDeclaration(node) || ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node) || ts.isMethodDeclaration(node) || ts.isVariableDeclaration(node) || ts.isGetAccessorDeclaration(node) || ts.isSetAccessorDeclaration(node) || (ts.isPropertyDeclaration(node) && isFunctionInitializer(node.initializer))) && !!node.name);
 }
-function nameOf(node: ts.Declaration & { name: ts.DeclarationName }): string { return ts.isIdentifier(node.name) || ts.isStringLiteral(node.name) || ts.isNumericLiteral(node.name) ? node.name.text : node.name.getText(); }
+function nameOf(node: Modelled): string { if (ts.isConstructorDeclaration(node)) return "constructor"; return ts.isIdentifier(node.name) || ts.isStringLiteral(node.name) || ts.isNumericLiteral(node.name) ? node.name.text : node.name.getText(); }
 function kindOf(node: ts.Node): string {
   if (ts.isFunctionDeclaration(node)) return "function";
   if (ts.isClassDeclaration(node)) return "class";

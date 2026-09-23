@@ -214,7 +214,7 @@ pub fn merge(
             span,
         });
     }
-    diagnostics.extend(issues.into_diagnostics());
+    diagnostics.extend(issues.into_diagnostics(context));
     MergedAnalysis {
         entities,
         relationships,
@@ -289,9 +289,14 @@ impl MergeIssues {
         known
     }
 
-    fn into_diagnostics(self) -> Vec<Diagnostic> {
+    fn into_diagnostics(self, context: &MergeContext) -> Vec<Diagnostic> {
         let mut out = Vec::new();
         for key in self.unmatched_keys.iter().take(UNMATCHED_KEY_LIMIT) {
+            // A key's file outside the inventory may be a host path; name only the rest.
+            let key = match key.split_once('#') {
+                Some((file, rest)) if !context.files.contains(file) => format!("<outside scan>#{rest}"),
+                _ => key.clone(),
+            };
             out.push(Diagnostic::Warning {
                 message: format!("analyzer key {key} matches no emitted entity; records using it were dropped"),
                 span: None,

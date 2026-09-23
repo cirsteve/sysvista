@@ -42,8 +42,14 @@ fn conflicting_records_for_one_id_are_reported_and_identical_ones_collapse() {
     };
     let conflicting = v2::Claim { object: serde_json::json!({"target": "b"}), ..claim.clone() };
     snapshot.claims = vec![claim.clone(), claim.clone(), conflicting];
+    // Collections other than evidence and claims keep their first record too.
+    let entities = snapshot.entities.len();
+    let renamed = v2::CodeEntity { name: "renamed".into(), ..snapshot.entities[0].clone() };
+    snapshot.entities.push(renamed);
     let diagnostics = v2::dedup_records(&mut snapshot);
     assert_eq!(snapshot.claims.len(), 1);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
+    assert_eq!(snapshot.entities.len(), entities);
+    assert_ne!(snapshot.entities[0].name, "renamed");
+    assert_eq!(diagnostics.len(), 2, "{diagnostics:#?}");
     assert!(v2::duplicate_ids(&snapshot).is_empty());
 }

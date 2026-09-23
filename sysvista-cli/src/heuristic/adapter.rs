@@ -176,6 +176,8 @@ pub fn analyze(
     let mut output_relationships = Vec::new();
     let mut evidence = Vec::new();
     let mut claims = Vec::new();
+    // Every dropped edge is counted; the set keeps distinct examples for the message.
+    let mut dropped_edges = 0usize;
     let mut missing_endpoints = BTreeSet::new();
     for edge in &edges {
         let kind = relationship_kind(edge.label.as_deref());
@@ -187,6 +189,7 @@ pub fn analyze(
             old_to_new.get(&edge.from_id)
         };
         let (Some(source), Some(target)) = (source, old_to_new.get(&edge.to_id)) else {
+            dropped_edges += 1;
             missing_endpoints.insert(format!("{} -> {} ({kind})", edge.from_id, edge.to_id));
             continue;
         };
@@ -283,7 +286,7 @@ pub fn analyze(
         diagnostics.push(Diagnostic::Warning {
             message: format!(
                 "{} heuristic edges were dropped because an endpoint was not a detected component: {}",
-                missing_endpoints.len(),
+                dropped_edges,
                 missing_endpoints.iter().take(20).cloned().collect::<Vec<_>>().join(", ")
             ),
             span: None,

@@ -199,6 +199,29 @@ fn archive_checks_integrity_before_applying_entry_cap() {
     assert!(matches!(result, Err(BundleError::InvalidBundle(_))));
 }
 
+#[test]
+fn archive_verifies_every_file_that_shares_a_hash() {
+    let temp = Temp::new();
+    let root = temp.0.join("project");
+    fs::create_dir(&root).unwrap();
+    for name in ["a.ts", "b.ts"] {
+        fs::write(root.join(name), "export const same = 1;\n").unwrap();
+    }
+    let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
+    let directory = temp.0.join("bundle");
+    bundle::write_directory(&snapshot, &directory).unwrap();
+    fs::write(root.join("b.ts"), "export const same = 2;\n").unwrap();
+    let result = bundle::write_archive(
+        &directory,
+        &temp.0.join("archive.zip"),
+        &ArchiveOptions { source_root: Some(root), ..Default::default() },
+    );
+    assert!(
+        matches!(&result, Err(BundleError::InvalidBundle(message)) if message.contains("b.ts")),
+        "{result:?}"
+    );
+}
+
 fn findings_bundle(temp: &Temp) -> (PathBuf, PathBuf) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/findings");
     let snapshot = scanner::scan_v2(&root, &Config::load(&root).unwrap()).unwrap();

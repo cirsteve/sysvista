@@ -34,6 +34,20 @@
       {
         "source": {
           "file": "widget.ts",
+          "qualified_name": "Widget.constructor",
+          "declaration_kind": "constructor"
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "parse",
+          "declaration_kind": "function",
+          "discriminator": 2
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "widget.ts",
           "qualified_name": "Widget.onClick",
           "declaration_kind": "property"
         },

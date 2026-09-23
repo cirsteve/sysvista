@@ -331,7 +331,7 @@ fn assert_case_specific_behavior(case: &Path, snapshot: &Snapshot) {
             let normalize = entity(snapshot, "math.ts", "parse.normalize", "variable");
             assert_eq!(normalize.len(), 1);
             assert_eq!(normalize[0].owner_id.as_ref(), Some(&implementation.id), "nested declarations belong to the implementation");
-            for (name, kind) in [("Widget.total", "getter"), ("Widget.total", "setter"), ("Widget.onClick", "property")] {
+            for (name, kind) in [("Widget.total", "getter"), ("Widget.total", "setter"), ("Widget.onClick", "property"), ("Widget.constructor", "constructor")] {
                 assert_eq!(entity(snapshot, "widget.ts", name, kind).len(), 1, "{name} {kind}");
             }
         }

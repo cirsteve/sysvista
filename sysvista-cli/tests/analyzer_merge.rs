@@ -222,14 +222,25 @@ fn unmatched_keys_and_outside_files_are_reported_not_silently_dropped() {
         &context(&known),
         response(
             vec![entity("a.ts", "caller"), outside],
-            vec![AnalyzerRelationship {
-                kind: "calls".into(),
-                source: "a.ts#caller#function#0".into(),
-                target: Some("a.ts#missing#function#0".into()),
-                origin: "resolved".into(),
-                name: None,
-                span: None,
-            }],
+            vec![
+                AnalyzerRelationship {
+                    kind: "calls".into(),
+                    source: "a.ts#caller#function#0".into(),
+                    target: Some("a.ts#missing#function#0".into()),
+                    origin: "resolved".into(),
+                    name: None,
+                    span: None,
+                },
+                // The dropped entity's key is unmatched, and its file is a host path.
+                AnalyzerRelationship {
+                    kind: "calls".into(),
+                    source: "a.ts#caller#function#0".into(),
+                    target: Some("/elsewhere/lib.ts#external#function#0".into()),
+                    origin: "resolved".into(),
+                    name: None,
+                    span: None,
+                },
+            ],
         ),
         HeuristicAnalysis::default(),
     );
@@ -244,6 +255,7 @@ fn unmatched_keys_and_outside_files_are_reported_not_silently_dropped() {
         })
         .collect();
     assert!(messages.iter().any(|message| message.contains("a.ts#missing#function#0")));
+    assert!(messages.iter().any(|message| message.contains("<outside scan>#external#function#0")));
     assert!(messages.iter().any(|message| message.contains("1 files outside the scan inventory")));
     assert!(!messages.iter().any(|message| message.contains("/elsewhere")), "host paths must not leak");
 }

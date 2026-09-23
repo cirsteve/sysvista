@@ -97,28 +97,34 @@ fn add_sources(
                 item.path
             )));
         };
-        if archived.contains(content_hash) || skipped.contains(content_hash) {
-            continue;
-        }
         let relative = validate_entry_path(&item.path)?;
         let source = root.join(relative).canonicalize()?;
         if !source.starts_with(&root) {
             return Err(BundleError::UnsafePath(PathBuf::from(&item.path)));
         }
-        let fits = byte_length <= options.entry_cap;
-        if fits {
+        let changed = || BundleError::InvalidBundle(format!("source changed after scan: {}", item.path));
+        // Over the entry cap: verified by streaming, never held in memory, and marked unavailable below.
+        if byte_length > options.entry_cap {
+            let mut hasher = Sha256::new();
+            let copied = std::io::copy(&mut fs::File::open(source)?, &mut hasher)?;
+            if format!("{:x}", hasher.finalize()) != *content_hash || copied != byte_length {
+                return Err(changed());
+            }
+            skipped.insert(content_hash.clone());
+            continue;
+        }
+        // Files that shared a hash at scan time are each verified; only the write is shared.
+        let new = !archived.contains(content_hash);
+        if new {
             entries.reserve(byte_length)?;
         }
         let bytes = fs::read(source)?;
-        let actual = format!("{:x}", Sha256::digest(&bytes));
-        if actual != *content_hash || bytes.len() as u64 != byte_length {
-            return Err(BundleError::InvalidBundle(format!("source changed after scan: {}", item.path)));
+        if format!("{:x}", Sha256::digest(&bytes)) != *content_hash || bytes.len() as u64 != byte_length {
+            return Err(changed());
         }
-        if fits {
+        if new {
             entries.push(format!("source/{content_hash}"), bytes)?;
             archived.insert(content_hash.clone());
-        } else {
-            skipped.insert(content_hash.clone());
         }
     }
     for item in &mut index.files {
