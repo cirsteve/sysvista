@@ -4,6 +4,7 @@ mod ids;
 mod index;
 mod projection;
 mod relationships;
+mod uniqueness;
 mod writer;
 
 use std::{
@@ -25,6 +26,7 @@ pub use ids::{
 pub use index::ScopeIndex;
 pub use projection::Projection;
 pub use relationships::{Claim, Evidence, PayloadContract, Relationship, UnresolvedReference};
+pub use uniqueness::{dedup_records, duplicate_ids};
 pub use writer::write_bundle;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]

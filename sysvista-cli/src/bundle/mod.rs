@@ -189,10 +189,13 @@ pub(crate) fn canonicalize(snapshot: &mut Snapshot) {
     snapshot
         .evidence
         .sort_by_key(|v| serde_json::to_string(v).unwrap_or_default());
-    snapshot.claims.sort_by(|a, b| a.id.cmp(&b.id));
+    snapshot.evidence.dedup();
     for claim in &mut snapshot.claims {
         claim.evidence_ids.sort();
+        claim.evidence_ids.dedup();
     }
+    snapshot.claims.sort_by_key(|v| (v.id.clone(), serde_json::to_string(v).unwrap_or_default()));
+    snapshot.claims.dedup();
     snapshot
         .payload_contracts
         .sort_by(|a, b| a.name.cmp(&b.name));

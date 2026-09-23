@@ -34,86 +34,141 @@ pub fn write_archive(bundle: &Path, archive: &Path, options: &ArchiveOptions) ->
     let mut manifest: Manifest = serde_json::from_slice(&fs::read(bundle.join("manifest.json"))?)
         .map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
     manifest.source_included = options.include_source;
-    let mut entries = Vec::<(String, Vec<u8>)>::new();
+    let mut entries = Entries::new(options.archive_cap);
+    let mut index = None;
+    if options.include_source {
+        let mut source_index: SourceIndex =
+            serde_json::from_slice(&fs::read(bundle.join("source-index.json"))?)
+                .map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
+        add_sources(&mut entries, &mut source_index, &manifest, options)?;
+        index = Some(source_index);
+    }
     let mut names = vec!["manifest.json".to_string()];
     names.extend(manifest.files.clone());
     names.sort();
     names.dedup();
     for name in names {
         validate_entry_path(&name)?;
-        let bytes = if name == "manifest.json" {
-            let mut bytes = serde_json::to_vec_pretty(&manifest)
-                .map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
-            bytes.push(b'\n');
-            bytes
-        } else {
-            fs::read(bundle.join(&name))?
+        let bytes = match (name.as_str(), &index) {
+            ("manifest.json", _) => pretty(&manifest)?,
+            // The archive's index reflects which sources the archive actually holds.
+            ("source-index.json", Some(index)) => pretty(index)?,
+            _ => {
+                entries.reserve(fs::metadata(bundle.join(&name))?.len())?;
+                fs::read(bundle.join(&name))?
+            }
         };
-        entries.push((name, bytes));
-    }
-    if options.include_source {
-        let index: SourceIndex =
-            serde_json::from_slice(&fs::read(bundle.join("source-index.json"))?)
-                .map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
-        let configured_root = options.source_root.as_ref().ok_or_else(|| {
-            BundleError::InvalidBundle(
-                "including source requires an explicit trusted source root".into(),
-            )
-        })?;
-        let root = configured_root.canonicalize()?;
-        let manifest_root = PathBuf::from(&manifest.root).canonicalize()?;
-        if root != manifest_root {
-            return Err(BundleError::InvalidBundle(format!(
-                "trusted source root {} does not match scanned root {}",
-                root.display(),
-                manifest_root.display()
-            )));
-        }
-        let mut hashes = BTreeSet::<String>::new();
-        for item in index.files.into_iter().filter(|item| item.source_available) {
-            let (Some(content_hash), Some(byte_length)) =
-                (item.content_hash.as_ref(), item.byte_length)
-            else {
-                return Err(BundleError::InvalidBundle(format!(
-                    "available source lacks hash or byte length: {}",
-                    item.path
-                )));
-            };
-            if !hashes.insert(content_hash.to_owned()) {
-                continue;
-            }
-            let relative = validate_entry_path(&item.path)?;
-            let source = root.join(relative).canonicalize()?;
-            if !source.starts_with(&root) {
-                return Err(BundleError::UnsafePath(PathBuf::from(item.path)));
-            }
-            let bytes = fs::read(source)?;
-            let actual = format!("{:x}", Sha256::digest(&bytes));
-            if actual != *content_hash || bytes.len() as u64 != byte_length {
-                return Err(BundleError::InvalidBundle(format!(
-                    "source changed after scan: {}",
-                    item.path
-                )));
-            }
-            if bytes.len() as u64 > options.entry_cap {
-                continue;
-            }
-            entries.push((format!("source/{content_hash}"), bytes));
-        }
-    }
-    let total: u64 = entries.iter().map(|(_, bytes)| bytes.len() as u64).sum();
-    if total > options.archive_cap {
-        return Err(BundleError::ArchiveTooLarge {
-            bytes: total,
-            cap: options.archive_cap,
-        });
+        entries.push(name, bytes)?;
     }
     if let Some(parent) = archive.parent().filter(|p| !p.as_os_str().is_empty()) {
         fs::create_dir_all(parent)?;
     }
     let file = fs::File::create(archive)?;
-    write_zip(file, entries)?;
+    write_zip(file, entries.items)?;
     Ok(())
+}
+
+/// Copy each available source into the archive, verifying it has not changed since the
+/// scan. A source over the entry cap is left out and marked unavailable in the index.
+fn add_sources(
+    entries: &mut Entries,
+    index: &mut SourceIndex,
+    manifest: &Manifest,
+    options: &ArchiveOptions,
+) -> BundleResult<()> {
+    let configured_root = options.source_root.as_ref().ok_or_else(|| {
+        BundleError::InvalidBundle("including source requires an explicit trusted source root".into())
+    })?;
+    let root = configured_root.canonicalize()?;
+    let manifest_root = PathBuf::from(&manifest.root).canonicalize()?;
+    if root != manifest_root {
+        return Err(BundleError::InvalidBundle(format!(
+            "trusted source root {} does not match scanned root {}",
+            root.display(),
+            manifest_root.display()
+        )));
+    }
+    let mut archived = BTreeSet::<String>::new();
+    let mut skipped = BTreeSet::<String>::new();
+    for item in index.files.iter().filter(|item| item.source_available) {
+        let (Some(content_hash), Some(byte_length)) = (item.content_hash.as_ref(), item.byte_length) else {
+            return Err(BundleError::InvalidBundle(format!(
+                "available source lacks hash or byte length: {}",
+                item.path
+            )));
+        };
+        let relative = validate_entry_path(&item.path)?;
+        let source = root.join(relative).canonicalize()?;
+        if !source.starts_with(&root) {
+            return Err(BundleError::UnsafePath(PathBuf::from(&item.path)));
+        }
+        let changed = || BundleError::InvalidBundle(format!("source changed after scan: {}", item.path));
+        // Over the entry cap: verified by streaming, never held in memory, and marked unavailable below.
+        if byte_length > options.entry_cap {
+            let mut hasher = Sha256::new();
+            let copied = std::io::copy(&mut fs::File::open(source)?, &mut hasher)?;
+            if format!("{:x}", hasher.finalize()) != *content_hash || copied != byte_length {
+                return Err(changed());
+            }
+            skipped.insert(content_hash.clone());
+            continue;
+        }
+        // Files that shared a hash at scan time are each verified; only the write is shared.
+        let new = !archived.contains(content_hash);
+        if new {
+            entries.reserve(byte_length)?;
+        }
+        let bytes = fs::read(source)?;
+        if format!("{:x}", Sha256::digest(&bytes)) != *content_hash || bytes.len() as u64 != byte_length {
+            return Err(changed());
+        }
+        if new {
+            entries.push(format!("source/{content_hash}"), bytes)?;
+            archived.insert(content_hash.clone());
+        }
+    }
+    for item in &mut index.files {
+        if item.content_hash.as_ref().is_some_and(|hash| skipped.contains(hash)) {
+            item.source_available = false;
+        }
+    }
+    Ok(())
+}
+
+/// Archive entries with a running size total, so an oversized bundle is rejected
+/// before everything is held in memory.
+struct Entries {
+    items: Vec<(String, Vec<u8>)>,
+    total: u64,
+    cap: u64,
+}
+
+impl Entries {
+    fn new(cap: u64) -> Self {
+        Self { items: Vec::new(), total: 0, cap }
+    }
+
+    /// Fail before reading `bytes` more when they would exceed the cap.
+    fn reserve(&self, bytes: u64) -> BundleResult<()> {
+        let total = self.total.saturating_add(bytes);
+        if total > self.cap {
+            return Err(BundleError::ArchiveTooLarge { bytes: total, cap: self.cap });
+        }
+        Ok(())
+    }
+
+    fn push(&mut self, name: String, bytes: Vec<u8>) -> BundleResult<()> {
+        self.reserve(bytes.len() as u64)?;
+        self.total += bytes.len() as u64;
+        self.items.push((name, bytes));
+        Ok(())
+    }
+}
+
+fn pretty<T: serde::Serialize>(value: &T) -> BundleResult<Vec<u8>> {
+    let mut bytes = serde_json::to_vec_pretty(value).map_err(|e| BundleError::InvalidBundle(e.to_string()))?;
+    bytes.push(b'\n');
+    Ok(bytes)
 }
 
 fn write_zip<W: Write + Seek>(writer: W, entries: Vec<(String, Vec<u8>)>) -> BundleResult<()> {

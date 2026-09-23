@@ -1,0 +1,44 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "checks/core-check.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/core.ts",
+          "qualified_name": "core",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "checks/core-check.ts",
+          "qualified_name": "check",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "src/core.ts",
+          "qualified_name": "core",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

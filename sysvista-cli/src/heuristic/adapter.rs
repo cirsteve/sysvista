@@ -13,6 +13,9 @@ use crate::{
     scanner::{self, relationships, workflows},
 };
 
+/// Detector matches of one name and kind this close together describe one declaration.
+const SAME_DECLARATION_LINES: u32 = 5;
+
 #[derive(Debug, Default)]
 pub struct HeuristicAnalysis {
     pub entities: Vec<CodeEntity>,
@@ -69,14 +72,27 @@ pub fn analyze(
         }
     }
 
+    // Several detectors can match one declaration, reporting its decorator or its
+    // definition line. Matches of one name and kind within a few lines are that one
+    // declaration; same-name declarations further apart are distinct and keep their
+    // own ids. Sorting by line first gives ordinals in source order.
     components.sort_by(|a, b| component_key(a).cmp(&component_key(b)));
-    let mut seen = HashSet::new();
+    let mut last_line: HashMap<(String, String, &'static str), Option<u32>> = HashMap::new();
     components.retain(|component| {
-        seen.insert((
+        let key = (
             component.source.file.clone(),
             component.name.clone(),
             kind_name(&component.kind),
-        ))
+        );
+        let line = component.source.line_start;
+        let same_declaration = last_line.get(&key).is_some_and(|previous| match (previous, line) {
+            (Some(previous), Some(line)) => line - previous <= SAME_DECLARATION_LINES,
+            _ => true,
+        });
+        if !same_declaration {
+            last_line.insert(key, line);
+        }
+        !same_declaration
     });
     for (index, component) in components.iter_mut().enumerate() {
         component.id = v2::stable_id(
@@ -160,6 +176,9 @@ pub fn analyze(
     let mut output_relationships = Vec::new();
     let mut evidence = Vec::new();
     let mut claims = Vec::new();
+    // Every dropped edge is counted; the set keeps distinct examples for the message.
+    let mut dropped_edges = 0usize;
+    let mut missing_endpoints = BTreeSet::new();
     for edge in &edges {
         let kind = relationship_kind(edge.label.as_deref());
         let source = if kind == "imports" {
@@ -170,6 +189,8 @@ pub fn analyze(
             old_to_new.get(&edge.from_id)
         };
         let (Some(source), Some(target)) = (source, old_to_new.get(&edge.to_id)) else {
+            dropped_edges += 1;
+            missing_endpoints.insert(format!("{} -> {} ({kind})", edge.from_id, edge.to_id));
             continue;
         };
         let rule = rule_name(kind);
@@ -191,6 +212,7 @@ pub fn analyze(
                 .into(),
             ),
             rule: Some(rule.into()),
+            sites: Vec::new(),
         });
         let id = v2::relationship_id(source, target, kind, "heuristic");
         output_relationships.push(make_relationship(
@@ -249,7 +271,27 @@ pub fn analyze(
     output_relationships.dedup_by(|a, b| a.sort_key() == b.sort_key());
     evidence.sort_by(|a, b| evidence_id(a).cmp(evidence_id(b)));
     evidence.dedup_by_key(|item| evidence_id(item).to_owned());
+    // Overlapping inferers report the same edge more than once; its claim is one record.
     claims.sort_by(|a, b| a.id.cmp(&b.id));
+    claims.dedup_by(|later, first| {
+        let same = later.id == first.id;
+        if same {
+            first.evidence_ids.append(&mut later.evidence_ids);
+            first.evidence_ids.sort();
+            first.evidence_ids.dedup();
+        }
+        same
+    });
+    if !missing_endpoints.is_empty() {
+        diagnostics.push(Diagnostic::Warning {
+            message: format!(
+                "{} heuristic edges were dropped because an endpoint was not a detected component: {}",
+                dropped_edges,
+                missing_endpoints.iter().take(20).cloned().collect::<Vec<_>>().join(", ")
+            ),
+            span: None,
+        });
+    }
 
     HeuristicAnalysis {
         entities,

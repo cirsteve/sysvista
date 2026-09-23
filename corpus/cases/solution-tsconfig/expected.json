@@ -1,0 +1,57 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "app/main.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "lib/format.ts",
+          "qualified_name": "format",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "app/main.ts",
+          "qualified_name": "render",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "lib/format.ts",
+          "qualified_name": "format",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "tools/build.js",
+          "qualified_name": "build",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "tools/build.js",
+          "qualified_name": "step",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

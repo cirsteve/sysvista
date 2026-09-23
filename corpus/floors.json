@@ -1,0 +1,26 @@
+{
+  "measured": {
+    "imports": {
+      "resolved": {"precision": 0.98, "recall": 0.98},
+      "heuristic": {"precision": 0.73, "recall": 0.442}
+    },
+    "references": {
+      "heuristic": {"precision": 0.313, "recall": 0.18}
+    },
+    "calls": {
+      "resolved": {"precision": 0.98, "recall": 0.98},
+      "heuristic": {"precision": 0.98, "recall": 0.48}
+    },
+    "handles": {"heuristic": {"precision": 0.98, "recall": 0.98}},
+    "persists": {"heuristic": {"precision": 0.78, "recall": 0.98}},
+    "transforms": {"heuristic": {"precision": 0.98, "recall": 0.98}},
+    "consumes": {"heuristic": {"precision": 0.0, "recall": 0.0}},
+    "produces": {"heuristic": {"precision": 0.98, "recall": 0.48}},
+    "dispatches": {"heuristic": {"precision": 0.98, "recall": 0.98}},
+    "invokes_prompt": {"heuristic": {"precision": 0.98, "recall": 0.98}}
+  },
+  "unmeasured": {
+    "contains": "no analysis stage emits contains relationships; containment is carried by the scope hierarchy",
+    "depends_on": "no analysis stage emits depends_on relationships yet"
+  }
+}

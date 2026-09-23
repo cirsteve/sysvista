@@ -98,11 +98,25 @@
     "AnalysisStatus": {
       "oneOf": [
         {
+          "description": "Supported but not (yet) analyzed.",
           "type": "object",
           "properties": {
             "kind": {
               "type": "string",
               "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "No analyzer supports the file's language; not an analysis gap.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unsupported"
             }
           },
           "required": [
@@ -454,33 +468,6 @@
         {
           "type": "object",
           "properties": {
-            "id": {
-              "type": "string"
-            },
-            "kind": {
-              "type": "string",
-              "const": "contradiction"
-            },
-            "message": {
-              "type": "string"
-            },
-            "relationship_ids": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "required": [
-            "kind",
-            "id",
-            "relationship_ids",
-            "message"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
             "evidence_id": {
               "type": "string"
             },
@@ -631,6 +618,13 @@
                 "string",
                 "null"
               ]
+            },
+            "sites": {
+              "description": "Every source site supporting the relationship, e.g. each call of one callee.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              }
             }
           },
           "required": [

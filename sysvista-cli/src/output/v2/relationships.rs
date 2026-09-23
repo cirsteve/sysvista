@@ -235,6 +235,9 @@ pub enum Evidence {
         confidence: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rule: Option<String>,
+        /// Every source site supporting the relationship, e.g. each call of one callee.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        sites: Vec<SourceSpan>,
     },
 }
 

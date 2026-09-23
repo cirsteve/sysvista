@@ -120,6 +120,20 @@ impl Config {
                 })?;
             }
         }
+        // Rules compare module names exactly, so a typo or a glob would silently never fire.
+        for rule in &self.forbidden_dependencies {
+            for name in [&rule.from, &rule.to] {
+                if name != "Unassigned" && !module_names.contains(name.as_str()) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!(
+                            "forbidden dependency {:?} -> {:?} names {name:?}, which is not a configured logical module; use an exact module name (globs are not supported)",
+                            rule.from, rule.to
+                        ),
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 }

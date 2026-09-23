@@ -198,3 +198,66 @@ fn archive_checks_integrity_before_applying_entry_cap() {
     );
     assert!(matches!(result, Err(BundleError::InvalidBundle(_))));
 }
+
+#[test]
+fn archive_verifies_every_file_that_shares_a_hash() {
+    let temp = Temp::new();
+    let root = temp.0.join("project");
+    fs::create_dir(&root).unwrap();
+    for name in ["a.ts", "b.ts"] {
+        fs::write(root.join(name), "export const same = 1;\n").unwrap();
+    }
+    let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
+    let directory = temp.0.join("bundle");
+    bundle::write_directory(&snapshot, &directory).unwrap();
+    fs::write(root.join("b.ts"), "export const same = 2;\n").unwrap();
+    let result = bundle::write_archive(
+        &directory,
+        &temp.0.join("archive.zip"),
+        &ArchiveOptions { source_root: Some(root), ..Default::default() },
+    );
+    assert!(
+        matches!(&result, Err(BundleError::InvalidBundle(message)) if message.contains("b.ts")),
+        "{result:?}"
+    );
+}
+
+fn findings_bundle(temp: &Temp) -> (PathBuf, PathBuf) {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/findings");
+    let snapshot = scanner::scan_v2(&root, &Config::load(&root).unwrap()).unwrap();
+    let directory = temp.0.join("bundle");
+    bundle::write_directory(&snapshot, &directory).unwrap();
+    (root, directory)
+}
+
+#[test]
+fn archive_stops_once_the_running_total_exceeds_its_cap() {
+    let temp = Temp::new();
+    let (root, directory) = findings_bundle(&temp);
+    let result = bundle::write_archive(
+        &directory,
+        &temp.0.join("archive.zip"),
+        &ArchiveOptions { source_root: Some(root), archive_cap: 64, ..Default::default() },
+    );
+    assert!(matches!(result, Err(BundleError::ArchiveTooLarge { cap: 64, .. })), "{result:?}");
+    assert!(!temp.0.join("archive.zip").exists());
+}
+
+#[test]
+fn sources_over_a_custom_entry_cap_are_marked_unavailable_in_the_archive() {
+    let temp = Temp::new();
+    let (root, directory) = findings_bundle(&temp);
+    let archive = temp.0.join("archive.zip");
+    bundle::write_archive(
+        &directory,
+        &archive,
+        &ArchiveOptions { source_root: Some(root), entry_cap: 0, ..Default::default() },
+    )
+    .unwrap();
+    let mut zip = zip::ZipArchive::new(fs::File::open(&archive).unwrap()).unwrap();
+    assert!(!zip.file_names().any(|name| name.starts_with("source/")));
+    let index: serde_json::Value = serde_json::from_reader(zip.by_name("source-index.json").unwrap()).unwrap();
+    let files = index["files"].as_array().unwrap();
+    assert!(!files.is_empty());
+    assert!(files.iter().all(|file| file["source_available"] == false), "{index:#}");
+}

@@ -38,48 +38,23 @@ fn dangling_relationship_target_is_reported_with_relationship_id() {
 }
 
 #[test]
-fn resolved_and_heuristic_disagreement_is_reported_and_retained() {
+fn resolved_and_heuristic_edges_from_one_source_are_not_errors() {
+    // One module importing three targets, one resolved and two heuristic, is ordinary
+    // fan-out; it used to be reported as quadratic contradictions.
     let mut snapshot = fixture_snapshot();
     let source = snapshot.entities[0].id.clone();
-    let resolved_target = snapshot.entities[1].id.clone();
-    let heuristic_target = snapshot.entities[2].id.clone();
-    let resolved_id = v2::relationship_id(&source, &resolved_target, "imports", "resolved");
-    let heuristic_id = v2::relationship_id(&source, &heuristic_target, "imports", "heuristic");
-    snapshot.relationships.extend([
-        Relationship::Imports {
-            id: resolved_id.clone(),
+    let targets: Vec<_> = snapshot.entities[1..4].iter().map(|entity| entity.id.clone()).collect();
+    for (target, origin) in targets.iter().zip(["resolved", "heuristic", "heuristic"]) {
+        snapshot.relationships.push(Relationship::Imports {
+            id: v2::relationship_id(&source, target, "imports", origin),
             source: source.clone(),
-            target: resolved_target,
-            origin: "resolved".into(),
+            target: target.clone(),
+            origin: origin.into(),
             evidence_id: None,
-        },
-        Relationship::Imports {
-            id: heuristic_id.clone(),
-            source,
-            target: heuristic_target,
-            origin: "heuristic".into(),
-            evidence_id: None,
-        },
-    ]);
-
+        });
+    }
     let diagnostics = validate::validate(&snapshot);
-    assert!(diagnostics.iter().any(|diagnostic| matches!(
-        diagnostic,
-        Diagnostic::Contradiction { relationship_ids, .. }
-            if relationship_ids.contains(&resolved_id) && relationship_ids.contains(&heuristic_id)
-    )));
-    assert!(
-        snapshot
-            .relationships
-            .iter()
-            .any(|relationship| relationship.sort_key().0 == &resolved_id)
-    );
-    assert!(
-        snapshot
-            .relationships
-            .iter()
-            .any(|relationship| relationship.sort_key().0 == &heuristic_id)
-    );
+    assert_eq!(validate::summary(&diagnostics).errors, 0, "{diagnostics:#?}");
 }
 
 fn fixture_snapshot() -> sysvista_cli::output::v2::Snapshot {

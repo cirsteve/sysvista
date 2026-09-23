@@ -194,7 +194,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     id,
                     path: entry.path.clone(),
                     language: None,
-                    analysis: AnalysisStatus::None,
+                    analysis: AnalysisStatus::Unsupported,
                     content_hash: None, byte_length: None, line_count: None,
                 });
             }
@@ -314,7 +314,18 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         diagnostics: Vec::new(),
         payloads: Vec::new(),
     });
-    let merged = crate::analyzer::merge(&repository, response, heuristic);
+    let inventoried: std::collections::BTreeSet<String> =
+        source_files.iter().map(|file| file.path.clone()).collect();
+    let root_text = root.display().to_string();
+    let merged = crate::analyzer::merge(
+        &crate::analyzer::MergeContext {
+            repository: &repository,
+            root: &root_text,
+            files: &inventoried,
+        },
+        response,
+        heuristic,
+    );
     diagnostics.extend(merged.diagnostics);
     let counts = inventory_counts(&inventory);
     let mut snapshot = Snapshot {
@@ -344,6 +355,8 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         findings: Vec::new(),
         forbidden_dependencies: Vec::new(),
     };
+    let duplicates = v2::dedup_records(&mut snapshot);
+    snapshot.diagnostics.extend(duplicates);
     crate::hierarchy::derive(&mut snapshot, &inventory, config);
     let validation = crate::validate::validate(&snapshot);
     snapshot.manifest.validation = crate::validate::summary(&validation);

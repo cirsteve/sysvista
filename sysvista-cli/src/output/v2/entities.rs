@@ -17,7 +17,10 @@ pub struct SourceSpan {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AnalysisStatus {
+    /// Supported but not (yet) analyzed.
     None,
+    /// No analyzer supports the file's language; not an analysis gap.
+    Unsupported,
     Parsed { analyzer: String },
     Failed { message: String },
 }

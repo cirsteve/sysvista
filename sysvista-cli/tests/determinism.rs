@@ -32,7 +32,7 @@ impl Drop for TempDir {
 fn copy_fixture(destination: &Path) {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/determinism");
     fs::create_dir_all(destination).unwrap();
-    for name in ["sysvista.toml", "models.rs"] {
+    for name in ["sysvista.toml", "models.rs", "app.ts", "util.ts", "tsconfig.json"] {
         fs::copy(source.join(name), destination.join(name)).unwrap();
     }
 }
@@ -62,6 +62,20 @@ fn graph_is_deterministic_and_line_insensitive() {
 
     let first = scanner::scan_v2(&root, &config).unwrap();
     let second = scanner::scan_v2(&root, &config).unwrap();
+    // The fixture must exercise the real Node analyzer, not only the heuristic stage.
+    assert!(first.manifest.analyzer_versions.contains_key("typescript"), "{:?}", first.manifest.analyzer_versions);
+    assert!(first.relationships.iter().any(|relationship| {
+        matches!(relationship, v2::Relationship::Calls { origin, .. } if origin == "resolved")
+    }));
+    assert!(
+        first.diagnostics.iter().any(|diagnostic| matches!(diagnostic, v2::Diagnostic::AnalyzerIssue { message, .. } if message.contains("missing.ts"))),
+        "the fixture's missing tsconfig file must produce a path-bearing compiler message"
+    );
+    assert!(
+        first.diagnostics.iter().any(|diagnostic| matches!(diagnostic, v2::Diagnostic::AnalyzerIssue { message, .. } if message.contains("<external>/tsconfig.json"))),
+        "a missing reference outside the root must be named without its host path: {:#?}",
+        first.diagnostics
+    );
     let first_output = temp.0.join("first");
     let second_output = temp.0.join("second");
     v2::write_bundle(&first, &first_output).unwrap();
@@ -110,6 +124,22 @@ fn graph_is_deterministic_and_line_insensitive() {
             fs::read(reordered_output.join(name)).unwrap(),
             "{name} changed when input arrays were reordered"
         );
+    }
+
+    // The same project under a different absolute root produces identical output
+    // apart from the documented volatile manifest fields.
+    let moved_root = temp.0.join("elsewhere").join("checkout");
+    copy_fixture(&moved_root);
+    let moved = scanner::scan_v2(&moved_root, &Config::load(&moved_root).unwrap()).unwrap();
+    let moved_output = temp.0.join("moved");
+    v2::write_bundle(&moved, &moved_output).unwrap();
+    for name in ["graph.json", "diagnostics.json", "findings.json", "source-index.json", "index/scopes.json"] {
+        let original = fs::read(first_output.join(name)).unwrap();
+        assert_eq!(original, fs::read(moved_output.join(name)).unwrap(), "{name} depends on the checkout location");
+        let text = String::from_utf8(original).unwrap();
+        for host_path in [root.to_string_lossy(), moved_root.to_string_lossy(), temp.0.to_string_lossy()] {
+            assert!(!text.contains(host_path.as_ref()), "{name} leaks {host_path}");
+        }
     }
 
     let first_graph = fs::read(first_output.join("graph.json")).unwrap();
