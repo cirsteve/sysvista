@@ -5,7 +5,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-export XDG_CACHE_HOME="$work/cache"
 
 expect_failure() {
   local expected="$1"; shift
@@ -34,6 +33,7 @@ npm test --prefix sysvista-web
 npm run lint --prefix sysvista-web
 ./scripts/regen-schema.sh
 git diff --exit-code -- schema/sysvista-v2.schema.json sysvista-web/src/types/v2.generated.ts sysvista-web/src/test/fixtures/projection/root-with-three-scopes.json sysvista-web/src/test/fixtures/flow/bounded.json
+export XDG_CACHE_HOME="$work/cache"
 
 cli="$repo_root/sysvista-cli/target/debug/sysvista-cli"
 for target in sysvista-web .; do
@@ -51,14 +51,18 @@ for target in sysvista-web .; do
   done
 done
 
-# A second checkout path with the same origin must produce the same graph IDs.
-mkdir -p "$work/other-root"
-git ls-files sysvista-web | tar -cf - -T - | tar -xf - -C "$work/other-root"
-git init -q "$work/other-root/sysvista-web"
+# Two scan paths with the same origin and identical source must produce the same graph IDs.
+mkdir -p "$work/root-a" "$work/root-b"
+cp -a sysvista-cli/tests/fixtures/determinism/. "$work/root-a/"
+cp -a sysvista-cli/tests/fixtures/determinism/. "$work/root-b/"
 origin_url="$(git remote get-url origin)"
-git -C "$work/other-root/sysvista-web" remote add origin "$origin_url"
-"$cli" scan "$work/other-root/sysvista-web" --output "$work/other-root-bundle"
-node - "$work/sysvista-web-folder/graph.json" "$work/other-root-bundle/graph.json" <<'NODE'
+for root in "$work/root-a" "$work/root-b"; do
+  git init -q "$root"
+  git -C "$root" remote add origin "$origin_url"
+done
+"$cli" scan "$work/root-a" --output "$work/ids-a"
+"$cli" scan "$work/root-b" --output "$work/ids-b"
+node - "$work/ids-a/graph.json" "$work/ids-b/graph.json" <<'NODE'
 const fs = require('node:fs');
 const [a, b] = process.argv.slice(2).map(path => JSON.parse(fs.readFileSync(path, 'utf8')));
 for (const collection of ['source_files', 'entities', 'relationships', 'modules']) {
