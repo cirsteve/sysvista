@@ -5,13 +5,15 @@ import type { Viewport } from "../lib/livid/types";
 import { loadScopeRenderer } from "../lib/livid/adapter";
 import { FakeScopeRenderer } from "../lib/livid/fake";
 import type { ScopeRenderer } from "../lib/livid/types";
-import { indexSnapshot, rootScopeId } from "../lib/projection/children";
+import { rootScopeId } from "../lib/projection/children";
 import { searchSnapshot } from "../lib/search";
 import { selectCounts } from "../lib/selectors";
 import { nearestValidScope } from "../lib/view-state/fallback";
+import { navigateFinding as findingTransition } from "../lib/view-state/navigate";
 import { useViewStore } from "../store/viewStore";
 import { useScopeSlice } from "./useScopeSlice";
 import { expandFlow } from "../lib/flow/expand";
+import { boundFlowGraph } from "../lib/flow/bound";
 import { flowPresentation } from "../lib/livid/presentation";
 import type { ScopeRenderResult } from "../lib/livid/types";
 
@@ -20,6 +22,7 @@ export function useGraphData() {
   const [renderer, setRenderer] = useState<ScopeRenderer>(() => new FakeScopeRenderer());
   const [rendererNotice, setRendererNotice] = useState<string>();
   const reportedDiagnostics = useRef(new Set<string>());
+  const flowRequestToken = useRef(0);
   const view = useViewStore((state) => state.view);
   const replaceView = useViewStore((state) => state.replaceView);
   const navigateScope = useViewStore((state) => state.navigateScope);
@@ -29,16 +32,19 @@ export function useGraphData() {
   const flowSpec = useMemo(() => {
     if (!loaded || view.lens !== "flow") return null;
     const selected = (loaded.snapshot.entities ?? []).find(({ id }) => id === view.selection);
-    const root = selected ?? structuralSlice?.projected.children.find(({ declaration_kind }) => declaration_kind === "function") ?? structuralSlice?.projected.children[0];
+    const symbols = structuralSlice?.projected.children.filter((item): item is Extract<typeof item, { kind: "symbol" }> => item.kind === "symbol") ?? [];
+    const root = selected ?? symbols.find((item) => item.entity?.declaration_kind === "function")?.entity ?? symbols[0]?.entity;
     if (!root) return null;
-    return flowPresentation(expandFlow(loaded.snapshot, { kind: "entity", entityId: root.id }, view.flowHops), view.scopeId);
+    return flowPresentation(boundFlowGraph(expandFlow(loaded.snapshot, { kind: "entity", entityId: root.id }, view.flowHops)), view.scopeId);
   }, [loaded, structuralSlice?.projected, view.flowHops, view.lens, view.scopeId, view.selection]);
   const [renderedFlow, setRenderedFlow] = useState<{ spec: typeof flowSpec; result: ScopeRenderResult } | null>(null);
   useEffect(() => {
+    const token = ++flowRequestToken.current;
     if (!flowSpec) return;
-    let active = true;
-    void renderer.renderSpec(flowSpec).then((result) => active && setRenderedFlow({ spec: flowSpec, result }));
-    return () => { active = false; };
+    void renderer.renderSpec(flowSpec).then((result) => {
+      if (flowRequestToken.current === token) setRenderedFlow({ spec: flowSpec, result });
+    });
+    return () => { flowRequestToken.current += 1; };
   }, [flowSpec, renderer]);
   const flowSlice = flowSpec ? (renderedFlow?.spec === flowSpec ? renderedFlow.result : { spec: flowSpec, diagram: null }) : null;
   const slice = view.lens === "flow" ? flowSlice : structuralSlice;
@@ -67,15 +73,10 @@ export function useGraphData() {
     const manifest = data.snapshot.manifest as Manifest;
     const snapshotId = String(manifest.scanned_at ?? manifest.repository);
     const restored = view.snapshotId === snapshotId;
-    const index = indexSnapshot(data.snapshot);
-    const valid = new Set(index.scopes.map((scope) => scope.scope_id));
+    const index = data.hierarchy;
+    const valid = new Set(index.scopes.keys());
     valid.add(scopeId);
-    const entities = new Map((data.snapshot.entities ?? []).map((entity) => [entity.id, entity]));
-    const parents = new Map(index.scopes.flatMap((scope) => {
-      const owner = (data.snapshot.entities ?? []).find((entity) => entity.scope_id === scope.scope_id && entity.owner_id)?.owner_id;
-      const parent = owner ? entities.get(owner)?.scope_id : undefined;
-      return parent ? [[scope.scope_id, parent] as const] : [];
-    }));
+    const parents = index.parents;
     const fallback = nearestValidScope(restored ? view.scopeId : scopeId, valid, parents, scopeId);
     if (fallback.diagnostic) addDiagnostic(fallback.diagnostic);
     replaceView(restored ? { ...view, scopeId: fallback.scopeId } : {
@@ -91,10 +92,16 @@ export function useGraphData() {
   const setViewport = useCallback((viewport: Viewport) => updateView({ viewport }, false), [updateView]);
   const setQuery = useCallback((query: string) => updateView({ filters: { ...view.filters, query } }, false), [updateView, view.filters]);
   const setLens = useCallback((lens: "structure" | "flow") => updateView({ lens }), [updateView]);
-  const setFlowHops = useCallback((flowHops: number) => updateView({ flowHops: Math.max(0, Math.min(8, Math.floor(flowHops))) }), [updateView]);
+  const setFlowHops = useCallback((flowHops: number) => {
+    if (!Number.isFinite(flowHops)) return;
+    updateView({ flowHops: Math.max(0, Math.min(8, Math.floor(flowHops))) }, false);
+  }, [updateView]);
   const navigateFinding = useCallback((target: { scopeId: ScopeId; entityIds: import("../types/v2").EntityId[] }) => {
-    replaceView({ ...view, scopeId: target.scopeId, selection: target.entityIds[0] ?? null, selectedEntities: target.entityIds });
-  }, [replaceView, view]);
+    if (!loaded) return;
+    const transition = findingTransition(view, loaded.hierarchy, target.scopeId, target.entityIds);
+    replaceView(transition.state);
+    if (transition.diagnostic) addDiagnostic(transition.diagnostic);
+  }, [replaceView, view, loaded, addDiagnostic]);
   const results = useMemo(() => loaded ? searchSnapshot(loaded.snapshot, view.filters.query) : [], [loaded, view.filters.query]);
   const selectedItem = useMemo(() => slice?.spec.nodes.find(({ id }) => id === view.selection) ?? slice?.spec.edges.find(({ id }) => id === view.selection) ?? null, [slice, view.selection]);
   const counts = useMemo(() => slice ? selectCounts(slice.spec, view) : { visible: 0, total: 0 }, [slice, view]);

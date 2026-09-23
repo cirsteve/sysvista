@@ -14,7 +14,10 @@ export function ImportDialog({ onLoad, onError }: ImportDialogProps) {
   const { importFiles, isDragging } = useBundle(onLoad, onError);
   useEffect(() => { directory.current?.setAttribute("webkitdirectory", ""); }, []);
   const change = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files?.length) void importFiles(event.target.files);
+    if (event.target.files?.length) {
+      onError("");
+      void importFiles(event.target.files);
+    }
     event.target.value = "";
   };
   return <>

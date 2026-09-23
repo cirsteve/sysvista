@@ -19,7 +19,7 @@ export function Inspector({ item, loaded }: InspectorProps) {
   const source = useSource(loaded, fileId);
   return (
     <aside className="relative shrink-0 border-l border-[var(--border)] bg-[var(--surface)]" style={{ width }}>
-      <ResizeHandle onResize={(delta) => setWidth((value) => Math.min(560, Math.max(240, value + delta)))} />
+      <ResizeHandle width={width} onResize={(delta) => setWidth((value) => Math.min(560, Math.max(240, value + delta)))} />
       <div className="border-b border-[var(--border)] px-4 py-3 font-semibold">Inspector</div>
       {!item ? <p className="p-4 text-sm text-[var(--muted)]">Select a module, file, symbol, boundary, or dependency.</p> : (
         <>
