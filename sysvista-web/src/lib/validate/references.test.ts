@@ -21,6 +21,26 @@ describe("validateReferences", () => {
     if (!result.ok) expect(result.error.map(({ ownerId }) => ownerId)).toEqual(["r1", "r1"]);
   });
 
+  it("rejects typed children and owner-map keys missing from snapshot collections", () => {
+    const snapshot = {
+      manifest: { root_scope_id: "root" },
+      scope_index: { scopes: [
+        { scope_id: "root", children: [
+          { kind: "file", file_id: "missing-file", scope_id: "file-scope" },
+          { kind: "module", module_id: "missing-module", scope_id: "module-scope" },
+          { kind: "symbol", entity_id: "missing-symbol", scope_id: null },
+        ], owner_map: { "missing-owner": "missing-file" }, crossing_relationship_ids: [] },
+        { scope_id: "file-scope", children: [], owner_map: {}, crossing_relationship_ids: [] },
+        { scope_id: "module-scope", children: [], owner_map: {}, crossing_relationship_ids: [] },
+      ] },
+    } as unknown as Snapshot;
+    const result = validateReferences(snapshot);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.map(({ field }) => field)).toEqual(expect.arrayContaining([
+      "children.file_id", "children.module_id", "children.entity_id", "owner_map.entity_id",
+    ]));
+  });
+
   it("checks traversal, module, and finding references", () => {
     const snapshot = {
       manifest: {} as Snapshot["manifest"],

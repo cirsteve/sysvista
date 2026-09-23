@@ -15,6 +15,9 @@ const missing = (errors: ReferenceError[], ownerId: string, field: string, targe
 export function validateReferences(snapshot: Snapshot): Result<Snapshot, ReferenceError[]> {
   const errors: ReferenceError[] = [];
   const hierarchy = snapshot.scope_index ? buildHierarchyIndex(snapshot) : undefined;
+  const files = new Set<string>((snapshot.source_files ?? []).map(({ id }) => id));
+  const entities = new Set<string>((snapshot.entities ?? []).map(({ id }) => id));
+  const modules = new Set<string>((snapshot.modules ?? []).map(({ id }) => id));
   if (snapshot.scope_index) {
     if (!hierarchy) throw new Error("hierarchy index unavailable");
     if (!hierarchy.scopes.has(hierarchy.rootScopeId)) missing(errors, "manifest", "root_scope_id", hierarchy.rootScopeId);
@@ -23,8 +26,12 @@ export function validateReferences(snapshot: Snapshot): Result<Snapshot, Referen
       for (const child of scope.children) {
         if (child.scope_id && !hierarchy.scopes.has(child.scope_id as import("../../types/v2").ScopeId))
           missing(errors, scope.scope_id, "children.scope_id", child.scope_id);
+        if (child.kind === "file" && !files.has(child.file_id)) missing(errors, scope.scope_id, "children.file_id", child.file_id);
+        if (child.kind === "module" && !modules.has(child.module_id)) missing(errors, scope.scope_id, "children.module_id", child.module_id);
+        if (child.kind === "symbol" && !entities.has(child.entity_id)) missing(errors, scope.scope_id, "children.entity_id", child.entity_id);
       }
       for (const [entityId, target] of Object.entries(scope.owner_map)) {
+        if (!entities.has(entityId)) missing(errors, scope.scope_id, "owner_map.entity_id", entityId);
         if (!visible.has(target)) missing(errors, entityId, "owner_map", target);
       }
     }
@@ -42,8 +49,6 @@ export function validateReferences(snapshot: Snapshot): Result<Snapshot, Referen
     walk(hierarchy.rootScopeId);
     for (const scopeId of hierarchy.scopes.keys()) walk(scopeId);
   }
-  const files = new Set<string>((snapshot.source_files ?? []).map(({ id }) => id));
-  const entities = new Set<string>((snapshot.entities ?? []).map(({ id }) => id));
   const relationships = new Set<string>((snapshot.relationships ?? []).map(({ id }) => id));
   const evidenceItems = (snapshot.evidence ?? []) as Evidence[];
   const evidence = new Set(evidenceItems.map(({ id }) => id));
