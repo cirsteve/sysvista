@@ -9,18 +9,16 @@ import { SearchBar } from "./components/organisms/SearchBar";
 import { Toolbar } from "./components/organisms/Toolbar";
 import { useGraphData } from "./hooks/useGraphData";
 import { useKeyboardNavigation } from "./hooks/useKeyboardNavigation";
-import { useViewState } from "./hooks/useViewState";
+import { useUrlViewState } from "./hooks/useUrlViewState";
 import { useViewStore } from "./store/viewStore";
-import { selectCanGoBack, selectCanGoForward, selectManifestTitle } from "./lib/selectors";
+import { selectManifestTitle } from "./lib/selectors";
 
 export default function App() {
-  useViewState();
+  useUrlViewState();
   const graph = useGraphData();
   const [error, setError] = useState<string>();
-  const canBack = useViewStore(selectCanGoBack);
-  const canForward = useViewStore(selectCanGoForward);
-  const back = useViewStore((state) => state.back);
-  const forward = useViewStore((state) => state.forward);
+  const back = () => window.history.back();
+  const forward = () => window.history.forward();
   const theme = useViewStore((state) => state.theme);
   const toggleTheme = useViewStore((state) => state.toggleTheme);
 
@@ -30,9 +28,9 @@ export default function App() {
   const manifestTitle = selectManifestTitle(snapshot ?? null);
   return (
     <div className={theme === "dark" ? "dark app-shell" : "app-shell"}>
-      <Toolbar projectName={manifestTitle} theme={theme} onToggleTheme={toggleTheme} onLoad={graph.load} onError={setError} lens={graph.view.lens} flowHops={graph.view.flowHops} onLensChange={graph.setLens} onFlowHopsChange={graph.setFlowHops} />
+      <Toolbar projectName={manifestTitle} theme={theme} onToggleTheme={toggleTheme} onLoad={(data) => { setError(undefined); graph.load(data); }} onError={setError} lens={graph.view.lens} flowHops={graph.view.flowHops} onLensChange={graph.setLens} onFlowHopsChange={graph.setFlowHops} />
       <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
-        <Breadcrumbs scopeId={graph.view.scopeId} canBack={canBack} canForward={canForward} onBack={back} onForward={forward} />
+        <Breadcrumbs scopeId={graph.view.scopeId} onBack={back} onForward={forward} />
         <ScopeHeader title={String(graph.view.scopeId)} visible={graph.counts.visible} total={graph.counts.total} />
         <SearchBar query={graph.view.filters.query} results={graph.results} onSearch={graph.setQuery} onSelect={(hit) => graph.navigateScope(hit.owningScopeId, hit.entityId)} />
       </div>
@@ -44,7 +42,7 @@ export default function App() {
         <FindingsPanel snapshot={snapshot ?? null} onNavigate={graph.navigateFinding} />
       </main>
       <Legend />
-      {error && <div role="alert" className="fixed bottom-12 left-1/2 -translate-x-1/2 rounded bg-red-700 px-4 py-2 text-sm text-white">{error}</div>}
+      {error && <div role="alert" className="fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded bg-red-700 px-4 py-2 text-sm text-white">{error}<button onClick={() => setError(undefined)} aria-label="Dismiss import error" className="rounded border px-2">Dismiss</button></div>}
     </div>
   );
 }
