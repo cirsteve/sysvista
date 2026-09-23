@@ -21,8 +21,8 @@ const graph = read("graph.json");
 const diagnostics = read("diagnostics.json");
 const index = read("index/scopes.json");
 if (manifest.schema_version !== "3") throw new Error(`Expected schema version 3, got ${manifest.schema_version}`);
-// Analyzer syntax issues in intentionally malformed test fixtures and D7 ambiguity
-// notices do not invalidate the bundle's reference contract.
+// The integration acceptance policy in docs/validation.md permits these two CLI
+// notices from intentionally malformed test fixtures; all other diagnostics fail.
 const expectedNotices = new Set(["payload_identity_conflict", "analyzer_issue"]);
 const validationDiagnostics = diagnostics.filter((item: { kind: string }) => !expectedNotices.has(item.kind));
 if (validationDiagnostics.length) throw new Error(`Validation diagnostics: ${JSON.stringify(validationDiagnostics.slice(0, 5))}`);

@@ -89,7 +89,30 @@ reports remain outside the repository.
 
 The integration loader also passed locally for `sysvista-web` and the repository root
 as source and no-source folder and zip bundles. It runs the viewer's schema,
-reference, hierarchy, and projection code. The root scan includes intentionally
-malformed test fixtures, so its analyzer syntax notices are expected; D7 payload
-ambiguity notices are also expected for generated type declarations. The loader
-rejects every other CLI diagnostic and any viewer validation error.
+reference, hierarchy, and projection code. The integration acceptance criterion is
+**zero CLI diagnostics except `analyzer_issue` and `payload_identity_conflict`**:
+the repository scan includes intentionally malformed analyzer test fixtures, and
+duplicate payload declarations in fixtures and generated types produce D7 ambiguity
+notices. `scripts/load-bundle.ts` rejects every other CLI diagnostic, every viewer
+validation error, duplicate ID, and absolute source or inventory path. The same
+criterion applies to the `sysvista-web` scan and to all four folder/zip variants
+with and without source.
+
+## PR B GitHub Actions
+
+GitHub Actions [CI run 54](https://github.com/cirsteve/sysvista/actions/runs/35813495264)
+ran for PR #17 head `08f1dcb5e87fab92d4d2c547dafa6d813197858c` and completed
+successfully. The PR base was `epic/drilldown-revref` for this run; that branch is
+listed in the workflow's `pull_request.branches`, so the base did not prevent the
+trigger. `pr_status` reported only CodeRabbit, but the Actions run and job records
+confirm the following results:
+
+| Job | Result |
+| --- | --- |
+| CLI to viewer bundle integration | Passed |
+| Web (TypeScript) | Passed |
+| CLI (Rust) | Passed |
+| Generated v3 schema | Passed |
+
+The scale job also passed its push profile (`small`). It did not run the `large`
+profile, which is selected only for schedule or `workflow_dispatch` events.
