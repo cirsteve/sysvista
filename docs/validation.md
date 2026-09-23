@@ -72,13 +72,15 @@ push, while the large profile runs on dispatch and nightly.
 | Profile | CLI scan | Bundle size | Load/index | Projection/navigation | Validation/findings | Bounded layout |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Small | 1,521 ms | 4,605,491 bytes | 18.0 ms | 9.3 ms | 44.1 ms | 96.2 ms |
+| Large | 1,598,532 ms | 460,097,143 bytes | 2,863.7 ms | 1,089.9 ms | 1,697.6 ms | 154.3 ms |
 
-The large profile did not yield a report on this host. A monolithic TypeScript
-project was interrupted after roughly 24 minutes without a bundle; adding package
-`tsconfig.json` files reduced analyzer project size, but the real 10,000-file scan
-was still running after roughly 25 minutes and was interrupted. No large viewer
-timings are claimed. This is a blocking validation gap pending the nightly or
-manual large run.
+The large report was produced with `SYSVISTA_SCALE_SIZES=large`, seed `20260922`,
+`SYSVISTA_ANALYZER_HEAP_MB=12288`, and the default 8192 MiB viewer heap on the
+reference machine. The generated source targeted 10,000 TypeScript files, 100,000
+declarations, and 250,000 calls. The CLI bundle contained 10,201 inventoried files
+(including package and config files), 130,000 entities, 260,000 relationships, and
+201 findings. The 26.6-minute scan is a material runtime cost for manual and
+nightly runs; earlier 8 GiB attempts were interrupted after about 25 minutes.
 
 The small report was measured on the reference machine above with seed `20260922`.
 Each package has its own `tsconfig.json`, so the real analyzer compiles independent
@@ -100,8 +102,8 @@ with and without source.
 
 ## PR B GitHub Actions
 
-GitHub Actions [CI run 54](https://github.com/cirsteve/sysvista/actions/runs/35813495264)
-ran for PR #17 head `08f1dcb5e87fab92d4d2c547dafa6d813197858c` and completed
+GitHub Actions [CI run 55](https://github.com/cirsteve/sysvista/actions/runs/35820096575)
+ran for PR #17 head `6615de273bfcb4cb2544f94887a908fc5fa76eeb` and completed
 successfully. The PR base was `epic/drilldown-revref` for this run; that branch is
 listed in the workflow's `pull_request.branches`, so the base did not prevent the
 trigger. `pr_status` reported only CodeRabbit, but the Actions run and job records
