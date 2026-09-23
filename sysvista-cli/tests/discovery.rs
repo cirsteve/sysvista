@@ -153,6 +153,25 @@ mod unix_tests {
     }
 
     #[test]
+    fn forbidden_dependencies_must_name_configured_modules() {
+        let modules = "[[modules]]\nname = 'ui'\nselectors = ['ui/**']\n\n[[modules]]\nname = 'db'\nselectors = ['db/**']\n\n";
+        for (rule, valid) in [
+            ("from = 'ui'\nto = 'db'", true),
+            ("from = 'ui'\nto = 'Unassigned'", true),
+            ("from = 'ui'\nto = 'dbb'", false),
+            ("from = 'u*'\nto = 'db'", false),
+        ] {
+            let temp = TempDir::new();
+            fs::write(temp.0.join("sysvista.toml"), format!("{modules}[[forbidden_dependencies]]\n{rule}\n")).unwrap();
+            let loaded = Config::load(&temp.0);
+            assert_eq!(loaded.is_ok(), valid, "{rule}: {:?}", loaded.err());
+            if let Err(error) = loaded {
+                assert!(error.to_string().contains("not a configured logical module"), "{error}");
+            }
+        }
+    }
+
+    #[test]
     fn invalid_v2_config_does_not_block_explicit_v1_scan() {
         let temp = TempDir::new();
         fs::write(

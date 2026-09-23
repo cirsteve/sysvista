@@ -355,6 +355,8 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         findings: Vec::new(),
         forbidden_dependencies: Vec::new(),
     };
+    let duplicates = v2::dedup_records(&mut snapshot);
+    snapshot.diagnostics.extend(duplicates);
     crate::hierarchy::derive(&mut snapshot, &inventory, config);
     let validation = crate::validate::validate(&snapshot);
     snapshot.manifest.validation = crate::validate::summary(&validation);
