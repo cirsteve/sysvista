@@ -12,7 +12,6 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::Path;
-use std::process::Command;
 use std::time::Instant;
 
 #[cfg(test)]
@@ -138,7 +137,7 @@ pub fn scan(root: &Path) -> SysVistaOutput {
 }
 
 pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
-    let (repository, portable) = repository_identity(root, config);
+    let (repository, portable) = v2::repository_identity(root, config);
     let mut inventory = Inventory::discover(root, config)?;
     let mut source_files = Vec::new();
     let mut diagnostics = Vec::new();
@@ -170,7 +169,9 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     analysis: AnalysisStatus::Failed {
                         message: io_error.clone(),
                     },
-                    content_hash: None, byte_length: None, line_count: None,
+                    content_hash: None,
+                    byte_length: None,
+                    line_count: None,
                 });
             }
             InventoryOutcome::Failed { diagnostic_id } => {
@@ -186,7 +187,9 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     analysis: AnalysisStatus::Failed {
                         message: "path discovery failed".into(),
                     },
-                    content_hash: None, byte_length: None, line_count: None,
+                    content_hash: None,
+                    byte_length: None,
+                    line_count: None,
                 });
             }
             InventoryOutcome::Unsupported => {
@@ -196,7 +199,9 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     path: entry.path.clone(),
                     language: None,
                     analysis: AnalysisStatus::Unsupported,
-                    content_hash: bytes.as_ref().map(|bytes| format!("{:x}", Sha256::digest(bytes))),
+                    content_hash: bytes
+                        .as_ref()
+                        .map(|bytes| format!("{:x}", Sha256::digest(bytes))),
                     byte_length: bytes.as_ref().map(|bytes| bytes.len() as u64),
                     line_count: bytes.as_ref().map(|bytes| file_walker::line_count(bytes)),
                 });
@@ -206,7 +211,8 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     .unwrap_or("unknown")
                     .to_owned();
                 match std::fs::read(&path).and_then(|bytes| {
-                    std::str::from_utf8(&bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+                    std::str::from_utf8(&bytes)
+                        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
                     Ok(bytes)
                 }) {
                     Ok(bytes) => source_files.push(SourceFile {
@@ -241,7 +247,9 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                             path: entry.path.clone(),
                             language: Some(language),
                             analysis: AnalysisStatus::Failed { message },
-                            content_hash: None, byte_length: None, line_count: None,
+                            content_hash: None,
+                            byte_length: None,
+                            line_count: None,
                         });
                     }
                 }
@@ -362,11 +370,17 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let duplicates = v2::dedup_records(&mut snapshot);
     snapshot.diagnostics.extend(duplicates);
     crate::hierarchy::derive(&mut snapshot, &inventory, config);
-    snapshot.scope_index = Some(v2::ScopeIndex::with_extensions(&snapshot, &config.viewer.visible_extensions));
+    snapshot.scope_index = Some(v2::ScopeIndex::with_extensions(
+        &snapshot,
+        &config.viewer.visible_extensions,
+    ));
     let validation = crate::validate::validate(&snapshot);
     snapshot.manifest.validation = crate::validate::summary(&validation);
     snapshot.diagnostics.extend(validation);
-    snapshot.findings = crate::findings::derive_with_exclusions(&snapshot, &config.findings.unresolved.exclude_reasons);
+    snapshot.findings = crate::findings::derive_with_exclusions(
+        &snapshot,
+        &config.findings.unresolved.exclude_reasons,
+    );
     Ok(snapshot)
 }
 
@@ -452,50 +466,6 @@ fn inventory_counts(inventory: &Inventory) -> InventoryCounts {
         }
     }
     counts
-}
-
-fn repository_identity(root: &Path, config: &Config) -> (String, bool) {
-    if let Ok(output) = Command::new("git")
-        .args(["-C"])
-        .arg(root)
-        .args(["remote", "get-url", "origin"])
-        .output()
-    {
-        if output.status.success() {
-            let remote = String::from_utf8_lossy(&output.stdout);
-            let normalized = normalize_remote(remote.trim());
-            if !normalized.is_empty() {
-                return (normalized, true);
-            }
-        }
-    }
-    if let Some(name) = config
-        .repository
-        .name
-        .as_deref()
-        .filter(|name| !name.trim().is_empty())
-    {
-        return (name.trim().to_owned(), true);
-    }
-    (v2::stable_id("repository-path", &[&root.to_string_lossy()]), false)
-}
-
-fn normalize_remote(remote: &str) -> String {
-    let mut value = remote
-        .trim()
-        .trim_end_matches('/')
-        .trim_end_matches(".git")
-        .to_owned();
-    if let Some((_, rest)) = value.split_once("://") {
-        value = rest.to_owned();
-    }
-    if value.starts_with("git@") {
-        value = value.trim_start_matches("git@").replacen(':', "/", 1);
-    }
-    if let Some((_, rest)) = value.split_once('@') {
-        value = rest.to_owned();
-    }
-    value.trim_start_matches('/').to_owned()
 }
 
 #[cfg(test)]

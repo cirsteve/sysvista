@@ -21,7 +21,7 @@ pub use diagnostics::{Diagnostic, Finding, NavigationTarget};
 pub use entities::{AnalysisStatus, CodeEntity, LogicalModule, SourceFile, SourceSpan};
 pub use ids::{
     EntityId, FileId, ModuleId, RelationshipId, ScopeId, entity_id, file_id, relationship_id,
-    scope_id, stable_id,
+    repository_identity, scope_id, stable_id,
 };
 pub use index::{ScopeChild, ScopeIndex};
 pub use projection::Projection;
@@ -128,7 +128,13 @@ mod tests {
     #[test]
     fn variant_types_are_tagged_unions() {
         let schema = serde_json::to_value(schema_for!(Snapshot)).unwrap();
-        for name in ["Relationship", "Evidence", "Diagnostic", "Finding", "ScopeChild"] {
+        for name in [
+            "Relationship",
+            "Evidence",
+            "Diagnostic",
+            "Finding",
+            "ScopeChild",
+        ] {
             let definition = &schema["$defs"][name];
             let variants = definition["oneOf"]
                 .as_array()

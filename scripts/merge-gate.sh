@@ -94,7 +94,8 @@ node - "$work/oversized" <<'NODE'
 const fs = require('node:fs');
 const path = require('node:path');
 const root = process.argv[2];
-fs.writeFileSync(path.join(root, 'oversized.json'), 'x'.repeat(3 * 1024 * 1024));
+fs.closeSync(fs.openSync(path.join(root, 'oversized.json'), 'w'));
+fs.truncateSync(path.join(root, 'oversized.json'), 513 * 1024 * 1024);
 const manifestPath = path.join(root, 'manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 manifest.files.push('oversized.json');

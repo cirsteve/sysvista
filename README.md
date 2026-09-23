@@ -28,3 +28,18 @@ A folder bundle contains `manifest.json` (including the resolved `config_snapsho
 TypeScript and JavaScript use an embedded compiler-based analyzer. Other supported languages also receive heuristic detection. Function-scoped declarations remain in the graph with `is_local: true` and are hidden in the viewer's default projection. Repository identity uses the normalized Git origin URL when present, then a configured name, then a scan-path hash.
 
 The legacy `scan --format v1` option remains for older consumers. New integrations should use the version 3 bundle.
+
+## Configuration keys
+
+`sysvista.toml` accepts the following keys. Unknown keys fail loading. The resolved values appear in `manifest.config_snapshot`.
+
+| Key | Purpose |
+| --- | --- |
+| `repository.name` | Repository ID fallback when no Git origin exists. |
+| `discovery.include`, `discovery.exclude` | Discovery path globs. |
+| `discovery.extra_extensions` | Map an extension without a dot to a language. |
+| Root `include`, `exclude`, `extra_extensions` | Aliases merged into the corresponding discovery keys. |
+| `modules[].name`, `modules[].selectors`, `modules[].tags` | Logical module name, membership globs and labels. `globs` and `paths` alias `selectors`. |
+| `forbidden_dependencies[].from`, `.to` | Exact source and target module names. `source` and `target` are accepted aliases. |
+| `viewer.visible_extensions` | Extensions shown in the default hierarchy; defaults to `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `rs`, `py`. |
+| `findings.unresolved.exclude_reasons` | Unresolved reasons omitted before finding counts. |

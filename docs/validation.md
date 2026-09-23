@@ -118,3 +118,32 @@ confirm the following results:
 
 The scale job also passed its push profile (`small`). It did not run the `large`
 profile, which is selected only for schedule or `workflow_dispatch` events.
+
+## PR C integrated merge gate and reconciliation
+
+`./scripts/merge-gate.sh` was run from the final PR C branch head after clean npm installs and a Cargo clean build. The final run exited zero. It covered analyzer and web typechecks, Rust and TypeScript tests (including jsdom), schema regeneration with no diff, real `sysvista-web` and repository-root scans, four viewer-loaded folder/zip variants per root, ID and reference checks, relative source and inventory paths, equal IDs across two scan roots with the same origin, the small scale run, and rejected truncated zip, changed source hash and oversized entry cases. The gate is committed and exposed as a `workflow_dispatch` CI job. This evidence is for the PR C head; the operator decides merge readiness and can rerun it on the later integration head.
+
+The original parent brief's D1–D8 wording is not included in this cohort work order. The entries below reconcile the decisions explicitly identified in the supplied cohort brief; decisions whose original wording cannot be reconstructed are marked out of scope rather than assigned an invented interpretation.
+
+| Brief decision | Cohort and evidence | Resolution |
+| --- | --- | --- |
+| D1 | Original decision text not supplied in this cohort brief. | Out of scope for a factual decision-level claim; PR B and C requirements are mapped below. |
+| D2 | PR B CLI-side contract: `sysvista-cli/src/output/v2/`, `sysvista-cli/src/discovery/config.rs`; PR C manifest snapshot and schema. | Implemented on the CLI side, as the cohort brief specifies. |
+| D3 | PR B single-owner hierarchy: `sysvista-cli/src/hierarchy/`, `tests/hierarchy.rs`, viewer projection tests. | One logical module owner per file. |
+| D4 | Original decision text not supplied in this cohort brief. | Out of scope for a factual decision-level claim; PR B and C requirements are mapped below. |
+| D5 | PR B pinned Livid packages and `sysvista-web/src/lib/livid/`; `docs/livid-integration.md`. | No Livid package update in PR C. |
+| D6 | Original decision text not supplied in this cohort brief. | Out of scope for a factual decision-level claim; PR B and C requirements are mapped below. |
+| D7 | PR B payload identity diagnostics in `tests/analyzer_merge.rs`; `scripts/load-bundle.ts` accepts only the documented fixture notices. | Same-named payload declarations remain an explicit ambiguity diagnostic. |
+| D8 | PR B CLI-side hierarchy and bundle contract, PR C identity and manifest changes. | Implemented on the CLI side, as the cohort brief specifies. |
+
+| Requirement | Cohort and evidence | Status |
+| --- | --- | --- |
+| Start from merged PR B and land ordered work items | PR C began at merge commit `e11cb0a`; commits for scan metadata, workflow cleanup and gate followed in order. | Met. |
+| Two same-named locals carry `is_local` and are hidden | PR C analyzer fixture `locals.ts`, `sysvista-cli/tests/unique_ids.rs`, `sysvista-web/src/lib/projection/project.test.ts`. | Met. |
+| XDG then HOME cache, stable origin/path IDs, one read and line counts | PR C `analyzer/spawn.rs`, `build.rs`, `output/v2/ids.rs`, `scanner/mod.rs`, `scanner/file_walker.rs`, `tests/determinism.rs`. | Met. |
+| Manifest config snapshot, Claim alignment and generated schema | PR C `Manifest.config_snapshot`, `types/v2.ts`, regenerated schema and types; schema no-diff gate. | Met. |
+| v2 Make scan, committed fixture and public sample removal | PR C `Makefile`, `App.tsx`, committed projection fixture, removed public JSON; folder and zip loaded. | Met. |
+| Bounded archive source re-reads | PR B streaming archive cap; PR C `archive.ts` starts only the requested source stream, with a second-read test. | Met. |
+| Remove three unused v1 files | `slices.ts` is imported by `project.test.ts`; `design-tokens.ts` and `types/schema.ts` have live imports in app, loader and v1 adapter code. | Infeasible under the required no-importer precondition; files retained. |
+| README, USAGE and contract documentation | PR C `README.md`, `USAGE.md`, both `CLAUDE.md` files, identity, analyzer, bundle and Livid docs. | Met. |
+| Integrated gate, clean installs, real bundles, corrupt/oversized rejection | PR C `scripts/merge-gate.sh`, CI dispatch job, final zero exit reported above. | Met on PR C head; integration-head rerun belongs to the operator. |
