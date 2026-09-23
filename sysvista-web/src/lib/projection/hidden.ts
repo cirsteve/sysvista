@@ -1,9 +1,9 @@
-import type { EntityId, RelationshipId, Snapshot } from "../../types/v2";
+import type { RelationshipId, Snapshot } from "../../types/v2";
 import type { AggregateRelationship, HiddenCounts } from "./types";
 
 export function hiddenCounts(
   snapshot: Snapshot,
-  visibleEntityIds: Set<EntityId>,
+  visibleEntityIds: Set<string>,
   visibleRelationships: AggregateRelationship[],
   summarizedRelationshipIds: RelationshipId[] = [],
 ): HiddenCounts {

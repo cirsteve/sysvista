@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { validateSnapshot } from "./v2";
 
 const manifest = {
-  schema_version: "2",
+  schema_version: "3",
+  root_scope_id: "root",
   repository: "example/sysvista",
   scanned_at: "2026-09-21T00:00:00Z",
   root: "/repo",

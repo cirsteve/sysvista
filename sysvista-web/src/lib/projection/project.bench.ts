@@ -15,8 +15,10 @@ describe("projection scale threshold", () => {
       ? JSON.parse(readFileSync(fixturePath, "utf8")) as { snapshot: Snapshot; index: ScopeIndex; relationship_count: number }
       : undefined;
     const base = fixture.snapshot.relationships as unknown as Relationship[];
+    const sourceId = fixture.snapshot.entities[0]?.id ?? "source";
+    const targetId = fixture.snapshot.entities[1]?.id ?? "target";
     const relationships = generated?.snapshot.relationships ?? Array.from({ length: requestedCount }, (_, index) => ({
-      ...base[index % base.length],
+      ...(base.length ? base[index % base.length] : { kind: "calls", source: sourceId, target: targetId, origin: "resolved" }),
       id: `synthetic-${index}`,
     })) as Relationship[];
     const snapshot = generated?.snapshot ?? { ...fixture.snapshot, relationships } as unknown as Snapshot;
@@ -28,10 +30,11 @@ describe("projection scale threshold", () => {
     } as ScopeIndex;
     const relationshipCount = generated?.relationship_count ?? requestedCount;
 
-    projectScope(snapshot, index, "root" as ScopeId);
+    const root = generated ? "root" as ScopeId : fixture.snapshot.manifest.root_scope_id as ScopeId;
+    projectScope(snapshot, index, root);
     const samples = Array.from({ length: 3 }, () => {
       const start = performance.now();
-      projectScope(snapshot, index, "root" as ScopeId);
+      projectScope(snapshot, index, root);
       return performance.now() - start;
     }).sort((left, right) => left - right);
     const elapsed = samples[1];

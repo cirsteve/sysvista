@@ -63,7 +63,7 @@ export function adaptV1(input: SysVistaOutput): Snapshot {
     attributes: { synthetic: true, physical_path: path },
   }));
   return {
-    manifest: { schema_version: "2", repository: input.project_name, scanned_at: input.scanned_at,
+    manifest: { schema_version: "3", root_scope_id: "legacy-scope:root", repository: input.project_name, scanned_at: input.scanned_at,
       root: input.root_dir, tool_version: `legacy-v1:${input.version}`,
       analyzer_versions: { legacy: input.version }, inventory: { included: 0, excluded: 0, unsupported: 0, unreadable: 0, failed: 0 },
       legacy: true, coverage: "unknown" },
@@ -73,5 +73,16 @@ export function adaptV1(input: SysVistaOutput): Snapshot {
     root_scope_id: "legacy-scope:root",
     entities: [...fileEntities, ...components.map(toEntity)], relationships, evidence, claims,
     modules: [], payload_contracts: [], projections: [], findings: [], unresolved_references: [],
+    scope_index: { scopes: [
+      { scope_id: "legacy-scope:root", child_scope_ids: paths.map(scopeId),
+        children: paths.map((path) => ({ kind: "file", file_id: fileId(path), scope_id: scopeId(path) })),
+        owner_map: Object.fromEntries(components.map((component) => [entityId(component.id), fileId(component.source.file)])),
+        crossing_relationship_ids: relationships.map(({ id }) => id) },
+      ...paths.map((path) => ({ scope_id: scopeId(path), child_scope_ids: [],
+        children: components.filter((component) => component.source.file === path).map((component) => ({ kind: "symbol" as const, entity_id: entityId(component.id) })),
+        owner_map: {}, crossing_relationship_ids: relationships.filter((relationship) =>
+          components.some((component) => component.source.file === path && entityId(component.id) === relationship.source) ||
+          components.some((component) => component.source.file === path && entityId(component.id) === relationship.target)).map(({ id }) => id) })),
+    ] },
   };
 }

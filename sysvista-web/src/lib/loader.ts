@@ -5,6 +5,8 @@ import { DEFAULT_ARCHIVE_TOTAL_CAP, openBundleArchive } from "./bundle/archive";
 import type { Result } from "./result";
 import { validateReferences, type ReferenceError } from "./validate/references";
 import { validateSnapshot, type ValidationError } from "./validate/v2";
+import { buildHierarchyIndex, type HierarchyIndex } from "./hierarchy/index";
+import { verifySource } from "./bundle/source";
 
 export interface SourceIndexEntry {
   file_id: FileId;
@@ -22,6 +24,7 @@ export interface BundleSourceStore {
 
 export interface LoadedSnapshot {
   snapshot: Snapshot;
+  hierarchy: HierarchyIndex;
   origin: "v1-legacy" | "v2";
   sources?: BundleSourceStore;
 }
@@ -35,21 +38,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 const isV1 = (value: unknown): value is SysVistaOutput => isRecord(value) && Array.isArray(value.components) && Array.isArray(value.edges);
 const bundleSnapshot = (value: Record<string, unknown>): unknown =>
   isRecord(value.manifest) && isRecord(value.graph)
-    ? { ...value.graph, manifest: value.manifest, diagnostics: value.diagnostics ?? [], findings: value.findings ?? value.graph.findings ?? [] }
+    ? { ...value.graph, manifest: value.manifest, scope_index: value.scope_index, diagnostics: value.diagnostics ?? [], findings: value.findings ?? value.graph.findings ?? [] }
     : value;
 
 export function validate(data: unknown): Result<LoadedSnapshot, LoadError> {
   if (isV1(data)) {
     const snapshot = adaptV1({ ...data, workflows: Array.isArray(data.workflows) ? data.workflows : [] });
     const refs = validateReferences(snapshot);
-    return refs.ok ? { ok: true, value: { snapshot, origin: "v1-legacy" } }
+    return refs.ok ? { ok: true, value: { snapshot, hierarchy: buildHierarchyIndex(snapshot), origin: "v1-legacy" } }
       : failure({ kind: "references", message: "Legacy input contains dangling references", errors: refs.error });
   }
   if (!isRecord(data)) return failure({ kind: "format", message: "Invalid SysVista JSON: expected an object" });
+  const manifest = isRecord(data.manifest) ? data.manifest : undefined;
+  if (manifest?.schema_version !== "3") return failure({ kind: "format", message: `Expected SysVista schema version 3; received ${String(manifest?.schema_version ?? "missing")}` });
   const schemaResult = validateSnapshot(bundleSnapshot(data));
   if (!schemaResult.ok) return failure({ kind: "validation", message: "Invalid SysVista v2 snapshot", errors: schemaResult.error });
+  if (!schemaResult.value.scope_index) return failure({ kind: "format", message: "Schema version 3 requires index/scopes.json" });
   const refs = validateReferences(schemaResult.value);
-  return refs.ok ? { ok: true, value: { snapshot: refs.value, origin: "v2" } }
+  return refs.ok ? { ok: true, value: { snapshot: refs.value, hierarchy: buildHierarchyIndex(refs.value), origin: "v2" } }
     : failure({ kind: "references", message: "Snapshot contains dangling references", errors: refs.error });
 }
 
@@ -88,6 +94,24 @@ const sourceIndex = (value: unknown): Map<FileId, SourceIndexEntry> => {
   ));
 };
 
+function verifiedSources(included: boolean, index: Map<FileId, SourceIndexEntry>, readRaw: (hash: string) => Promise<Uint8Array | undefined>): BundleSourceStore {
+  const cache = new Map<string, Uint8Array>();
+  return { included, index, async read(hash) {
+    const cached = cache.get(hash);
+    if (cached) return cached;
+    const entries = [...index.values()].filter((entry) => entry.content_hash === hash && entry.source_available);
+    if (!entries.length) return undefined;
+    const bytes = await readRaw(hash);
+    if (!bytes) throw new Error(`Source ${hash} is missing`);
+    for (const entry of entries) {
+      if (entry.byte_length === undefined) throw new Error(`Source ${entry.path} lacks byte_length`);
+      await verifySource(bytes, hash, entry.byte_length);
+    }
+    cache.set(hash, bytes);
+    return bytes;
+  } };
+}
+
 export async function loadFromArchive(bytes: Uint8Array): Promise<Result<LoadedSnapshot, LoadError>> {
   try {
     const archive = await openBundleArchive(bytes);
@@ -99,19 +123,14 @@ export async function loadFromArchive(bytes: Uint8Array): Promise<Result<LoadedS
     const index = sourceIndex(archive.metadata.has("source-index.json")
       ? decodeJson(archive.metadata.get("source-index.json"), "source-index.json")
       : { files: [] });
-    const result = validate({ manifest, graph, diagnostics, findings });
+    const result = validate({ manifest, graph, diagnostics, findings, scope_index: scopes });
     if (!result.ok) return result;
-    result.value.snapshot.scope_index = scopes;
     result.value.snapshot.diagnostics = [
       ...(result.value.snapshot.diagnostics ?? []),
       ...archive.diagnostics,
     ] as Diagnostic[];
     const included = isRecord(manifest) && manifest.source_included !== false;
-    result.value.sources = {
-      included,
-      index,
-      read: (hash) => archive.read(`source/${hash}`),
-    };
+    result.value.sources = verifiedSources(included, index, (hash) => archive.read(`source/${hash}`));
     return result;
   } catch (cause) {
     return failure({ kind: "parse", message: cause instanceof Error ? cause.message : "Failed to read archive" });
@@ -141,24 +160,28 @@ export async function loadFromFiles(files: Iterable<File>): Promise<Result<Loade
     return failure({ kind: "format", message: "Incomplete SysVista v2 bundle" });
   }
   try {
+    const knownSize = items.reduce((sum, file) => sum + (typeof file.size === "number" ? file.size : 0), 0);
+    if (knownSize > DEFAULT_ARCHIVE_TOTAL_CAP) return failure({ kind: "format", message: `Folder bundle exceeds ${DEFAULT_ARCHIVE_TOTAL_CAP} byte cap` });
+    for (const file of items) {
+      if (typeof file.size === "number" && file.size > DEFAULT_ARCHIVE_TOTAL_CAP)
+        return failure({ kind: "format", message: `Bundle file ${file.name} exceeds ${DEFAULT_ARCHIVE_TOTAL_CAP} byte cap` });
+    }
     const [manifestValue, graphValue, diagnosticsValue, scopeIndex] = await Promise.all(
       [manifest, graph, diagnostics, scopes].map(async (file) => JSON.parse(await file.text())),
     );
     const findingsValue = findings ? JSON.parse(await findings.text()) : undefined;
-    const result = validate({ manifest: manifestValue, graph: graphValue, diagnostics: diagnosticsValue, findings: findingsValue });
+    const result = validate({ manifest: manifestValue, graph: graphValue, diagnostics: diagnosticsValue, findings: findingsValue, scope_index: scopeIndex });
     if (result.ok) {
-      result.value.snapshot.scope_index = scopeIndex;
       const index = sourceIndex(sourceIndexFile ? JSON.parse(await sourceIndexFile.text()) : { files: [] });
       const sourceFiles = new Map(items.map((file) => [file.webkitRelativePath || file.name, file]));
       const findSource = (hash: string) => [...sourceFiles].find(([path]) => path === `source/${hash}` || path.endsWith(`/source/${hash}`))?.[1];
-      result.value.sources = {
-        included: isRecord(manifestValue) && manifestValue.source_included !== false,
-        index,
-        read: async (hash) => {
+      result.value.sources = verifiedSources(isRecord(manifestValue) && manifestValue.source_included !== false, index,
+        async (hash) => {
           const source = findSource(hash);
-          return source ? new Uint8Array(await source.arrayBuffer()) : undefined;
-        },
-      };
+          if (!source) return undefined;
+          if (source.size > DEFAULT_ARCHIVE_TOTAL_CAP) throw new Error(`Source ${hash} exceeds folder byte cap`);
+          return new Uint8Array(await source.arrayBuffer());
+        });
     }
     return result;
   } catch (cause) {
