@@ -55,6 +55,8 @@ function scan(bytes: Uint8Array, cap: number, totalCap: number, entryCountCap: n
       }
       const shouldReadMetadata = requested === undefined && !entry.name.startsWith("source/");
       const shouldRead = shouldReadMetadata || entry.name === requested;
+      // fflate only inflates entries whose stream is started. On a lazy re-read,
+      // leave every other source stream stopped so work is bounded to one entry.
       if (!shouldRead) { entries.push(validated.path); return; }
       if (!shouldReadMetadata && entry.originalSize > cap) {
         diagnostics.push(warning(`Rejected archive entry '${entry.name}': ${entry.originalSize} bytes exceeds ${cap} byte cap`));

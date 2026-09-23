@@ -13,7 +13,9 @@ dev-web:
 	cd sysvista-web && npm run dev
 
 scan:
-	cd sysvista-cli && cargo run -- scan $(TARGET) -o ../sysvista-web/public/sample-output.json
+	test -n "$(TARGET)"
+	cargo run --manifest-path sysvista-cli/Cargo.toml -- scan "$(TARGET)" --output "bundles/$(notdir $(abspath $(TARGET)))"
+	cargo run --manifest-path sysvista-cli/Cargo.toml -- bundle --input "bundles/$(notdir $(abspath $(TARGET)))" --archive "bundles/$(notdir $(abspath $(TARGET))).zip" --source-root "$(abspath $(TARGET))"
 
 clean:
 	cd sysvista-cli && cargo clean
