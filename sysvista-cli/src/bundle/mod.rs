@@ -77,7 +77,6 @@ pub fn write_directory(snapshot: &Snapshot, output: &Path) -> BundleResult<()> {
         .sort_by_key(|value| serde_json::to_string(value).unwrap_or_default());
     snapshot.manifest.validation = crate::validate::summary(&snapshot.diagnostics);
     snapshot.manifest.files = vec![
-        "config.snapshot.toml".into(),
         "diagnostics.json".into(),
         "findings.json".into(),
         "graph.json".into(),
@@ -112,11 +111,6 @@ pub fn write_directory(snapshot: &Snapshot, output: &Path) -> BundleResult<()> {
         "index/scopes.json",
         &ScopeIndex::from_snapshot(&snapshot),
     )?;
-    write_bytes(
-        output,
-        "config.snapshot.toml",
-        config_snapshot(&snapshot).as_bytes(),
-    )?;
     Ok(())
 }
 
@@ -133,39 +127,6 @@ fn write_json(root: &Path, entry: &str, value: &impl Serialize) -> BundleResult<
     let mut bytes = serde_json::to_vec_pretty(value).map_err(io::Error::other)?;
     bytes.push(b'\n');
     write_bytes(root, entry, &bytes)
-}
-fn quoted(value: &str) -> String {
-    toml::Value::String(value.into()).to_string()
-}
-fn config_snapshot(snapshot: &Snapshot) -> String {
-    let mut out = String::new();
-    for module in snapshot.modules.iter().filter(|m| m.name != "Unassigned") {
-        out += "[[modules]]\nname = ";
-        out += &quoted(&module.name);
-        out += "\nselectors = [";
-        out += &module
-            .selectors
-            .iter()
-            .map(|v| quoted(v))
-            .collect::<Vec<_>>()
-            .join(", ");
-        out += "]\ntags = [";
-        out += &module
-            .tags
-            .iter()
-            .map(|v| quoted(v))
-            .collect::<Vec<_>>()
-            .join(", ");
-        out += "]\n\n";
-    }
-    for rule in &snapshot.forbidden_dependencies {
-        out += "[[forbidden_dependencies]]\nfrom = ";
-        out += &quoted(&rule.from);
-        out += "\nto = ";
-        out += &quoted(&rule.to);
-        out += "\n\n";
-    }
-    out
 }
 pub(crate) fn canonicalize(snapshot: &mut Snapshot) {
     snapshot.source_files.sort_by(|a, b| a.id.cmp(&b.id));

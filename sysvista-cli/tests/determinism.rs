@@ -1,6 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -21,6 +22,29 @@ impl TempDir {
         fs::create_dir_all(&path).unwrap();
         Self(path)
     }
+}
+
+#[test]
+fn origin_identity_is_portable_and_path_fallback_is_stable() {
+    let temp = TempDir::new("roots");
+    let first = temp.0.join("first");
+    let second = temp.0.join("second");
+    copy_fixture(&first);
+    copy_fixture(&second);
+    for root in [&first, &second] {
+        assert!(Command::new("git").args(["init", "-q"]).current_dir(root).status().unwrap().success());
+        assert!(Command::new("git").args(["remote", "add", "origin", "https://example.com/team/project.git"]).current_dir(root).status().unwrap().success());
+    }
+    let a = scanner::scan_v2(&first, &Config::load(&first).unwrap()).unwrap();
+    let b = scanner::scan_v2(&second, &Config::load(&second).unwrap()).unwrap();
+    assert_eq!(a.manifest.repository, b.manifest.repository);
+    assert_eq!(a.source_files.iter().map(|file| &file.id).collect::<Vec<_>>(), b.source_files.iter().map(|file| &file.id).collect::<Vec<_>>());
+    for root in [&first, &second] {
+        assert!(Command::new("git").args(["remote", "remove", "origin"]).current_dir(root).status().unwrap().success());
+    }
+    let fallback = scanner::scan_v2(&first, &Config::default()).unwrap();
+    assert_eq!(fallback.manifest.repository, scanner::scan_v2(&first, &Config::default()).unwrap().manifest.repository);
+    assert_ne!(fallback.manifest.repository, scanner::scan_v2(&second, &Config::default()).unwrap().manifest.repository);
 }
 
 impl Drop for TempDir {

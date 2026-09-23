@@ -85,13 +85,7 @@ export interface HeuristicTraversalClaimObject {
   relationship_ids: RelationshipId[];
 }
 
-export interface Claim {
-  evidence_ids?: string[];
-  id: string;
-  object: HeuristicTraversalClaimObject;
-  predicate: "HeuristicTraversal";
-  subject: EntityId;
-}
+export type Claim = Omit<Generated.Claim, "subject"> & { subject: EntityId };
 
 export type PayloadContract = Omit<
   Generated.PayloadContract,

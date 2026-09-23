@@ -145,7 +145,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
 
     if !portable {
         diagnostics.push(Diagnostic::Warning {
-            message: "repository identity fell back to the directory basename; IDs are not portable across renamed checkouts".into(),
+            message: "repository identity fell back to the scan path; IDs are not portable across checkout roots".into(),
             span: None,
         });
     }
@@ -190,20 +190,26 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                 });
             }
             InventoryOutcome::Unsupported => {
+                let bytes = std::fs::read(&path).ok();
                 source_files.push(SourceFile {
                     id,
                     path: entry.path.clone(),
                     language: None,
                     analysis: AnalysisStatus::Unsupported,
-                    content_hash: None, byte_length: None, line_count: None,
+                    content_hash: bytes.as_ref().map(|bytes| format!("{:x}", Sha256::digest(bytes))),
+                    byte_length: bytes.as_ref().map(|bytes| bytes.len() as u64),
+                    line_count: bytes.as_ref().map(|bytes| file_walker::line_count(bytes)),
                 });
             }
             InventoryOutcome::Included => {
                 let language = language::detect_language_with_config(&path, config)
                     .unwrap_or("unknown")
                     .to_owned();
-                match std::fs::read_to_string(&path) {
-                    Ok(_) => source_files.push(SourceFile {
+                match std::fs::read(&path).and_then(|bytes| {
+                    std::str::from_utf8(&bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+                    Ok(bytes)
+                }) {
+                    Ok(bytes) => source_files.push(SourceFile {
                         id,
                         path: entry.path.clone(),
                         language: Some(language.clone()),
@@ -214,7 +220,9 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                                 analyzer: "builtin-heuristic".into(),
                             }
                         },
-                        content_hash: None, byte_length: None, line_count: None,
+                        content_hash: Some(format!("{:x}", Sha256::digest(&bytes))),
+                        byte_length: Some(bytes.len() as u64),
+                        line_count: Some(file_walker::line_count(&bytes)),
                     }),
                     Err(error) => {
                         let message = error.to_string();
@@ -238,13 +246,6 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     }
                 }
             }
-        }
-    }
-    for file in &mut source_files {
-        if let Ok(bytes) = std::fs::read(root.join(&file.path)) {
-            file.content_hash = Some(format!("{:x}", Sha256::digest(&bytes)));
-            file.byte_length = Some(bytes.len() as u64);
-            file.line_count = Some(bytes.split(|byte| *byte == b'\n').count().max(1) as u32);
         }
     }
 
@@ -333,6 +334,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             schema_version: "3".into(),
             root_scope_id: v2::ScopeId(v2::stable_id("scope", &["repository", &repository])),
             repository,
+            config_snapshot: serde_json::to_value(config).expect("config serializes"),
             scanned_at: chrono::Utc::now().to_rfc3339(),
             root: root.display().to_string(),
             tool_version: env!("CARGO_PKG_VERSION").into(),
@@ -456,7 +458,7 @@ fn repository_identity(root: &Path, config: &Config) -> (String, bool) {
     if let Ok(output) = Command::new("git")
         .args(["-C"])
         .arg(root)
-        .args(["config", "--get", "remote.origin.url"])
+        .args(["remote", "get-url", "origin"])
         .output()
     {
         if output.status.success() {
@@ -475,13 +477,7 @@ fn repository_identity(root: &Path, config: &Config) -> (String, bool) {
     {
         return (name.trim().to_owned(), true);
     }
-    (
-        root.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("unknown")
-            .to_owned(),
-        false,
-    )
+    (v2::stable_id("repository-path", &[&root.to_string_lossy()]), false)
 }
 
 fn normalize_remote(remote: &str) -> String {

@@ -42,7 +42,6 @@ fn full_bundle_and_archive_have_indexed_sources() {
         "graph.json",
         "diagnostics.json",
         "findings.json",
-        "config.snapshot.toml",
         "source-index.json",
         "index/scopes.json",
     ] {

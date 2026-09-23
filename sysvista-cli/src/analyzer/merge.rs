@@ -77,6 +77,7 @@ pub fn merge(
             name: entity.name.clone(),
             qualified_name: entity.ownership_chain.clone(),
             declaration_kind: entity.declaration_kind.clone(),
+            is_local: entity.is_local,
             file_id: file_id.clone(),
             scope_id: v2::scope_id(&file_id),
             owner_id,

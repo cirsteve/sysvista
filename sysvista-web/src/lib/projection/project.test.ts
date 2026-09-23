@@ -5,6 +5,7 @@ import { projectScope } from "./project";
 import { aggregateCrossingRelationships } from "./aggregate";
 import type { ScopeIndex } from "./types";
 import { createSliceLoader } from "./slices";
+import { isDefaultHidden } from "./hidden";
 if (process.env.SYSVISTA_RUN_PROJECTION_BENCHMARK === "1") await import("./project.bench");
 
 const snapshot = fixture.snapshot as unknown as Snapshot;
@@ -12,6 +13,13 @@ const index = fixture.index as unknown as ScopeIndex;
 const root = snapshot.manifest.root_scope_id as ScopeId;
 
 describe("projectScope with CLI fixture", () => {
+  it("hides function-scoped declarations by default", () => {
+    const local = { ...snapshot.entities![0], is_local: true };
+    expect(isDefaultHidden(local)).toBe(true);
+    const localSnapshot = { ...snapshot, entities: [local] } as Snapshot;
+    const localIndex = { scopes: [{ scope_id: root, children: [{ kind: "symbol", entity_id: local.id }], owner_map: {}, crossing_relationship_ids: [] }] } as unknown as ScopeIndex;
+    expect(projectScope(localSnapshot, localIndex, root).children).toEqual([]);
+  });
   it("projects typed physical and logical children", () => {
     const projected = projectScope(snapshot, index, root);
     expect(projected.children.some((item) => item.kind === "directory")).toBe(true);

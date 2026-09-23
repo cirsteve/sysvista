@@ -46,6 +46,8 @@ pub struct CodeEntity {
     pub name: String,
     pub qualified_name: String,
     pub declaration_kind: String,
+    #[serde(default)]
+    pub is_local: bool,
     pub file_id: FileId,
     pub scope_id: ScopeId,
     #[serde(skip_serializing_if = "Option::is_none")]

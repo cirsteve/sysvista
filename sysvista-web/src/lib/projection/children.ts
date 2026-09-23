@@ -1,6 +1,7 @@
 import type { ScopeId, Snapshot } from "../../types/v2";
 import type { ScopeIndex, ScopeSlice, VisibleItem } from "./types";
 import { buildHierarchyIndex } from "../hierarchy/index";
+import { isDefaultHidden } from "./hidden";
 
 const toScopeId = (value: string): ScopeId => value as ScopeId;
 const projectionCache = new WeakMap<Snapshot, ScopeIndex>();
@@ -48,7 +49,7 @@ export function selectChildren(snapshot: Snapshot, index: ScopeIndex, scopeId: S
       }
       case "symbol": {
         const entity = entities.get(child.entity_id as import("../../types/v2").EntityId);
-        return entity ? [{ kind: "symbol", id: entity.id, ...(child.scope_id ? { scopeId: toScopeId(child.scope_id) } : {}), name: entity.name, entity }] : [];
+        return entity && !isDefaultHidden(entity) ? [{ kind: "symbol", id: entity.id, ...(child.scope_id ? { scopeId: toScopeId(child.scope_id) } : {}), name: entity.name, entity }] : [];
       }
     }
   }).sort((a, b) => a.id.localeCompare(b.id));

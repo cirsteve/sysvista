@@ -43,6 +43,8 @@ pub struct Manifest {
     pub schema_version: String,
     pub root_scope_id: ScopeId,
     pub repository: String,
+    #[serde(default)]
+    pub config_snapshot: serde_json::Value,
     pub scanned_at: String,
     pub root: String,
     pub tool_version: String,

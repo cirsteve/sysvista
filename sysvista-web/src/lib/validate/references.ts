@@ -68,8 +68,8 @@ export function validateReferences(snapshot: Snapshot): Result<Snapshot, Referen
     const object = claim.object as unknown as Record<string, unknown>;
     const entityIds = Array.isArray(object.entity_ids) ? object.entity_ids : [];
     const relationshipIds = Array.isArray(object.relationship_ids) ? object.relationship_ids : [];
-    for (const id of entityIds.map(String)) if (!entities.has(id)) missing(errors, claim.id, "object.entity_ids", id);
-    for (const id of relationshipIds.map(String)) if (!relationships.has(id)) missing(errors, claim.id, "object.relationship_ids", id);
+    for (const id of entityIds.map(String)) if (!entities.has(id)) missing(errors, String(claim.id), "object.entity_ids", id);
+    for (const id of relationshipIds.map(String)) if (!relationships.has(id)) missing(errors, String(claim.id), "object.relationship_ids", id);
   }
   for (const item of snapshot.unresolved_references ?? []) {
     if (!entities.has(item.source)) missing(errors, `unresolved:${item.name}`, "source", item.source);

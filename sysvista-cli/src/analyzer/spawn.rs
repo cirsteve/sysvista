@@ -89,7 +89,9 @@ pub fn analyze(request: &AnalyzeRequest) -> Result<AnalyzeResponse, AnalyzerErro
 
 fn extract() -> Result<PathBuf, AnalyzerError> {
     let base = env::var_os("XDG_CACHE_HOME")
+        .filter(|value| !value.is_empty())
         .map(PathBuf::from)
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
         .unwrap_or_else(env::temp_dir)
         .join("sysvista");
     secure_cache_directory(&base)?;
