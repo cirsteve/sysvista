@@ -115,18 +115,24 @@ export async function openBundleArchive(
   const allowed = new Set(initial.entries);
   let charged = initial.inflatedBytes;
   const cache = new Map<string, Uint8Array>();
+  let pendingRead: Promise<unknown> = Promise.resolve();
   return {
     entries: initial.entries,
     diagnostics: initial.diagnostics,
     metadata: initial.metadata,
-    async read(path) {
-      if (!allowed.has(path)) return undefined;
-      const cached = cache.get(path);
-      if (cached) return cached;
-      const result = await scan(bytes, cap, totalCap, entryCountCap, path, charged);
-      charged += result.inflatedBytes;
-      if (result.value) cache.set(path, result.value);
-      return result.value;
+    read(path) {
+      // Each lazy scan must see the bytes charged by every preceding read.
+      const read = pendingRead.then(async () => {
+        if (!allowed.has(path)) return undefined;
+        const cached = cache.get(path);
+        if (cached) return cached;
+        const result = await scan(bytes, cap, totalCap, entryCountCap, path, charged);
+        charged += result.inflatedBytes;
+        if (result.value) cache.set(path, result.value);
+        return result.value;
+      });
+      pendingRead = read.then(() => undefined, () => undefined);
+      return read;
     },
   };
 }

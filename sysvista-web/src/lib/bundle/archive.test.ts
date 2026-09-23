@@ -47,6 +47,18 @@ describe("openBundleArchive", () => {
     expect(await opened.read("source/two")).toBeUndefined();
   });
 
+  it("serializes concurrent lazy reads against the aggregate cap", async () => {
+    const archive = zipSync({
+      "manifest.json": strToU8("{}"),
+      "source/one": strToU8("12345678"),
+      "source/two": strToU8("abcdefgh"),
+    });
+    const opened = await openBundleArchive(archive, 10, 12);
+    const [first, second] = await Promise.all([opened.read("source/one"), opened.read("source/two")]);
+    expect(new TextDecoder().decode(first)).toBe("12345678");
+    expect(second).toBeUndefined();
+  });
+
   it("aborts inflation when an entry understates its expanded size", async () => {
     const bytes = zipSync({ "source/understated": strToU8("x".repeat(100)) });
     const forged = bytes.slice();
