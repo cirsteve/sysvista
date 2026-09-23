@@ -173,7 +173,7 @@ Bias toward `map`, `filter`, `reduce` pipelines over imperative `for` loops. Dat
 
 ## Testing
 
-Tests live in `src/lib/*.test.ts` — pure logic tests, no component rendering tests.
+Pure logic tests live in `src/lib/*.test.ts` and run in Node. DOM acceptance tests live in `src/test/*.dom.test.tsx` and run under jsdom with Testing Library. The Livid mount spike in `src/test/livid-mount.dom.test.tsx` verifies that the pinned real adapter mounts in jsdom; fallback canvas scenarios run in the same tier. `npm test` runs both projects.
 
 - `graph-adapter.test.ts` — edge styling colors, flow filtering, deduplication, layout selection
 - `clustering.test.ts` — cluster classification, hub tier assignment, fold-to-other threshold
