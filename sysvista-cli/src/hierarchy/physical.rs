@@ -35,67 +35,48 @@ pub fn derive(
             parent = path.parent();
         }
     }
+    let mut packages = BTreeSet::new();
+    for marker in ["package.json", "Cargo.toml", "pyproject.toml"] {
+        for entry in inventory.entries.iter()
+            .filter(|e| !matches!(e.outcome, InventoryOutcome::Excluded { .. }))
+            .filter(|e| e.path == marker || e.path.ends_with(&format!("/{marker}"))) {
+            let path = Path::new(&entry.path).parent().map(|p| p.to_string_lossy().replace('\\', "/")).unwrap_or_default();
+            packages.insert(path);
+        }
+    }
+    let scope_for_path = |path: &str| {
+        let kind = if packages.contains(path) { "package" } else { "directory" };
+        ScopeId(v2::stable_id("scope", &[kind, repository, path]))
+    };
     for dir in &dirs {
-        let scope = ScopeId(v2::stable_id("scope", &["directory", repository, dir]));
+        let kind = if packages.contains(dir) { "package" } else { "directory" };
+        let scope = scope_for_path(dir);
         let parent_path = Path::new(dir)
             .parent()
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .filter(|p| !p.is_empty());
         let parent = parent_path
-            .map(|p| ScopeId(v2::stable_id("scope", &["directory", repository, &p])))
+            .map(|p| scope_for_path(&p))
             .unwrap_or_else(|| root.clone());
         out.push(node(
             dir,
-            "directory",
+            kind,
             scope,
             Some(parent),
             entities_for_path(dir, files, entities),
         ));
     }
-    for marker in ["package.json", "Cargo.toml", "pyproject.toml"] {
-        for entry in inventory
-            .entries
-            .iter()
-            .filter(|e| !matches!(e.outcome, InventoryOutcome::Excluded { .. }))
-            .filter(|e| e.path == marker || e.path.ends_with(&format!("/{marker}")))
-        {
-            let package_path = Path::new(&entry.path)
-                .parent()
-                .map(|p| p.to_string_lossy().replace('\\', "/"))
-                .unwrap_or_default();
-            let scope = ScopeId(v2::stable_id(
-                "scope",
-                &["package", repository, &package_path],
-            ));
-            let parent = if package_path.is_empty() {
-                root.clone()
-            } else {
-                ScopeId(v2::stable_id(
-                    "scope",
-                    &["directory", repository, &package_path],
-                ))
-            };
-            out.push(node(
-                if package_path.is_empty() {
-                    repository
-                } else {
-                    &package_path
-                },
-                "package",
-                scope,
-                Some(parent),
-                entities_for_path(&package_path, files, entities),
-            ));
-        }
+    if packages.contains("") {
+        out.push(node(repository, "package", scope_for_path(""), Some(root.clone()),
+            entities_for_path("", files, entities)));
     }
     for (path, file) in file_by_path {
         let parent_path = Path::new(path)
             .parent()
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .filter(|p| !p.is_empty());
-        let parent = parent_path
-            .map(|p| ScopeId(v2::stable_id("scope", &["directory", repository, &p])))
-            .unwrap_or_else(|| root.clone());
+        let parent = parent_path.map(|p| scope_for_path(&p))
+            .unwrap_or_else(|| if packages.contains("") { scope_for_path("") } else { root.clone() });
         let ids = entities
             .iter()
             .filter(|e| e.file_id == file.id)
@@ -109,7 +90,10 @@ pub fn derive(
             ids,
         ));
     }
-    for entity in entities {
+    let owners: BTreeSet<_> = entities.iter().filter_map(|entity| entity.owner_id.as_ref())
+        .filter(|id| entities.iter().any(|e| &e.id == *id && e.name != "<module>"))
+        .collect();
+    for entity in entities.iter().filter(|entity| owners.contains(&entity.id)) {
         let scope = ScopeId(v2::stable_id("scope", &["symbol", entity.id.as_ref()]));
         out.push(node(
             &entity.qualified_name,

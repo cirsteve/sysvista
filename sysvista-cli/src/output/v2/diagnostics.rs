@@ -27,6 +27,12 @@ pub enum Diagnostic {
         #[serde(skip_serializing_if = "Option::is_none")]
         span: Option<SourceSpan>,
     },
+    PayloadIdentityConflict {
+        id: String,
+        name: String,
+        file_ids: Vec<FileId>,
+        message: String,
+    },
     UnreadableFile {
         id: String,
         path: String,

@@ -293,6 +293,14 @@ pub fn analyze(
         });
     }
 
+    let owner_names: HashMap<_, _> = entities.iter().map(|entity| (entity.id.clone(), entity.name.clone())).collect();
+    for entity in &mut entities {
+        if let Some(owner) = &entity.owner_id {
+            if owner_names.get(owner).is_some_and(|name| name != "<module>") {
+                entity.scope_id = v2::ScopeId(v2::stable_id("scope", &["symbol", owner.as_ref()]));
+            }
+        }
+    }
     HeuristicAnalysis {
         entities,
         relationships: output_relationships,

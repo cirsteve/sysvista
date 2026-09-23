@@ -1,22 +1,779 @@
 {
   "snapshot": {
-    "manifest": {"schema_version":"2","repository":"fixture","scanned_at":"2026-09-21T00:00:00Z","root":"/fixture","tool_version":"test","inventory":{"included":3,"excluded":0,"unsupported":0,"unreadable":0,"failed":0}},
-    "source_files": [{"id":"f","path":"fixture.ts","analysis":{"kind":"none"}}],
-    "entities": [
-      {"id":"a","name":"A","qualified_name":"A","declaration_kind":"service","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":1,"start_column":1,"end_line":1,"end_column":1}},
-      {"id":"b","name":"B","qualified_name":"B","declaration_kind":"model","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":2,"start_column":1,"end_line":2,"end_column":1}},
-      {"id":"c","name":"C","qualified_name":"C","declaration_kind":"transport","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":3,"start_column":1,"end_line":3,"end_column":1}},
-      {"id":"a1","name":"A1","qualified_name":"A.A1","declaration_kind":"service","file_id":"f","scope_id":"a-scope","owner_id":"a","span":{"file_id":"f","start_line":4,"start_column":1,"end_line":4,"end_column":1}},
-      {"id":"a2","name":"A2","qualified_name":"A.A2","declaration_kind":"model","file_id":"f","scope_id":"a-scope","owner_id":"a","span":{"file_id":"f","start_line":5,"start_column":1,"end_line":5,"end_column":1}},
-      {"id":"b1","name":"B1","qualified_name":"B.B1","declaration_kind":"model","file_id":"f","scope_id":"b-scope","owner_id":"b","span":{"file_id":"f","start_line":6,"start_column":1,"end_line":6,"end_column":1}},
-      {"id":"outside","name":"Outside","qualified_name":"Outside","declaration_kind":"service","file_id":"f","scope_id":"elsewhere","span":{"file_id":"f","start_line":7,"start_column":1,"end_line":7,"end_column":1}}
+    "source_files": [
+      {
+        "id": "file:7f4991118fc0273c67050921",
+        "path": "src/ui/view.rs",
+        "language": "rust",
+        "analysis": {
+          "kind": "parsed",
+          "analyzer": "builtin-heuristic"
+        }
+      },
+      {
+        "id": "file:855451627205ca67d8df3151",
+        "path": "src/shared.rs",
+        "language": "rust",
+        "analysis": {
+          "kind": "parsed",
+          "analyzer": "builtin-heuristic"
+        }
+      },
+      {
+        "id": "file:bb9a470f87980d91235acffe",
+        "path": "sysvista.toml",
+        "analysis": {
+          "kind": "unsupported"
+        }
+      }
     ],
-    "relationships": [
-      {"id":"r-internal","kind":"calls","source":"a1","target":"a2","origin":"analyzer"},
-      {"id":"r-ab-1","kind":"calls","source":"a1","target":"b1","origin":"analyzer"},
-      {"id":"r-ab-2","kind":"calls","source":"a2","target":"b1","origin":"analyzer"},
-      {"id":"r-external","kind":"references","source":"a1","target":"outside","origin":"heuristic"}
-    ]
+    "entities": [
+      {
+        "id": "entity:1b85ece0230a2d04694a074c",
+        "name": "View",
+        "qualified_name": "View",
+        "declaration_kind": "model",
+        "file_id": "file:7f4991118fc0273c67050921",
+        "scope_id": "scope:c83c947660a109fd81f28aea",
+        "span": {
+          "file_id": "file:7f4991118fc0273c67050921",
+          "start_line": 1,
+          "start_column": 1,
+          "end_line": 1,
+          "end_column": 1
+        }
+      },
+      {
+        "id": "entity:3c5414f2a2ab56c577d01ae8",
+        "name": "<module>",
+        "qualified_name": "<module>",
+        "declaration_kind": "module",
+        "file_id": "file:7f4991118fc0273c67050921",
+        "scope_id": "scope:c83c947660a109fd81f28aea",
+        "span": {
+          "file_id": "file:7f4991118fc0273c67050921",
+          "start_line": 1,
+          "start_column": 1,
+          "end_line": 1,
+          "end_column": 1
+        }
+      },
+      {
+        "id": "entity:ccd0dfe8f1c51968f38d3824",
+        "name": "Shared",
+        "qualified_name": "Shared",
+        "declaration_kind": "model",
+        "file_id": "file:855451627205ca67d8df3151",
+        "scope_id": "scope:5094f932909b02f7598338ba",
+        "span": {
+          "file_id": "file:855451627205ca67d8df3151",
+          "start_line": 1,
+          "start_column": 1,
+          "end_line": 1,
+          "end_column": 1
+        }
+      },
+      {
+        "id": "entity:ec4344aa06a1377aa6f5c4f3",
+        "name": "<module>",
+        "qualified_name": "<module>",
+        "declaration_kind": "module",
+        "file_id": "file:855451627205ca67d8df3151",
+        "scope_id": "scope:5094f932909b02f7598338ba",
+        "span": {
+          "file_id": "file:855451627205ca67d8df3151",
+          "start_line": 1,
+          "start_column": 1,
+          "end_line": 1,
+          "end_column": 1
+        }
+      }
+    ],
+    "modules": [
+      {
+        "id": "module:159918d29aa7192a0621f326",
+        "name": "src",
+        "scope_id": "scope:8ba5e574cbf55ca273e83ebd",
+        "selectors": [
+          "src/**"
+        ],
+        "tags": [
+          "code"
+        ],
+        "file_ids": [],
+        "entity_ids": []
+      },
+      {
+        "id": "module:1c26663ba6404ce8afaac974",
+        "name": "Unassigned",
+        "scope_id": "scope:362dce1fa0d15ff546c4991e",
+        "selectors": [],
+        "tags": [],
+        "file_ids": [
+          "file:855451627205ca67d8df3151",
+          "file:bb9a470f87980d91235acffe"
+        ],
+        "entity_ids": [
+          "entity:ccd0dfe8f1c51968f38d3824",
+          "entity:ec4344aa06a1377aa6f5c4f3"
+        ]
+      },
+      {
+        "id": "module:1cda546d63c00ae58bd197ed",
+        "name": "ui",
+        "scope_id": "scope:e9206ef95c7f321915a70a58",
+        "selectors": [
+          "src/ui/**"
+        ],
+        "tags": [
+          "frontend"
+        ],
+        "file_ids": [
+          "file:7f4991118fc0273c67050921"
+        ],
+        "entity_ids": [
+          "entity:1b85ece0230a2d04694a074c",
+          "entity:3c5414f2a2ab56c577d01ae8"
+        ]
+      },
+      {
+        "id": "module:acabf2fa84036c7762a24ddc",
+        "name": "shared-b",
+        "scope_id": "scope:248b5cffb7d446c9e0be9961",
+        "selectors": [
+          "src/shared.rs"
+        ],
+        "tags": [],
+        "file_ids": [],
+        "entity_ids": []
+      },
+      {
+        "id": "module:ef03da19f0237a7142249d27",
+        "name": "shared-a",
+        "scope_id": "scope:b7910a2342061e07f8c1c79c",
+        "selectors": [
+          "src/shared.rs"
+        ],
+        "tags": [],
+        "file_ids": [],
+        "entity_ids": []
+      }
+    ],
+    "relationships": [],
+    "unresolved_references": [],
+    "evidence": [],
+    "claims": [],
+    "payload_contracts": [],
+    "projections": [
+      {
+        "id": "projection:0306f8f6ea791ee63acdd68d",
+        "name": "shared-b",
+        "scope_id": "scope:248b5cffb7d446c9e0be9961",
+        "kind": "logical_module",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "entity_ids": [],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:0fc5d5b5839246c0b7eb509c",
+        "name": "src/ui/view.rs",
+        "scope_id": "scope:c83c947660a109fd81f28aea",
+        "kind": "file",
+        "parent_scope_id": "scope:d577a9db16e63ce3225bc62b",
+        "entity_ids": [
+          "entity:1b85ece0230a2d04694a074c",
+          "entity:3c5414f2a2ab56c577d01ae8"
+        ],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:142f96a3a41b97f55294c0a2",
+        "name": "src/shared.rs",
+        "scope_id": "scope:5094f932909b02f7598338ba",
+        "kind": "file",
+        "parent_scope_id": "scope:21e5e0e5b671b5d3c90712af",
+        "entity_ids": [
+          "entity:ccd0dfe8f1c51968f38d3824",
+          "entity:ec4344aa06a1377aa6f5c4f3"
+        ],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:1e4e3b1f51abfc336e1405a2",
+        "name": "src",
+        "scope_id": "scope:21e5e0e5b671b5d3c90712af",
+        "kind": "directory",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "entity_ids": [
+          "entity:1b85ece0230a2d04694a074c",
+          "entity:3c5414f2a2ab56c577d01ae8",
+          "entity:ccd0dfe8f1c51968f38d3824",
+          "entity:ec4344aa06a1377aa6f5c4f3"
+        ],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:4b4fe345c09aa353869b0494",
+        "name": "sysvista.toml",
+        "scope_id": "scope:d1859c93825d0c95254203ab",
+        "kind": "file",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "entity_ids": [],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:59edaf173558e61c7ca47b00",
+        "name": "src/ui",
+        "scope_id": "scope:d577a9db16e63ce3225bc62b",
+        "kind": "directory",
+        "parent_scope_id": "scope:21e5e0e5b671b5d3c90712af",
+        "entity_ids": [
+          "entity:1b85ece0230a2d04694a074c",
+          "entity:3c5414f2a2ab56c577d01ae8"
+        ],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:91149815ff0cc920559ef252",
+        "name": "Unassigned",
+        "scope_id": "scope:362dce1fa0d15ff546c4991e",
+        "kind": "logical_module",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "entity_ids": [
+          "entity:ccd0dfe8f1c51968f38d3824",
+          "entity:ec4344aa06a1377aa6f5c4f3"
+        ],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:9611de2188fa0944ebf70580",
+        "name": "src",
+        "scope_id": "scope:8ba5e574cbf55ca273e83ebd",
+        "kind": "logical_module",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "tags": [
+          "code"
+        ],
+        "entity_ids": [],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:b5e41784a24015e01f11f24d",
+        "name": "shared-a",
+        "scope_id": "scope:b7910a2342061e07f8c1c79c",
+        "kind": "logical_module",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "entity_ids": [],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:cc9df8ef88e83f94200ada54",
+        "name": "github.com/cirsteve/sysvista",
+        "scope_id": "scope:05f9eff257fe7464e97d3466",
+        "kind": "repository",
+        "entity_ids": [
+          "entity:1b85ece0230a2d04694a074c",
+          "entity:3c5414f2a2ab56c577d01ae8",
+          "entity:ccd0dfe8f1c51968f38d3824",
+          "entity:ec4344aa06a1377aa6f5c4f3"
+        ],
+        "relationship_ids": []
+      },
+      {
+        "id": "projection:f7e0796e1a4e55cf376ccb89",
+        "name": "ui",
+        "scope_id": "scope:e9206ef95c7f321915a70a58",
+        "kind": "logical_module",
+        "parent_scope_id": "scope:05f9eff257fe7464e97d3466",
+        "tags": [
+          "frontend"
+        ],
+        "entity_ids": [
+          "entity:1b85ece0230a2d04694a074c",
+          "entity:3c5414f2a2ab56c577d01ae8"
+        ],
+        "relationship_ids": []
+      }
+    ],
+    "findings": [
+      {
+        "kind": "rule",
+        "id": "finding:33f8b6fe7288ccc39367028e",
+        "rule_id": "membership_conflict",
+        "message": "src/shared.rs has conflicting module membership",
+        "affected_entity_ids": [
+          "entity:ccd0dfe8f1c51968f38d3824",
+          "entity:ec4344aa06a1377aa6f5c4f3"
+        ],
+        "affected_file_ids": [
+          "file:855451627205ca67d8df3151"
+        ],
+        "relationship_ids": [],
+        "supporting_sites": [],
+        "navigation_target": {
+          "scope_id": "scope:5094f932909b02f7598338ba"
+        }
+      },
+      {
+        "kind": "rule",
+        "id": "finding:4056b8bafe361b9238d3a484",
+        "rule_id": "unassigned_file",
+        "message": "file is not assigned to a logical module",
+        "affected_entity_ids": [],
+        "affected_file_ids": [
+          "file:bb9a470f87980d91235acffe"
+        ],
+        "relationship_ids": [],
+        "supporting_sites": [],
+        "navigation_target": {
+          "scope_id": "scope:05f9eff257fe7464e97d3466"
+        }
+      }
+    ],
+    "forbidden_dependencies": [],
+    "manifest": {
+      "schema_version": "3",
+      "root_scope_id": "scope:05f9eff257fe7464e97d3466",
+      "repository": "github.com/cirsteve/sysvista",
+      "scanned_at": "2000-01-01T00:00:00Z",
+      "root": "/fixture/hierarchy",
+      "tool_version": "0.1.0",
+      "analyzer_versions": {},
+      "inventory": {
+        "included": 2,
+        "excluded": 0,
+        "unsupported": 1,
+        "unreadable": 0,
+        "failed": 0
+      },
+      "inventory_entries": [
+        {
+          "path": "src/shared.rs",
+          "outcome": {
+            "kind": "included"
+          }
+        },
+        {
+          "path": "src/ui/view.rs",
+          "outcome": {
+            "kind": "included"
+          }
+        },
+        {
+          "path": "sysvista.toml",
+          "outcome": {
+            "kind": "unsupported"
+          }
+        }
+      ],
+      "validation": {
+        "diagnostics": 1,
+        "errors": 0,
+        "warnings": 1
+      },
+      "files": [
+        "config.snapshot.toml",
+        "diagnostics.json",
+        "findings.json",
+        "graph.json",
+        "index/scopes.json",
+        "manifest.json",
+        "source-index.json"
+      ],
+      "source_included": false
+    },
+    "diagnostics": [
+      {
+        "kind": "membership_conflict",
+        "id": "diagnostic:be211fdaef215fe6f6ebfcf2",
+        "file_id": "file:855451627205ca67d8df3151",
+        "path": "src/shared.rs",
+        "modules": [
+          "shared-a",
+          "shared-b"
+        ],
+        "message": "src/shared.rs matches equally specific modules: shared-a, shared-b"
+      }
+    ],
+    "scope_index": {
+      "scopes": [
+        {
+          "scope_id": "scope:05f9eff257fe7464e97d3466",
+          "child_scope_ids": [
+            "scope:21e5e0e5b671b5d3c90712af",
+            "scope:248b5cffb7d446c9e0be9961",
+            "scope:362dce1fa0d15ff546c4991e",
+            "scope:8ba5e574cbf55ca273e83ebd",
+            "scope:b7910a2342061e07f8c1c79c",
+            "scope:e9206ef95c7f321915a70a58"
+          ],
+          "children": [
+            {
+              "kind": "directory",
+              "scope_id": "scope:21e5e0e5b671b5d3c90712af"
+            },
+            {
+              "kind": "module",
+              "module_id": "module:159918d29aa7192a0621f326",
+              "scope_id": "scope:8ba5e574cbf55ca273e83ebd"
+            },
+            {
+              "kind": "module",
+              "module_id": "module:1c26663ba6404ce8afaac974",
+              "scope_id": "scope:362dce1fa0d15ff546c4991e"
+            },
+            {
+              "kind": "module",
+              "module_id": "module:1cda546d63c00ae58bd197ed",
+              "scope_id": "scope:e9206ef95c7f321915a70a58"
+            },
+            {
+              "kind": "module",
+              "module_id": "module:acabf2fa84036c7762a24ddc",
+              "scope_id": "scope:248b5cffb7d446c9e0be9961"
+            },
+            {
+              "kind": "module",
+              "module_id": "module:ef03da19f0237a7142249d27",
+              "scope_id": "scope:b7910a2342061e07f8c1c79c"
+            }
+          ],
+          "owner_map": {
+            "entity:1b85ece0230a2d04694a074c": "scope:21e5e0e5b671b5d3c90712af",
+            "entity:3c5414f2a2ab56c577d01ae8": "scope:21e5e0e5b671b5d3c90712af",
+            "entity:ccd0dfe8f1c51968f38d3824": "scope:21e5e0e5b671b5d3c90712af",
+            "entity:ec4344aa06a1377aa6f5c4f3": "scope:21e5e0e5b671b5d3c90712af"
+          },
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:21e5e0e5b671b5d3c90712af",
+          "child_scope_ids": [
+            "scope:5094f932909b02f7598338ba",
+            "scope:d577a9db16e63ce3225bc62b"
+          ],
+          "children": [
+            {
+              "kind": "directory",
+              "scope_id": "scope:d577a9db16e63ce3225bc62b"
+            },
+            {
+              "kind": "file",
+              "file_id": "file:855451627205ca67d8df3151",
+              "scope_id": "scope:5094f932909b02f7598338ba"
+            }
+          ],
+          "owner_map": {
+            "entity:1b85ece0230a2d04694a074c": "scope:d577a9db16e63ce3225bc62b",
+            "entity:3c5414f2a2ab56c577d01ae8": "scope:d577a9db16e63ce3225bc62b",
+            "entity:ccd0dfe8f1c51968f38d3824": "file:855451627205ca67d8df3151",
+            "entity:ec4344aa06a1377aa6f5c4f3": "file:855451627205ca67d8df3151"
+          },
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:248b5cffb7d446c9e0be9961",
+          "child_scope_ids": [],
+          "children": [],
+          "owner_map": {},
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:362dce1fa0d15ff546c4991e",
+          "child_scope_ids": [
+            "scope:5094f932909b02f7598338ba"
+          ],
+          "children": [
+            {
+              "kind": "file",
+              "file_id": "file:855451627205ca67d8df3151",
+              "scope_id": "scope:5094f932909b02f7598338ba"
+            }
+          ],
+          "owner_map": {
+            "entity:ccd0dfe8f1c51968f38d3824": "file:855451627205ca67d8df3151",
+            "entity:ec4344aa06a1377aa6f5c4f3": "file:855451627205ca67d8df3151"
+          },
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:5094f932909b02f7598338ba",
+          "child_scope_ids": [],
+          "children": [
+            {
+              "kind": "symbol",
+              "entity_id": "entity:ccd0dfe8f1c51968f38d3824",
+              "scope_id": null
+            }
+          ],
+          "owner_map": {
+            "entity:ccd0dfe8f1c51968f38d3824": "entity:ccd0dfe8f1c51968f38d3824"
+          },
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:8ba5e574cbf55ca273e83ebd",
+          "child_scope_ids": [],
+          "children": [],
+          "owner_map": {},
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:b7910a2342061e07f8c1c79c",
+          "child_scope_ids": [],
+          "children": [],
+          "owner_map": {},
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:c83c947660a109fd81f28aea",
+          "child_scope_ids": [],
+          "children": [
+            {
+              "kind": "symbol",
+              "entity_id": "entity:1b85ece0230a2d04694a074c",
+              "scope_id": null
+            }
+          ],
+          "owner_map": {
+            "entity:1b85ece0230a2d04694a074c": "entity:1b85ece0230a2d04694a074c"
+          },
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:d1859c93825d0c95254203ab",
+          "child_scope_ids": [],
+          "children": [],
+          "owner_map": {},
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:d577a9db16e63ce3225bc62b",
+          "child_scope_ids": [
+            "scope:c83c947660a109fd81f28aea"
+          ],
+          "children": [
+            {
+              "kind": "file",
+              "file_id": "file:7f4991118fc0273c67050921",
+              "scope_id": "scope:c83c947660a109fd81f28aea"
+            }
+          ],
+          "owner_map": {
+            "entity:1b85ece0230a2d04694a074c": "file:7f4991118fc0273c67050921",
+            "entity:3c5414f2a2ab56c577d01ae8": "file:7f4991118fc0273c67050921"
+          },
+          "crossing_relationship_ids": []
+        },
+        {
+          "scope_id": "scope:e9206ef95c7f321915a70a58",
+          "child_scope_ids": [
+            "scope:c83c947660a109fd81f28aea"
+          ],
+          "children": [
+            {
+              "kind": "file",
+              "file_id": "file:7f4991118fc0273c67050921",
+              "scope_id": "scope:c83c947660a109fd81f28aea"
+            }
+          ],
+          "owner_map": {
+            "entity:1b85ece0230a2d04694a074c": "file:7f4991118fc0273c67050921",
+            "entity:3c5414f2a2ab56c577d01ae8": "file:7f4991118fc0273c67050921"
+          },
+          "crossing_relationship_ids": []
+        }
+      ]
+    }
   },
-  "index": {"scopes":[{"scope_id":"root","child_ids":["a","b","c"],"owner_map":{"a1":"a","a2":"a","b1":"b"},"crossing_relationship_ids":["r-ab-1","r-ab-2","r-external"]}]}
+  "index": {
+    "scopes": [
+      {
+        "scope_id": "scope:05f9eff257fe7464e97d3466",
+        "child_scope_ids": [
+          "scope:21e5e0e5b671b5d3c90712af",
+          "scope:248b5cffb7d446c9e0be9961",
+          "scope:362dce1fa0d15ff546c4991e",
+          "scope:8ba5e574cbf55ca273e83ebd",
+          "scope:b7910a2342061e07f8c1c79c",
+          "scope:e9206ef95c7f321915a70a58"
+        ],
+        "children": [
+          {
+            "kind": "directory",
+            "scope_id": "scope:21e5e0e5b671b5d3c90712af"
+          },
+          {
+            "kind": "module",
+            "module_id": "module:159918d29aa7192a0621f326",
+            "scope_id": "scope:8ba5e574cbf55ca273e83ebd"
+          },
+          {
+            "kind": "module",
+            "module_id": "module:1c26663ba6404ce8afaac974",
+            "scope_id": "scope:362dce1fa0d15ff546c4991e"
+          },
+          {
+            "kind": "module",
+            "module_id": "module:1cda546d63c00ae58bd197ed",
+            "scope_id": "scope:e9206ef95c7f321915a70a58"
+          },
+          {
+            "kind": "module",
+            "module_id": "module:acabf2fa84036c7762a24ddc",
+            "scope_id": "scope:248b5cffb7d446c9e0be9961"
+          },
+          {
+            "kind": "module",
+            "module_id": "module:ef03da19f0237a7142249d27",
+            "scope_id": "scope:b7910a2342061e07f8c1c79c"
+          }
+        ],
+        "owner_map": {
+          "entity:1b85ece0230a2d04694a074c": "scope:21e5e0e5b671b5d3c90712af",
+          "entity:3c5414f2a2ab56c577d01ae8": "scope:21e5e0e5b671b5d3c90712af",
+          "entity:ccd0dfe8f1c51968f38d3824": "scope:21e5e0e5b671b5d3c90712af",
+          "entity:ec4344aa06a1377aa6f5c4f3": "scope:21e5e0e5b671b5d3c90712af"
+        },
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:21e5e0e5b671b5d3c90712af",
+        "child_scope_ids": [
+          "scope:5094f932909b02f7598338ba",
+          "scope:d577a9db16e63ce3225bc62b"
+        ],
+        "children": [
+          {
+            "kind": "directory",
+            "scope_id": "scope:d577a9db16e63ce3225bc62b"
+          },
+          {
+            "kind": "file",
+            "file_id": "file:855451627205ca67d8df3151",
+            "scope_id": "scope:5094f932909b02f7598338ba"
+          }
+        ],
+        "owner_map": {
+          "entity:1b85ece0230a2d04694a074c": "scope:d577a9db16e63ce3225bc62b",
+          "entity:3c5414f2a2ab56c577d01ae8": "scope:d577a9db16e63ce3225bc62b",
+          "entity:ccd0dfe8f1c51968f38d3824": "file:855451627205ca67d8df3151",
+          "entity:ec4344aa06a1377aa6f5c4f3": "file:855451627205ca67d8df3151"
+        },
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:248b5cffb7d446c9e0be9961",
+        "child_scope_ids": [],
+        "children": [],
+        "owner_map": {},
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:362dce1fa0d15ff546c4991e",
+        "child_scope_ids": [
+          "scope:5094f932909b02f7598338ba"
+        ],
+        "children": [
+          {
+            "kind": "file",
+            "file_id": "file:855451627205ca67d8df3151",
+            "scope_id": "scope:5094f932909b02f7598338ba"
+          }
+        ],
+        "owner_map": {
+          "entity:ccd0dfe8f1c51968f38d3824": "file:855451627205ca67d8df3151",
+          "entity:ec4344aa06a1377aa6f5c4f3": "file:855451627205ca67d8df3151"
+        },
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:5094f932909b02f7598338ba",
+        "child_scope_ids": [],
+        "children": [
+          {
+            "kind": "symbol",
+            "entity_id": "entity:ccd0dfe8f1c51968f38d3824",
+            "scope_id": null
+          }
+        ],
+        "owner_map": {
+          "entity:ccd0dfe8f1c51968f38d3824": "entity:ccd0dfe8f1c51968f38d3824"
+        },
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:8ba5e574cbf55ca273e83ebd",
+        "child_scope_ids": [],
+        "children": [],
+        "owner_map": {},
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:b7910a2342061e07f8c1c79c",
+        "child_scope_ids": [],
+        "children": [],
+        "owner_map": {},
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:c83c947660a109fd81f28aea",
+        "child_scope_ids": [],
+        "children": [
+          {
+            "kind": "symbol",
+            "entity_id": "entity:1b85ece0230a2d04694a074c",
+            "scope_id": null
+          }
+        ],
+        "owner_map": {
+          "entity:1b85ece0230a2d04694a074c": "entity:1b85ece0230a2d04694a074c"
+        },
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:d1859c93825d0c95254203ab",
+        "child_scope_ids": [],
+        "children": [],
+        "owner_map": {},
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:d577a9db16e63ce3225bc62b",
+        "child_scope_ids": [
+          "scope:c83c947660a109fd81f28aea"
+        ],
+        "children": [
+          {
+            "kind": "file",
+            "file_id": "file:7f4991118fc0273c67050921",
+            "scope_id": "scope:c83c947660a109fd81f28aea"
+          }
+        ],
+        "owner_map": {
+          "entity:1b85ece0230a2d04694a074c": "file:7f4991118fc0273c67050921",
+          "entity:3c5414f2a2ab56c577d01ae8": "file:7f4991118fc0273c67050921"
+        },
+        "crossing_relationship_ids": []
+      },
+      {
+        "scope_id": "scope:e9206ef95c7f321915a70a58",
+        "child_scope_ids": [
+          "scope:c83c947660a109fd81f28aea"
+        ],
+        "children": [
+          {
+            "kind": "file",
+            "file_id": "file:7f4991118fc0273c67050921",
+            "scope_id": "scope:c83c947660a109fd81f28aea"
+          }
+        ],
+        "owner_map": {
+          "entity:1b85ece0230a2d04694a074c": "file:7f4991118fc0273c67050921",
+          "entity:3c5414f2a2ab56c577d01ae8": "file:7f4991118fc0273c67050921"
+        },
+        "crossing_relationship_ids": []
+      }
+    ]
+  }
 }

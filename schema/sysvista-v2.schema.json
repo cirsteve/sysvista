@@ -76,6 +76,16 @@
         "$ref": "#/$defs/Relationship"
       }
     },
+    "scope_index": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScopeIndex"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "source_files": {
       "type": "array",
       "default": [],
@@ -300,6 +310,37 @@
             "kind",
             "message",
             "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "payload_identity_conflict"
+            },
+            "message": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "name",
+            "file_ids",
+            "message"
           ]
         },
         {
@@ -975,6 +1016,9 @@
         "root": {
           "type": "string"
         },
+        "root_scope_id": {
+          "type": "string"
+        },
         "scanned_at": {
           "type": "string"
         },
@@ -999,6 +1043,7 @@
       },
       "required": [
         "schema_version",
+        "root_scope_id",
         "repository",
         "scanned_at",
         "root",
@@ -1508,6 +1553,141 @@
             "origin"
           ]
         }
+      ]
+    },
+    "ScopeChild": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "directory"
+            },
+            "scope_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "scope_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "file"
+            },
+            "scope_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "file_id",
+            "scope_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "module"
+            },
+            "module_id": {
+              "type": "string"
+            },
+            "scope_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "module_id",
+            "scope_id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "entity_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "symbol"
+            },
+            "scope_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "entity_id"
+          ]
+        }
+      ]
+    },
+    "ScopeIndex": {
+      "type": "object",
+      "properties": {
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeSlice"
+          }
+        }
+      },
+      "required": [
+        "scopes"
+      ]
+    },
+    "ScopeSlice": {
+      "type": "object",
+      "properties": {
+        "child_scope_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopeChild"
+          }
+        },
+        "crossing_relationship_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "owner_map": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "scope_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "children",
+        "owner_map",
+        "crossing_relationship_ids"
       ]
     },
     "SourceFile": {

@@ -330,7 +330,8 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let counts = inventory_counts(&inventory);
     let mut snapshot = Snapshot {
         manifest: Manifest {
-            schema_version: "2".into(),
+            schema_version: "3".into(),
+            root_scope_id: v2::ScopeId(v2::stable_id("scope", &["repository", &repository])),
             repository,
             scanned_at: chrono::Utc::now().to_rfc3339(),
             root: root.display().to_string(),
@@ -354,14 +355,16 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
         projections: Vec::new(),
         findings: Vec::new(),
         forbidden_dependencies: Vec::new(),
+        scope_index: None,
     };
     let duplicates = v2::dedup_records(&mut snapshot);
     snapshot.diagnostics.extend(duplicates);
     crate::hierarchy::derive(&mut snapshot, &inventory, config);
+    snapshot.scope_index = Some(v2::ScopeIndex::with_extensions(&snapshot, &config.viewer.visible_extensions));
     let validation = crate::validate::validate(&snapshot);
     snapshot.manifest.validation = crate::validate::summary(&validation);
     snapshot.diagnostics.extend(validation);
-    snapshot.findings = crate::findings::derive(&snapshot);
+    snapshot.findings = crate::findings::derive_with_exclusions(&snapshot, &config.findings.unresolved.exclude_reasons);
     Ok(snapshot)
 }
 

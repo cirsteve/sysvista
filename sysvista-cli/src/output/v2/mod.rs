@@ -23,7 +23,7 @@ pub use ids::{
     EntityId, FileId, ModuleId, RelationshipId, ScopeId, entity_id, file_id, relationship_id,
     scope_id, stable_id,
 };
-pub use index::ScopeIndex;
+pub use index::{ScopeChild, ScopeIndex};
 pub use projection::Projection;
 pub use relationships::{Claim, Evidence, PayloadContract, Relationship, UnresolvedReference};
 pub use uniqueness::{dedup_records, duplicate_ids};
@@ -41,6 +41,7 @@ pub struct InventoryCounts {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Manifest {
     pub schema_version: String,
+    pub root_scope_id: ScopeId,
     pub repository: String,
     pub scanned_at: String,
     pub root: String,
@@ -92,6 +93,8 @@ pub struct Snapshot {
     pub findings: Vec<Finding>,
     #[serde(default)]
     pub forbidden_dependencies: Vec<ForbiddenDependencyRule>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope_index: Option<ScopeIndex>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -123,7 +126,7 @@ mod tests {
     #[test]
     fn variant_types_are_tagged_unions() {
         let schema = serde_json::to_value(schema_for!(Snapshot)).unwrap();
-        for name in ["Relationship", "Evidence", "Diagnostic", "Finding"] {
+        for name in ["Relationship", "Evidence", "Diagnostic", "Finding", "ScopeChild"] {
             let definition = &schema["$defs"][name];
             let variants = definition["oneOf"]
                 .as_array()

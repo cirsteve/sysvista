@@ -17,6 +17,32 @@ pub struct Config {
     pub extra_extensions: BTreeMap<String, String>,
     pub modules: Vec<ModuleConfig>,
     pub forbidden_dependencies: Vec<ForbiddenDependencyConfig>,
+    pub viewer: ViewerConfig,
+    pub findings: FindingsConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct FindingsConfig {
+    pub unresolved: UnresolvedFindingConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct UnresolvedFindingConfig {
+    pub exclude_reasons: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ViewerConfig {
+    pub visible_extensions: Vec<String>,
+}
+
+impl Default for ViewerConfig {
+    fn default() -> Self {
+        Self { visible_extensions: ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"].into_iter().map(str::to_owned).collect() }
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
