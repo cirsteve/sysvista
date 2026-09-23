@@ -210,26 +210,42 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                 let language = language::detect_language_with_config(&path, config)
                     .unwrap_or("unknown")
                     .to_owned();
-                match std::fs::read(&path).and_then(|bytes| {
-                    std::str::from_utf8(&bytes)
-                        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-                    Ok(bytes)
-                }) {
-                    Ok(bytes) => source_files.push(SourceFile {
-                        id,
-                        path: entry.path.clone(),
-                        language: Some(language.clone()),
-                        analysis: if language == "typescript" || language == "javascript" {
-                            AnalysisStatus::None
-                        } else {
-                            AnalysisStatus::Parsed {
-                                analyzer: "builtin-heuristic".into(),
+                match std::fs::read(&path) {
+                    Ok(bytes) => {
+                        let analysis = match std::str::from_utf8(&bytes) {
+                            Ok(_) if language == "typescript" || language == "javascript" => {
+                                AnalysisStatus::None
                             }
-                        },
-                        content_hash: Some(format!("{:x}", Sha256::digest(&bytes))),
-                        byte_length: Some(bytes.len() as u64),
-                        line_count: Some(file_walker::line_count(&bytes)),
-                    }),
+                            Ok(_) => AnalysisStatus::Parsed {
+                                analyzer: "builtin-heuristic".into(),
+                            },
+                            Err(error) => {
+                                let message = error.to_string();
+                                entry.outcome = InventoryOutcome::Unreadable {
+                                    io_error: message.clone(),
+                                };
+                                let diagnostic_id = v2::stable_id(
+                                    "diagnostic",
+                                    &["unreadable", &entry.path, &message],
+                                );
+                                diagnostics.push(Diagnostic::UnreadableFile {
+                                    id: diagnostic_id,
+                                    path: entry.path.clone(),
+                                    message: message.clone(),
+                                });
+                                AnalysisStatus::Failed { message }
+                            }
+                        };
+                        source_files.push(SourceFile {
+                            id,
+                            path: entry.path.clone(),
+                            language: Some(language),
+                            analysis,
+                            content_hash: Some(format!("{:x}", Sha256::digest(&bytes))),
+                            byte_length: Some(bytes.len() as u64),
+                            line_count: Some(file_walker::line_count(&bytes)),
+                        });
+                    }
                     Err(error) => {
                         let message = error.to_string();
                         entry.outcome = InventoryOutcome::Unreadable {
@@ -262,7 +278,10 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let heuristic = crate::heuristic::analyze(root, &repository, &inventory, config);
     let analyzer_files: Vec<_> = source_files
         .iter()
-        .filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript")))
+        .filter(|file| {
+            matches!(file.language.as_deref(), Some("typescript" | "javascript"))
+                && matches!(&file.analysis, AnalysisStatus::None)
+        })
         .map(|file| file.path.clone())
         .collect();
     let mut analyzer_versions = std::collections::BTreeMap::new();
@@ -387,7 +406,10 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
 fn mark_typescript_analysis(source_files: &mut [SourceFile], status: AnalysisStatus) {
     for file in source_files
         .iter_mut()
-        .filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript")))
+        .filter(|file| {
+            matches!(file.language.as_deref(), Some("typescript" | "javascript"))
+                && matches!(&file.analysis, AnalysisStatus::None)
+        })
     {
         file.analysis = status.clone();
     }

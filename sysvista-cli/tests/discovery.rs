@@ -7,9 +7,12 @@ mod unix_tests {
         process::Command,
         time::{SystemTime, UNIX_EPOCH},
     };
+    use sha2::{Digest, Sha256};
 
     use sysvista_cli::{
+        bundle::{MAX_ENTRY_BYTES, SourceIndex},
         discovery::{Config, InventoryOutcome},
+        output::v2::AnalysisStatus,
         scanner,
     };
 
@@ -127,6 +130,37 @@ mod unix_tests {
         assert_eq!(snapshot.diagnostics.iter().filter(|diagnostic| matches!(diagnostic, sysvista_cli::output::v2::Diagnostic::UnreadableFile { path, .. } if path == "secret.rs")).count(), 1);
 
         fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o644)).unwrap();
+    }
+
+    #[test]
+    fn invalid_utf8_keeps_source_metadata_without_text_analysis() {
+        let temp = TempDir::new();
+        let bytes = b"first\n\xffsecond";
+        for path in ["invalid.rs", "invalid.ts"] {
+            fs::write(temp.0.join(path), bytes).unwrap();
+        }
+
+        let snapshot = scanner::scan_v2(&temp.0, &Config::load(&temp.0).unwrap()).unwrap();
+        let expected_hash = format!("{:x}", Sha256::digest(bytes));
+        let index = SourceIndex::from_snapshot(&snapshot, MAX_ENTRY_BYTES, &mut Vec::new());
+        for path in ["invalid.rs", "invalid.ts"] {
+            let file = snapshot
+                .source_files
+                .iter()
+                .find(|file| file.path == path)
+                .unwrap();
+            assert!(matches!(file.analysis, AnalysisStatus::Failed { .. }), "{path}");
+            assert_eq!(file.content_hash.as_deref(), Some(expected_hash.as_str()));
+            assert_eq!(file.byte_length, Some(bytes.len() as u64));
+            assert_eq!(file.line_count, Some(2));
+            assert!(snapshot.manifest.inventory_entries.iter().any(|entry| {
+                entry.path == path
+                    && matches!(entry.outcome, InventoryOutcome::Unreadable { .. })
+            }));
+            assert!(index.files.iter().any(|entry| {
+                entry.path == path && entry.source_available
+            }));
+        }
     }
 
     #[test]
