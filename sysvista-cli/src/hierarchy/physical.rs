@@ -20,6 +20,10 @@ pub fn derive(
         entities.iter().map(|entity| entity.id.clone()).collect(),
     )];
     let file_by_path: BTreeMap<_, _> = files.iter().map(|f| (f.path.as_str(), f)).collect();
+    let mut entities_by_file: BTreeMap<_, Vec<_>> = BTreeMap::new();
+    for entity in entities {
+        entities_by_file.entry(&entity.file_id).or_default().push(entity.id.clone());
+    }
     let mut dirs = BTreeSet::new();
     for entry in inventory
         .entries
@@ -57,7 +61,7 @@ pub fn derive(
             .filter(|p| !p.is_empty());
         let parent = parent_path
             .map(|p| scope_for_path(&p))
-            .unwrap_or_else(|| root.clone());
+            .unwrap_or_else(|| if packages.contains("") { scope_for_path("") } else { root.clone() });
         out.push(node(
             dir,
             kind,
@@ -77,11 +81,7 @@ pub fn derive(
             .filter(|p| !p.is_empty());
         let parent = parent_path.map(|p| scope_for_path(&p))
             .unwrap_or_else(|| if packages.contains("") { scope_for_path("") } else { root.clone() });
-        let ids = entities
-            .iter()
-            .filter(|e| e.file_id == file.id)
-            .map(|e| e.id.clone())
-            .collect();
+        let ids = entities_by_file.get(&file.id).cloned().unwrap_or_default();
         out.push(node(
             path,
             "file",
@@ -90,8 +90,10 @@ pub fn derive(
             ids,
         ));
     }
-    let owners: BTreeSet<_> = entities.iter().filter_map(|entity| entity.owner_id.as_ref())
-        .filter(|id| entities.iter().any(|e| &e.id == *id && e.name != "<module>"))
+    let non_module_ids: BTreeSet<_> = entities.iter().filter(|entity| entity.name != "<module>")
+        .map(|entity| entity.id.clone()).collect();
+    let owners: BTreeSet<_> = entities.iter().filter_map(|entity| entity.owner_id.clone())
+        .filter(|id| non_module_ids.contains(id))
         .collect();
     for entity in entities.iter().filter(|entity| owners.contains(&entity.id)) {
         let scope = ScopeId(v2::stable_id("scope", &["symbol", entity.id.as_ref()]));

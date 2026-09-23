@@ -147,4 +147,11 @@ fn physical_containment_is_acyclic_and_packages_own_immediate_files() {
     }
     assert!(physical.values().any(|p| p.kind == "package" && p.name == "src/ui"));
     assert!(!physical.values().any(|p| p.kind == "directory" && p.name == "src/ui"));
+
+    let root_package = Inventory { entries: vec![InventoryEntry { path: "package.json".into(), outcome: InventoryOutcome::Included },
+        InventoryEntry { path: "src/ui/Cargo.toml".into(), outcome: InventoryOutcome::Included }] };
+    let rooted = hierarchy::physical::derive(&snapshot.manifest.repository, &root_package, &snapshot.source_files, &snapshot.entities);
+    let package = rooted.iter().find(|p| p.kind == "package" && p.parent_scope_id.as_ref() == Some(&snapshot.manifest.root_scope_id)).unwrap();
+    let src = rooted.iter().find(|p| p.kind == "directory" && p.name == "src").unwrap();
+    assert_eq!(src.parent_scope_id.as_ref(), Some(&package.scope_id));
 }

@@ -52,10 +52,22 @@ impl ScopeIndex {
                 owner_map: BTreeMap::new(), crossing_relationship_ids: vec![],
             })).collect();
         let files: BTreeMap<_, _> = snapshot.source_files.iter().map(|f| (f.id.clone(), f)).collect();
+        let files_by_scope: BTreeMap<_, _> = snapshot.source_files.iter()
+            .map(|file| (super::scope_id(&file.id), file)).collect();
         let entities: BTreeMap<_, _> = snapshot.entities.iter().map(|e| (e.id.clone(), e)).collect();
+        let projections_by_scope: BTreeMap<_, _> = snapshot.projections.iter()
+            .map(|projection| (&projection.scope_id, projection)).collect();
+        let non_module_ids: BTreeSet<_> = snapshot.entities.iter()
+            .filter(|entity| entity.name != "<module>").map(|entity| entity.id.clone()).collect();
         let nested_owners: BTreeSet<_> = snapshot.entities.iter().filter_map(|e| e.owner_id.clone())
-            .filter(|id| snapshot.entities.iter().any(|e| &e.id == id && e.name != "<module>"))
+            .filter(|id| non_module_ids.contains(id))
             .collect();
+        let mut relationships_by_entity: BTreeMap<EntityId, BTreeSet<RelationshipId>> = BTreeMap::new();
+        for relationship in &snapshot.relationships {
+            let (id, source, target, _, _) = relationship.sort_key();
+            relationships_by_entity.entry(source.clone()).or_default().insert(id.clone());
+            relationships_by_entity.entry(target.clone()).or_default().insert(id.clone());
+        }
         let visible = |path: &str| {
             let ext = std::path::Path::new(path).extension().and_then(|x| x.to_str()).unwrap_or("");
             extensions.iter().any(|x| x == ext)
@@ -64,7 +76,7 @@ impl ScopeIndex {
             let Some(parent_id) = &p.parent_scope_id else { continue };
             let Some(parent) = slices.get_mut(parent_id) else { continue };
             let child = match p.kind.as_str() {
-                "file" => files.values().find(|f| super::scope_id(&f.id) == p.scope_id)
+                "file" => files_by_scope.get(&p.scope_id).copied()
                     .filter(|f| visible(&f.path))
                     .map(|f| ScopeChild::File { file_id: f.id.clone(), scope_id: p.scope_id.clone() }),
                 "symbol" | "logical_module" => None,
@@ -110,8 +122,7 @@ impl ScopeIndex {
                 ScopeChild::Symbol { entity_id, .. } => entity_id.0.clone(),
             }).collect();
             let directory_by_path: BTreeMap<_, _> = slice.children.iter().filter_map(|child| match child {
-                ScopeChild::Directory { scope_id } => snapshot.projections.iter()
-                    .find(|projection| &projection.scope_id == scope_id)
+                ScopeChild::Directory { scope_id } => projections_by_scope.get(scope_id)
                     .map(|projection| (projection.name.as_str(), scope_id.0.as_str())),
                 _ => None,
             }).collect();
@@ -151,10 +162,9 @@ impl ScopeIndex {
                     }
                 }
             }
-            for relationship in &snapshot.relationships {
-                let (id, source, target, _, _) = relationship.sort_key();
-                if p.entity_ids.contains(source) || p.entity_ids.contains(target) {
-                    slice.crossing_relationship_ids.push(id.clone());
+            for entity_id in &p.entity_ids {
+                if let Some(ids) = relationships_by_entity.get(entity_id) {
+                    slice.crossing_relationship_ids.extend(ids.iter().cloned());
                 }
             }
         }
