@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, path::Path};
 
 use sysvista_cli::{
     discovery::Config,
@@ -6,14 +6,12 @@ use sysvista_cli::{
     scanner,
 };
 
+/// The heuristic detectors infer `persists` from a model name appearing in a component
+/// body, even in a string. That inference is weak, so the merged snapshot must keep it
+/// labelled as a low-confidence heuristic and never present it as resolved.
 #[test]
-fn unrelated_model_reference_does_not_imply_persistence() {
-    let root =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../corpus/cases/unrelated-model-references");
-    let expected: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(root.join("expected.json")).unwrap()).unwrap();
-    assert_eq!(expected["relationships"]["persists"], serde_json::json!([]));
-
+fn model_name_persists_stay_low_confidence_heuristics_after_merge() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/heuristic");
     let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
     let evidence_by_id: HashMap<_, _> = snapshot
         .evidence
@@ -25,39 +23,46 @@ fn unrelated_model_reference_does_not_imply_persistence() {
             | Evidence::Analyzer { id, .. } => (id.as_str(), evidence),
         })
         .collect();
-
     let persists: Vec<_> = snapshot
         .relationships
         .iter()
-        .filter(|relationship| matches!(relationship, Relationship::Persists { .. }))
-        .collect();
-    assert!(
-        persists.is_empty(),
-        "the case explicitly labels every persists relationship as a false positive: {persists:#?}"
-    );
-
-    let model_name_persists: Vec<_> = snapshot
-        .relationships
-        .iter()
         .filter_map(|relationship| match relationship {
-            Relationship::Persists {
-                evidence_id: Some(evidence_id),
-                ..
-            } => match evidence_by_id.get(evidence_id.as_str()) {
-                Some(Evidence::Analyzer { origin, rule, .. })
-                    if origin.as_deref() == Some("heuristic")
-                        && rule.as_deref() == Some("model_name_match") =>
-                {
-                    Some(relationship)
-                }
-                _ => None,
-            },
+            Relationship::Persists { origin, evidence_id, .. } => Some((origin, evidence_id)),
             _ => None,
         })
         .collect();
-
+    // service.py mentions `User` only in a string; the detector still matches it.
+    assert_eq!(persists.len(), 1, "{persists:#?}");
+    let (origin, evidence_id) = persists[0];
+    assert_eq!(origin, "heuristic");
+    let evidence = evidence_id
+        .as_deref()
+        .and_then(|id| evidence_by_id.get(id))
+        .expect("persists keeps its evidence through the merge");
     assert!(
-        model_name_persists.is_empty(),
-        "a model name alone must not create a persists relationship: {model_name_persists:#?}"
+        matches!(evidence, Evidence::Analyzer { origin, rule, confidence, .. }
+            if origin.as_deref() == Some("heuristic")
+                && rule.as_deref() == Some("model_name_match")
+                && confidence.as_deref() == Some("low")),
+        "{evidence:#?}"
+    );
+}
+
+/// Using a model as a type in TypeScript, with no component around it, creates no
+/// persists edge from either stage.
+#[test]
+fn type_only_model_use_does_not_imply_persistence() {
+    let root =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../corpus/cases/unrelated-model-references");
+    let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
+    assert!(
+        snapshot.entities.iter().any(|entity| entity.name == "labelFor"),
+        "the formatter must be analyzed for this to mean anything"
+    );
+    assert!(
+        !snapshot
+            .relationships
+            .iter()
+            .any(|relationship| matches!(relationship, Relationship::Persists { .. }))
     );
 }
