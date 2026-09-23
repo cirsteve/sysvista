@@ -13,7 +13,7 @@ expect_failure() {
     echo "expected rejection, command succeeded: $*" >&2
     exit 1
   fi
-  if ! rg -i "$expected" "$output"; then
+  if ! grep -Ei "$expected" "$output"; then
     echo "rejection lacked expected text: $expected" >&2
     cat "$output" >&2
     exit 1
