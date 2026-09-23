@@ -1,10 +1,13 @@
 name: CI
 
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 4 * * *'
   push:
     branches: [main, epic/drill-down-ui]
   pull_request:
-    branches: [main, epic/drill-down-ui]
+    branches: [main, epic/drill-down-ui, epic/drilldown-revref]
 
 jobs:
   cli-tests:
@@ -52,12 +55,13 @@ jobs:
       # `tsc -b` covers the app, test and node configs; the root tsconfig lists no files.
       - run: npm run build
       - run: npm test
+      - run: npm run lint
       - run: npx vitest run src/lib/projection/project.test.ts --maxWorkers=1
         env:
           SYSVISTA_RUN_PROJECTION_BENCHMARK: "1"
 
   schema-generated:
-    name: Generated v2 schema
+    name: Generated v3 schema
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,4 +80,68 @@ jobs:
       - run: npm ci
         working-directory: sysvista-web
       - run: ./scripts/regen-schema.sh
-      - run: git diff --exit-code -- schema/sysvista-v2.schema.json sysvista-web/src/types/v2.generated.ts
+      - run: git diff --exit-code -- schema/sysvista-v2.schema.json sysvista-web/src/types/v2.generated.ts sysvista-web/src/test/fixtures/projection/root-with-three-scopes.json sysvista-web/src/test/fixtures/flow/bounded.json
+
+  integration:
+    name: CLI to viewer bundle integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sysvista-analyzer/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: sysvista-analyzer
+      - run: npm ci
+        working-directory: sysvista-web
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sysvista-cli
+      - run: cargo build --release --manifest-path sysvista-cli/Cargo.toml
+      - name: Scan and load folder and zip bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli="$PWD/sysvista-cli/target/release/sysvista-cli"
+          for target in sysvista-web .; do
+            name="${target//\//_}"
+            if [[ "$target" == "." ]]; then name=root; fi
+            source_root="$(realpath "$target")"
+            bundle="$RUNNER_TEMP/$name-folder-no-source"
+            "$cli" scan "$source_root" --output "$bundle"
+            "$cli" bundle --input "$bundle" --archive "$RUNNER_TEMP/$name-with-source.zip" --source-root "$source_root"
+            "$cli" bundle --input "$bundle" --archive "$RUNNER_TEMP/$name-no-source.zip" --no-source
+            mkdir -p "$RUNNER_TEMP/$name-folder-with-source"
+            unzip -q "$RUNNER_TEMP/$name-with-source.zip" -d "$RUNNER_TEMP/$name-folder-with-source"
+            for item in "$bundle" "$RUNNER_TEMP/$name-folder-with-source" "$RUNNER_TEMP/$name-with-source.zip" "$RUNNER_TEMP/$name-no-source.zip"; do
+              node scripts/load-bundle.ts "$item"
+            done
+          done
+
+  scale:
+    name: Scale measurement
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            sysvista-analyzer/package-lock.json
+            sysvista-web/package-lock.json
+      - run: npm ci && npm run build
+        working-directory: sysvista-analyzer
+      - run: npm ci
+        working-directory: sysvista-web
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: sysvista-cli
+      - run: scripts/measure-scale.sh
+        env:
+          SYSVISTA_SCALE_SIZES: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'small large' || 'small' }}
+          SYSVISTA_ANALYZER_HEAP_MB: '8192'
