@@ -40,5 +40,7 @@ pub fn walk_directory(root: &Path) -> (Vec<WalkedFile>, u64) {
         }
     }
 
+    files.sort_by(|a, b| a.relative_path.cmp(&b.relative_path));
+
     (files, skipped)
 }

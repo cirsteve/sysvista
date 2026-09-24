@@ -1,0 +1,86 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "widget.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "math.ts",
+          "qualified_name": "parse",
+          "declaration_kind": "function",
+          "discriminator": 2
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "parse.normalize",
+          "declaration_kind": "variable"
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "widget.ts",
+          "qualified_name": "Widget.constructor",
+          "declaration_kind": "constructor"
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "parse",
+          "declaration_kind": "function",
+          "discriminator": 2
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "widget.ts",
+          "qualified_name": "Widget.onClick",
+          "declaration_kind": "property"
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "parse",
+          "declaration_kind": "function",
+          "discriminator": 2
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "widget.ts",
+          "qualified_name": "Widget.render",
+          "declaration_kind": "method"
+        },
+        "target": {
+          "file": "widget.ts",
+          "qualified_name": "Widget.onClick",
+          "declaration_kind": "property"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

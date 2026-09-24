@@ -1,0 +1,30 @@
+{
+  "relationships": {
+    "imports": [],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "main.ts",
+          "qualified_name": "run",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "main.ts",
+          "qualified_name": "double",
+          "declaration_kind": "variable"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

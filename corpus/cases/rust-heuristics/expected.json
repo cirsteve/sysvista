@@ -1,0 +1,224 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "Invoice",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "InvoiceInput",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/convert.rs",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/convert.rs",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "Invoice",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/convert.rs",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "InvoiceInput",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      }
+    ],
+    "references": [
+      {
+        "source": {
+          "file": "src/convert.rs",
+          "qualified_name": "to_invoice",
+          "declaration_kind": "transform"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "Invoice",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/convert.rs",
+          "qualified_name": "to_invoice",
+          "declaration_kind": "transform"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "InvoiceInput",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "POST /invoices",
+          "declaration_kind": "transport"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "Invoice",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "POST /invoices",
+          "declaration_kind": "transport"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "InvoiceInput",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      }
+    ],
+    "calls": [
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "POST /invoices",
+          "declaration_kind": "transport"
+        },
+        "target": {
+          "file": "src/convert.rs",
+          "qualified_name": "to_invoice",
+          "declaration_kind": "transform"
+        },
+        "origin": "heuristic"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [
+      {
+        "source": {
+          "file": "src/convert.rs",
+          "qualified_name": "to_invoice",
+          "declaration_kind": "transform"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "Invoice",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      },
+      {
+        "source": {
+          "file": "src/convert.rs",
+          "qualified_name": "to_invoice",
+          "declaration_kind": "transform"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "InvoiceInput",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      }
+    ],
+    "consumes": [
+      {
+        "source": {
+          "file": "src/models.rs",
+          "qualified_name": "InvoiceInput",
+          "declaration_kind": "model"
+        },
+        "target": {
+          "file": "src/handlers.rs",
+          "qualified_name": "POST /invoices",
+          "declaration_kind": "transport"
+        },
+        "origin": "heuristic"
+      }
+    ],
+    "produces": [
+      {
+        "source": {
+          "file": "src/handlers.rs",
+          "qualified_name": "POST /invoices",
+          "declaration_kind": "transport"
+        },
+        "target": {
+          "file": "src/models.rs",
+          "qualified_name": "Invoice",
+          "declaration_kind": "model"
+        },
+        "origin": "heuristic"
+      }
+    ],
+    "dispatches": [],
+    "invokes_prompt": []
+  },
+  "floors": {
+    "imports": {
+      "heuristic": {
+        "precision": 0.98,
+        "recall": 0.0
+      }
+    },
+    "calls": {
+      "heuristic": {
+        "precision": 0.98,
+        "recall": 0.0
+      }
+    },
+    "produces": {
+      "heuristic": {
+        "precision": 0.98,
+        "recall": 0.0
+      }
+    }
+  }
+}

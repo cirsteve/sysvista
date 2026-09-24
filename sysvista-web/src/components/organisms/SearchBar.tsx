@@ -1,25 +1,19 @@
 import { Search } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import type { DetectedComponent, ComponentKind } from "../../types/schema";
-import { FilterChipGroup } from "../molecules/FilterChipGroup";
-import { ListItem } from "../molecules/ListItem";
+import type { EntitySearchHit } from "../../lib/search";
 
 interface SearchBarProps {
   query: string;
-  results: DetectedComponent[];
-  activeKinds: Set<ComponentKind>;
+  results: EntitySearchHit[];
   onSearch: (query: string) => void;
-  onSelect: (component: DetectedComponent) => void;
-  onToggleKind: (kind: ComponentKind) => void;
+  onSelect: (hit: EntitySearchHit) => void;
 }
 
 export function SearchBar({
   query,
   results,
-  activeKinds,
   onSearch,
   onSelect,
-  onToggleKind,
 }: SearchBarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,29 +47,21 @@ export function SearchBar({
               setIsOpen(true);
             }}
             onFocus={() => query && setIsOpen(true)}
-            placeholder="Search components..."
-            className="w-64 pl-9 pr-3 py-1.5 text-sm bg-gray-800 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 focus:outline-none focus:border-gray-500"
+            placeholder="Search symbols..."
+            className="w-72 pl-9 pr-3 py-1.5 text-sm bg-[var(--surface)] border border-[var(--border)] rounded-lg placeholder:text-[var(--muted)] focus:outline-none focus:border-sky-500"
           />
         </div>
-
-        {/* Filter chips */}
-        <FilterChipGroup activeKinds={activeKinds} onToggleKind={onToggleKind} />
       </div>
 
       {/* Search results dropdown */}
       {isOpen && results.length > 0 && (
-        <div className="absolute top-full left-0 mt-1 w-80 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
-          {results.map((comp) => (
-            <ListItem
-              key={comp.id}
-              kind={comp.kind}
-              label={comp.name}
-              sublabel={comp.source.file}
+        <div className="absolute top-full left-0 mt-1 w-96 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+          {results.map((hit) => (
+            <button className="block w-full border-b border-[var(--border)] px-3 py-2 text-left hover:bg-[var(--surface-raised)]" key={hit.entityId}
               onClick={() => {
-                onSelect(comp);
+                onSelect(hit);
                 setIsOpen(false);
-              }}
-            />
+              }}><span className="block text-sm font-medium">{hit.name}</span><span className="block text-xs text-[var(--muted)]">{hit.kind} · {hit.owningScopeId}</span></button>
           ))}
         </div>
       )}

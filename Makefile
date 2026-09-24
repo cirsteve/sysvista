@@ -1,6 +1,9 @@
-.PHONY: build-cli build-web dev-web scan clean
+.PHONY: build-cli build-analyzer build-web dev-web scan clean
 
-build-cli:
+build-analyzer:
+	cd sysvista-analyzer && npm ci && npm run build
+
+build-cli: build-analyzer
 	cd sysvista-cli && cargo build --release
 
 build-web:

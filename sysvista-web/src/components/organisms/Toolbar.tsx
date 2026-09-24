@@ -1,98 +1,32 @@
-import { Upload, Maximize, GitBranch, Workflow } from "lucide-react";
-import { useRef } from "react";
-import type { SysVistaOutput } from "../../types/schema";
-import type { ViewMode } from "../../hooks/useGraphData";
-import { loadFromFile } from "../../lib/loader";
-import { IconButton } from "../atoms/IconButton";
+import type { LoadedSnapshot } from "../../lib/loader";
+import { ThemeToggle } from "../atoms/ThemeToggle";
+import { ImportDialog } from "./ImportDialog";
 
 interface ToolbarProps {
   projectName?: string;
-  stats?: { components: number; edges: number; files: number };
-  viewMode: ViewMode;
-  flowEdgeCount: number;
-  workflowCount: number;
-  onLoad: (data: SysVistaOutput) => void;
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
+  onLoad: (data: LoadedSnapshot) => void;
   onError: (message: string) => void;
-  onFitView: () => void;
-  onToggleFlowView: () => void;
-  onToggleWorkflows?: () => void;
+  lens: "structure" | "flow";
+  flowHops: number;
+  onLensChange: (lens: "structure" | "flow") => void;
+  onFlowHopsChange: (hops: number) => void;
 }
 
-export function Toolbar({ projectName, stats, viewMode, flowEdgeCount, workflowCount, onLoad, onError, onFitView, onToggleFlowView, onToggleWorkflows }: ToolbarProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const data = await loadFromFile(file);
-      onLoad(data);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to load file");
-    }
-    // Reset so the same file can be re-selected
-    e.target.value = "";
-  };
-
-  const isFlowActive = viewMode === "flow";
-
+export function Toolbar({ projectName, theme, onToggleTheme, onLoad, onError, lens, flowHops, onLensChange, onFlowHopsChange }: ToolbarProps) {
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800">
-      <div className="flex items-center gap-3">
-        <h1 className="text-base font-bold text-gray-100 tracking-tight">
-          SysVista
-        </h1>
-        {projectName && (
-          <>
-            <span className="text-gray-600">/</span>
-            <span className="text-sm text-gray-400">{projectName}</span>
-          </>
-        )}
-        {stats && (
-          <span className="text-xs text-gray-500">
-            {stats.components} components, {stats.edges} edges, {stats.files}{" "}
-            files
-          </span>
-        )}
-      </div>
-
+    <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+      <div className="flex items-center gap-2"><strong>SysVista</strong>{projectName && <span className="text-sm text-[var(--muted)]">/ {projectName}</span>}</div>
       <div className="flex items-center gap-2">
-        {flowEdgeCount > 0 && (
-          <IconButton
-            icon={Workflow}
-            label="Flow View"
-            badge={flowEdgeCount}
-            onClick={onToggleFlowView}
-            variant={isFlowActive ? "active" : "default"}
-            badgeColorClass={isFlowActive ? "bg-cyan-800 text-cyan-200" : undefined}
-          />
-        )}
-        {isFlowActive && onToggleWorkflows && workflowCount > 0 && (
-          <IconButton
-            icon={GitBranch}
-            label="Workflows"
-            badge={workflowCount}
-            onClick={onToggleWorkflows}
-          />
-        )}
-        <IconButton
-          icon={Upload}
-          label="Load JSON"
-          onClick={() => fileInputRef.current?.click()}
-        />
-        <IconButton
-          icon={Maximize}
-          label="Fit"
-          onClick={onFitView}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+        <ImportDialog onLoad={onLoad} onError={onError} />
+        <div className="flex rounded border border-[var(--border)]" aria-label="Diagram lens">
+          <button type="button" className={`px-2 py-1 text-xs ${lens === "structure" ? "bg-sky-600 text-white" : ""}`} onClick={() => onLensChange("structure")}>Structure</button>
+          <button type="button" className={`px-2 py-1 text-xs ${lens === "flow" ? "bg-sky-600 text-white" : ""}`} onClick={() => onLensChange("flow")}>Flow</button>
+        </div>
+        {lens === "flow" && <label className="flex items-center gap-1 text-xs">Hops <input aria-label="Flow hops" className="w-12 rounded border border-[var(--border)] bg-transparent px-1 py-1" type="number" min={0} max={8} value={flowHops} onChange={(event) => onFlowHopsChange(Number(event.target.value))} /></label>}
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
       </div>
-    </div>
+    </header>
   );
 }

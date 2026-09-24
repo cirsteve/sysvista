@@ -1,0 +1,17 @@
+{
+  "entities": [
+    {"id":"a","name":"A","qualified_name":"A","declaration_kind":"function","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":1,"start_column":1,"end_line":1,"end_column":2}},
+    {"id":"b","name":"B","qualified_name":"B","declaration_kind":"function","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":2,"start_column":1,"end_line":2,"end_column":2}},
+    {"id":"c","name":"C","qualified_name":"C","declaration_kind":"function","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":3,"start_column":1,"end_line":3,"end_column":2}},
+    {"id":"d","name":"D","qualified_name":"D","declaration_kind":"function","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":4,"start_column":1,"end_line":4,"end_column":2}},
+    {"id":"e","name":"E","qualified_name":"E","declaration_kind":"function","file_id":"f","scope_id":"root","span":{"file_id":"f","start_line":5,"start_column":1,"end_line":5,"end_column":2}}
+  ],
+  "relationships": [
+    {"id":"ab","kind":"calls","source":"a","target":"b","origin":"analyzer"},
+    {"id":"ac","kind":"calls","source":"a","target":"c","origin":"analyzer"},
+    {"id":"bd","kind":"calls","source":"b","target":"d","origin":"analyzer"},
+    {"id":"ce","kind":"calls","source":"c","target":"e","origin":"analyzer"},
+    {"id":"de","kind":"calls","source":"d","target":"e","origin":"analyzer"},
+    {"id":"ea","kind":"calls","source":"e","target":"a","origin":"analyzer"}
+  ]
+}

@@ -3,41 +3,31 @@
 @layer base {
   :root {
     font-family: system-ui, -apple-system, sans-serif;
+    color: #172033;
+    background: #f5f7fb;
+    --canvas: #f5f7fb;
+    --surface: #ffffff;
+    --surface-raised: #eef2f7;
+    --border: #d7dee9;
+    --muted: #64748b;
+  }
+  .dark {
+    color: #e5e7eb;
+    background: #08111f;
+    --canvas: #08111f;
+    --surface: #111b2c;
+    --surface-raised: #1c293d;
+    --border: #334155;
+    --muted: #94a3b8;
   }
   body {
     margin: 0;
   }
 }
 
-/* React Flow overrides for dark theme */
-.react-flow__background {
-  background-color: #030712;
-}
-.react-flow__minimap {
-  background-color: #111827;
-}
-.react-flow__controls button {
-  background-color: #1f2937;
-  color: #d1d5db;
-  border-color: #374151;
-}
-.react-flow__controls button:hover {
-  background-color: #374151;
-}
-.react-flow__edge-path {
-  stroke: #6b7280;
-  stroke-width: 1.5;
-}
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: #60a5fa;
-  stroke-width: 2;
-}
-
-/* Teal border pulse for prompt nodes in flow mode */
-@keyframes prompt-pulse {
-  0%, 100% { border-color: rgb(6 182 212 / 0.5); box-shadow: 0 0 0 0 rgb(6 182 212 / 0); }
-  50% { border-color: rgb(6 182 212 / 0.9); box-shadow: 0 0 8px 2px rgb(6 182 212 / 0.3); }
-}
-.prompt-pulse {
-  animation: prompt-pulse 2s ease-in-out infinite;
-}
+.app-shell { display: flex; height: 100vh; flex-direction: column; background: var(--canvas); color: inherit; }
+.toolbar-button { display: inline-flex; align-items: center; gap: .375rem; border: 1px solid var(--border); border-radius: .375rem; padding: .4rem .65rem; font-size: .8rem; }
+.toolbar-button:hover { background: var(--surface-raised); }
+.source-code .shiki { margin: 0; min-height: 100%; padding: .75rem; background: var(--canvas) !important; line-height: 1.25rem; }
+.source-code .line { display: block; min-height: 1.25rem; }
+.source-code .source-line-highlight { background: color-mix(in srgb, #facc15 25%, transparent); }

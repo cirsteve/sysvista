@@ -1,0 +1,46 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "main.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "convert",
+          "declaration_kind": "function",
+          "discriminator": 2
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "main.ts",
+          "qualified_name": "run",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "math.ts",
+          "qualified_name": "convert",
+          "declaration_kind": "function",
+          "discriminator": 2
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}

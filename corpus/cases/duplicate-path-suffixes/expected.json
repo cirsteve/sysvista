@@ -1,0 +1,70 @@
+{
+  "relationships": {
+    "imports": [
+      {
+        "source": {
+          "file": "src/index.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "src/alpha.ts",
+          "qualified_name": "alpha",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "app/src/index.ts",
+          "qualified_name": "<module>",
+          "declaration_kind": "module"
+        },
+        "target": {
+          "file": "app/src/beta.ts",
+          "qualified_name": "beta",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "references": [],
+    "calls": [
+      {
+        "source": {
+          "file": "src/index.ts",
+          "qualified_name": "first",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "src/alpha.ts",
+          "qualified_name": "alpha",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      },
+      {
+        "source": {
+          "file": "app/src/index.ts",
+          "qualified_name": "second",
+          "declaration_kind": "function"
+        },
+        "target": {
+          "file": "app/src/beta.ts",
+          "qualified_name": "beta",
+          "declaration_kind": "function"
+        },
+        "origin": "resolved"
+      }
+    ],
+    "contains": [],
+    "depends_on": [],
+    "handles": [],
+    "persists": [],
+    "transforms": [],
+    "consumes": [],
+    "produces": [],
+    "dispatches": [],
+    "invokes_prompt": []
+  }
+}
