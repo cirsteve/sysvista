@@ -1,5 +1,5 @@
 import Ajv2020, { type ErrorObject } from "ajv/dist/2020";
-import schema from "../../../../schema/sysvista-v2.schema.json";
+import schema from "../../schema/sysvista-v2.schema.json";
 import type { Snapshot } from "../../types/v2";
 import type { Result } from "../result";
 

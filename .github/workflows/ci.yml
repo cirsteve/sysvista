@@ -76,4 +76,4 @@ jobs:
       - run: npm ci
         working-directory: sysvista-web
       - run: ./scripts/regen-schema.sh
-      - run: git diff --exit-code -- schema/sysvista-v2.schema.json sysvista-web/src/types/v2.generated.ts
+      - run: git diff --exit-code -- schema/sysvista-v2.schema.json sysvista-web/src/schema/sysvista-v2.schema.json sysvista-web/src/types/v2.generated.ts

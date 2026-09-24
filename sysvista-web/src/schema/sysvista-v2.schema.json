@@ -1,0 +1,1649 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Snapshot",
+  "type": "object",
+  "properties": {
+    "claims": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Claim"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Diagnostic"
+      }
+    },
+    "entities": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CodeEntity"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Finding"
+      }
+    },
+    "forbidden_dependencies": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ForbiddenDependencyRule"
+      }
+    },
+    "manifest": {
+      "$ref": "#/$defs/Manifest"
+    },
+    "modules": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/LogicalModule"
+      }
+    },
+    "payload_contracts": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PayloadContract"
+      }
+    },
+    "projections": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Projection"
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Relationship"
+      }
+    },
+    "source_files": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SourceFile"
+      }
+    },
+    "unresolved_references": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/UnresolvedReference"
+      }
+    }
+  },
+  "required": [
+    "manifest"
+  ],
+  "$defs": {
+    "AnalysisStatus": {
+      "oneOf": [
+        {
+          "description": "Supported but not (yet) analyzed.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "description": "No analyzer supports the file's language; not an analysis gap.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "analyzer": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "parsed"
+            }
+          },
+          "required": [
+            "kind",
+            "analyzer"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "failed"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ]
+        }
+      ]
+    },
+    "Claim": {
+      "type": "object",
+      "properties": {
+        "evidence_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "object": true,
+        "predicate": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "subject",
+        "predicate",
+        "object"
+      ]
+    },
+    "CodeEntity": {
+      "type": "object",
+      "properties": {
+        "attributes": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "declaration_kind": {
+          "type": "string"
+        },
+        "file_id": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "owner_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "qualified_name": {
+          "type": "string"
+        },
+        "scope_id": {
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/SourceSpan"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "qualified_name",
+        "declaration_kind",
+        "file_id",
+        "scope_id",
+        "span"
+      ]
+    },
+    "Diagnostic": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analyzer_unavailable"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analyzer_contract_mismatch"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "analyzer_issue"
+            },
+            "message": {
+              "type": "string"
+            },
+            "severity": {
+              "type": "string"
+            },
+            "span": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceSpan"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "message",
+            "severity"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "unreadable_file"
+            },
+            "message": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "path",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "failed_file"
+            },
+            "message": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "path",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "warning"
+            },
+            "message": {
+              "type": "string"
+            },
+            "span": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceSpan"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "membership_conflict"
+            },
+            "message": {
+              "type": "string"
+            },
+            "modules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "file_id",
+            "path",
+            "modules",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "dangling_reference"
+            },
+            "message": {
+              "type": "string"
+            },
+            "missing_entity_id": {
+              "type": "string"
+            },
+            "relationship_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "relationship_id",
+            "missing_entity_id",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "coverage"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "stale_evidence"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "evidence_id",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "file_id": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_unavailable"
+            },
+            "message": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "file_id",
+            "path",
+            "message"
+          ]
+        }
+      ]
+    },
+    "Evidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source"
+            },
+            "span": {
+              "$ref": "#/$defs/SourceSpan"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "span"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "content_hash": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "source_snapshot"
+            },
+            "span": {
+              "$ref": "#/$defs/SourceSpan"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "span",
+            "content_hash"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "text"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "analyzer": {
+              "type": "string"
+            },
+            "confidence": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "analyzer"
+            },
+            "origin": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rule": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "sites": {
+              "description": "Every source site supporting the relationship, e.g. each call of one callee.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "analyzer",
+            "detail"
+          ]
+        }
+      ]
+    },
+    "Finding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "affected_entity_ids": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "affected_file_ids": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "rule"
+            },
+            "message": {
+              "type": "string"
+            },
+            "navigation_target": {
+              "$ref": "#/$defs/NavigationTarget"
+            },
+            "relationship_ids": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "rule_id": {
+              "type": "string"
+            },
+            "supporting_sites": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SourceSpan"
+              }
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "rule_id",
+            "message",
+            "navigation_target"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "entity_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "entity"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "entity_id",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "relationship"
+            },
+            "message": {
+              "type": "string"
+            },
+            "relationship_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "relationship_id",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "project"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "message"
+          ]
+        }
+      ]
+    },
+    "ForbiddenDependencyRule": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ]
+    },
+    "InventoryCounts": {
+      "type": "object",
+      "properties": {
+        "excluded": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "included": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "unreadable": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "unsupported": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "included",
+        "excluded",
+        "unsupported",
+        "unreadable",
+        "failed"
+      ]
+    },
+    "InventoryEntry": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/InventoryOutcome"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "outcome"
+      ]
+    },
+    "InventoryOutcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "included"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "excluded"
+            },
+            "rule": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "rule"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unsupported"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "io_error": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "unreadable"
+            }
+          },
+          "required": [
+            "kind",
+            "io_error"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "diagnostic_id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "failed"
+            }
+          },
+          "required": [
+            "kind",
+            "diagnostic_id"
+          ]
+        }
+      ]
+    },
+    "LogicalModule": {
+      "type": "object",
+      "properties": {
+        "entity_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "file_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "scope_id": {
+          "type": "string"
+        },
+        "selectors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scope_id"
+      ]
+    },
+    "Manifest": {
+      "type": "object",
+      "properties": {
+        "analyzer_versions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        },
+        "files": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "inventory": {
+          "$ref": "#/$defs/InventoryCounts"
+        },
+        "inventory_entries": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InventoryEntry"
+          }
+        },
+        "repository": {
+          "type": "string"
+        },
+        "root": {
+          "type": "string"
+        },
+        "scanned_at": {
+          "type": "string"
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "source_included": {
+          "type": "boolean",
+          "default": false
+        },
+        "tool_version": {
+          "type": "string"
+        },
+        "validation": {
+          "$ref": "#/$defs/ValidationSummary",
+          "default": {
+            "diagnostics": 0,
+            "errors": 0,
+            "warnings": 0
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "repository",
+        "scanned_at",
+        "root",
+        "tool_version",
+        "inventory"
+      ]
+    },
+    "NavigationTarget": {
+      "type": "object",
+      "properties": {
+        "entity_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id"
+      ]
+    },
+    "PayloadContract": {
+      "type": "object",
+      "properties": {
+        "consumer_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "producer_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "schema": true
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "Projection": {
+      "type": "object",
+      "properties": {
+        "entity_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "default": "legacy"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent_scope_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relationship_ids": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "scope_id": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "scope_id"
+      ]
+    },
+    "Relationship": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "imports"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "references"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "calls"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "contains"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "depends_on"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "handles"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "persists"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "transforms"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "consumes"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "produces"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "dispatches"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "evidence_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "const": "invokes_prompt"
+            },
+            "origin": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "source",
+            "target",
+            "origin"
+          ]
+        }
+      ]
+    },
+    "SourceFile": {
+      "type": "object",
+      "properties": {
+        "analysis": {
+          "$ref": "#/$defs/AnalysisStatus"
+        },
+        "byte_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0,
+          "writeOnly": true
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "writeOnly": true
+        },
+        "id": {
+          "type": "string"
+        },
+        "language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "line_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0,
+          "writeOnly": true
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "analysis"
+      ]
+    },
+    "SourceSpan": {
+      "type": "object",
+      "properties": {
+        "end_column": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "end_line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "file_id": {
+          "type": "string"
+        },
+        "start_column": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "start_line": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file_id",
+        "start_line",
+        "start_column",
+        "end_line",
+        "end_column"
+      ]
+    },
+    "UnresolvedReference": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/SourceSpan"
+        }
+      },
+      "required": [
+        "name",
+        "source",
+        "span"
+      ]
+    },
+    "ValidationSummary": {
+      "type": "object",
+      "properties": {
+        "diagnostics": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "diagnostics",
+        "errors",
+        "warnings"
+      ]
+    }
+  }
+}
