@@ -4,9 +4,9 @@ use std::{
     path::Path,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub repository: RepositoryConfig,
@@ -21,19 +21,19 @@ pub struct Config {
     pub findings: FindingsConfig,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FindingsConfig {
     pub unresolved: UnresolvedFindingConfig,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct UnresolvedFindingConfig {
     pub exclude_reasons: Vec<String>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ViewerConfig {
     pub visible_extensions: Vec<String>,
@@ -45,7 +45,7 @@ impl Default for ViewerConfig {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ModuleConfig {
     pub name: String,
@@ -54,7 +54,7 @@ pub struct ModuleConfig {
     pub tags: Vec<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ForbiddenDependencyConfig {
     #[serde(alias = "source")]
@@ -63,13 +63,13 @@ pub struct ForbiddenDependencyConfig {
     pub to: String,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RepositoryConfig {
     pub name: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct DiscoveryConfig {
     pub include: Vec<String>,

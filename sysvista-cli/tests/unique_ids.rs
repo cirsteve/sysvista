@@ -1,6 +1,75 @@
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::Path,
+    process::Command,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use sysvista_cli::{discovery::Config, output::v2, scanner};
+
+#[test]
+fn a_shared_origin_keeps_entity_ids_unique_and_equal_across_roots() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let base = std::env::temp_dir().join(format!(
+        "sysvista-unique-roots-{}-{nonce}",
+        std::process::id()
+    ));
+    let mut scans = Vec::new();
+    for name in ["first", "second"] {
+        let root = base.join(name);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("unit.ts"), "export function first() { const same = 1; }\nexport function second() { const same = 2; }\n").unwrap();
+        assert!(
+            Command::new("git")
+                .args(["init", "-q"])
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .args([
+                    "remote",
+                    "add",
+                    "origin",
+                    "https://example.com/team/identity.git"
+                ])
+                .current_dir(&root)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let snapshot = scanner::scan_v2(&root, &Config::default()).unwrap();
+        assert!(v2::duplicate_ids(&snapshot).is_empty());
+        scans.push(snapshot);
+    }
+    assert_eq!(scans[0].manifest.repository, scans[1].manifest.repository);
+    assert_eq!(
+        scans[0]
+            .entities
+            .iter()
+            .map(|entity| &entity.id)
+            .collect::<Vec<_>>(),
+        scans[1]
+            .entities
+            .iter()
+            .map(|entity| &entity.id)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        scans[0]
+            .entities
+            .iter()
+            .filter(|entity| entity.name == "same" && entity.is_local)
+            .count(),
+        2
+    );
+    fs::remove_dir_all(base).unwrap();
+}
 
 /// Every id collection in graph.json is indexed by id downstream, so a duplicate
 /// silently loses a record. Scan every corpus case and fixture and require none.
@@ -16,7 +85,9 @@ fn every_emitted_id_collection_is_unique() {
     roots.sort();
     assert!(roots.len() > 20);
     for root in roots {
-        let Ok(config) = Config::load(&root) else { continue };
+        let Ok(config) = Config::load(&root) else {
+            continue;
+        };
         let snapshot = scanner::scan_v2(&root, &config).unwrap();
         let duplicates = v2::duplicate_ids(&snapshot);
         assert!(duplicates.is_empty(), "{}: {duplicates:#?}", root.display());
@@ -40,11 +111,17 @@ fn conflicting_records_for_one_id_are_reported_and_identical_ones_collapse() {
         object: serde_json::json!({"target": "a"}),
         evidence_ids: vec![],
     };
-    let conflicting = v2::Claim { object: serde_json::json!({"target": "b"}), ..claim.clone() };
+    let conflicting = v2::Claim {
+        object: serde_json::json!({"target": "b"}),
+        ..claim.clone()
+    };
     snapshot.claims = vec![claim.clone(), claim.clone(), conflicting];
     // Collections other than evidence and claims keep their first record too.
     let entities = snapshot.entities.len();
-    let renamed = v2::CodeEntity { name: "renamed".into(), ..snapshot.entities[0].clone() };
+    let renamed = v2::CodeEntity {
+        name: "renamed".into(),
+        ..snapshot.entities[0].clone()
+    };
     snapshot.entities.push(renamed);
     let diagnostics = v2::dedup_records(&mut snapshot);
     assert_eq!(snapshot.claims.len(), 1);

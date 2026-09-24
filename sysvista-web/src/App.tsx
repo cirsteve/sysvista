@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Breadcrumbs } from "./components/organisms/Breadcrumbs";
 import { Inspector } from "./components/organisms/Inspector";
 import { FindingsPanel } from "./components/organisms/FindingsPanel";
@@ -12,10 +12,19 @@ import { useKeyboardNavigation } from "./hooks/useKeyboardNavigation";
 import { useUrlViewState } from "./hooks/useUrlViewState";
 import { useViewStore } from "./store/viewStore";
 import { selectManifestTitle } from "./lib/selectors";
+import { validate } from "./lib/loader";
+import fixture from "./test/fixtures/projection/root-with-three-scopes.json";
 
 export default function App() {
   useUrlViewState();
   const graph = useGraphData();
+  const loadedFixture = useRef(false);
+  useEffect(() => {
+    if (!import.meta.env.DEV || loadedFixture.current) return;
+    loadedFixture.current = true;
+    const result = validate(fixture.snapshot);
+    if (result.ok) graph.load(result.value);
+  }, [graph]);
   const [error, setError] = useState<string>();
   const back = () => window.history.back();
   const forward = () => window.history.forward();

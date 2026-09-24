@@ -1,6 +1,8 @@
+use crate::discovery::Config;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::{path::Path, process::Command};
 
 macro_rules! string_id {
     ($name:ident) => {
@@ -35,6 +37,52 @@ string_id!(EntityId);
 string_id!(ModuleId);
 string_id!(RelationshipId);
 string_id!(ScopeId);
+
+pub fn repository_identity(root: &Path, config: &Config) -> (String, bool) {
+    if let Ok(output) = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["remote", "get-url", "origin"])
+        .output()
+    {
+        if output.status.success() {
+            let normalized = normalize_remote(String::from_utf8_lossy(&output.stdout).trim());
+            if !normalized.is_empty() {
+                return (normalized, true);
+            }
+        }
+    }
+    if let Some(name) = config
+        .repository
+        .name
+        .as_deref()
+        .filter(|name| !name.trim().is_empty())
+    {
+        return (name.trim().to_owned(), true);
+    }
+    (
+        stable_id("repository-path", &[&root.to_string_lossy()]),
+        false,
+    )
+}
+
+fn normalize_remote(remote: &str) -> String {
+    let mut value = remote
+        .trim()
+        .trim_end_matches('/')
+        .trim_end_matches(".git")
+        .to_owned();
+    if let Some((_, rest)) = value.split_once("://") {
+        value = rest.to_owned();
+    }
+    if value.starts_with("git@") {
+        value = value.trim_start_matches("git@").replacen(':', "/", 1);
+    }
+    if let Some((_, rest)) = value.split_once('@') {
+        value = rest.to_owned();
+    }
+    value.trim_start_matches('/').to_owned()
+}
 
 pub fn stable_id(namespace: &str, parts: &[&str]) -> String {
     let mut hasher = Sha256::new();

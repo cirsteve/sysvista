@@ -1,26 +1,9 @@
-# v2 identity and canonical output
+# Stable v2 identifiers
 
-SysVista v2 identifiers are content-addressed strings with a domain prefix. The hash input is length-separated by a zero byte so concatenated fields cannot collide.
+`stable_id` hashes each input part with an eight-byte big-endian length prefix, then the bytes. The first 24 hexadecimal SHA-256 digits are prefixed by the domain name. Length framing keeps different part lists distinct.
 
-## Repository and file identity
+The scanner runs `git remote get-url origin` at the scan root. It normalizes URL schemes, SSH `git@` syntax and a trailing `.git`. If origin is unavailable, `[repository] name` is used. Otherwise a `repository-path` hash of the scan root is used and the scanner warns that IDs will differ across roots. The fallback hash keeps the absolute path out of bundle records.
 
-Repository identity uses `git remote get-url origin` when available. URL schemes, an SSH `git@` prefix, and a trailing `.git` are removed. If there is no origin, SysVista uses `repository.name` from `sysvista.toml`; if that is also absent, it uses the scanned directory basename and emits a warning because those IDs are not portable across renamed checkouts.
+`FileId` hashes repository identity and a normalized relative path. `EntityId` hashes `FileId`, ownership chain, declaration kind, and the per-file ordinal for that chain and kind. Line edits therefore do not change IDs. `ScopeId` derives from a file ID; nested owner scopes derive from their owner entity ID. `RelationshipId` hashes source, target, kind and origin. Local declarations retain IDs and `is_local: true`; the viewer hides them in its default projection.
 
-`FileId` hashes the repository identity and the normalized, slash-separated repository-relative path. It never includes an absolute checkout path.
-
-## Entity identity
-
-`EntityId` hashes the `FileId`, qualified ownership chain, declaration kind, and an overload discriminator. The discriminator is the zero-based source-order ordinal among declarations with the same name and kind under the same owner. Consequently, inserting lines does not change IDs. Reordering same-name declarations can change their IDs by design.
-
-`ScopeId` derives from its owning file. `RelationshipId` derives from source ID, target ID, relationship kind, and origin.
-
-## Canonical bundle
-
-The v2 writer emits:
-
-- `manifest.json` for run metadata and discovery inventory;
-- `graph.json` for stable graph content;
-- `diagnostics.json` for diagnostics;
-- `index/scopes.json` for sorted scope children, owner mappings, and crossing relationship IDs.
-
-Collections and nested identifier lists are sorted before serialization. `graph.json` contains neither scan timestamps nor absolute roots, so identical source trees and repository identities produce byte-identical graph output.
+The writer sorts ID collections and nested ID lists. `graph.json` excludes scan timestamps and absolute roots, allowing equal trees with one origin identity to produce equal graph output across checkouts.

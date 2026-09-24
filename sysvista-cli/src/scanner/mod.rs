@@ -12,7 +12,6 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::Path;
-use std::process::Command;
 use std::time::Instant;
 
 #[cfg(test)]
@@ -138,14 +137,14 @@ pub fn scan(root: &Path) -> SysVistaOutput {
 }
 
 pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
-    let (repository, portable) = repository_identity(root, config);
+    let (repository, portable) = v2::repository_identity(root, config);
     let mut inventory = Inventory::discover(root, config)?;
     let mut source_files = Vec::new();
     let mut diagnostics = Vec::new();
 
     if !portable {
         diagnostics.push(Diagnostic::Warning {
-            message: "repository identity fell back to the directory basename; IDs are not portable across renamed checkouts".into(),
+            message: "repository identity fell back to the scan path; IDs are not portable across checkout roots".into(),
             span: None,
         });
     }
@@ -170,7 +169,9 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     analysis: AnalysisStatus::Failed {
                         message: io_error.clone(),
                     },
-                    content_hash: None, byte_length: None, line_count: None,
+                    content_hash: None,
+                    byte_length: None,
+                    line_count: None,
                 });
             }
             InventoryOutcome::Failed { diagnostic_id } => {
@@ -186,36 +187,65 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                     analysis: AnalysisStatus::Failed {
                         message: "path discovery failed".into(),
                     },
-                    content_hash: None, byte_length: None, line_count: None,
+                    content_hash: None,
+                    byte_length: None,
+                    line_count: None,
                 });
             }
             InventoryOutcome::Unsupported => {
+                let bytes = std::fs::read(&path).ok();
                 source_files.push(SourceFile {
                     id,
                     path: entry.path.clone(),
                     language: None,
                     analysis: AnalysisStatus::Unsupported,
-                    content_hash: None, byte_length: None, line_count: None,
+                    content_hash: bytes
+                        .as_ref()
+                        .map(|bytes| format!("{:x}", Sha256::digest(bytes))),
+                    byte_length: bytes.as_ref().map(|bytes| bytes.len() as u64),
+                    line_count: bytes.as_ref().map(|bytes| file_walker::line_count(bytes)),
                 });
             }
             InventoryOutcome::Included => {
                 let language = language::detect_language_with_config(&path, config)
                     .unwrap_or("unknown")
                     .to_owned();
-                match std::fs::read_to_string(&path) {
-                    Ok(_) => source_files.push(SourceFile {
-                        id,
-                        path: entry.path.clone(),
-                        language: Some(language.clone()),
-                        analysis: if language == "typescript" || language == "javascript" {
-                            AnalysisStatus::None
-                        } else {
-                            AnalysisStatus::Parsed {
-                                analyzer: "builtin-heuristic".into(),
+                match std::fs::read(&path) {
+                    Ok(bytes) => {
+                        let analysis = match std::str::from_utf8(&bytes) {
+                            Ok(_) if language == "typescript" || language == "javascript" => {
+                                AnalysisStatus::None
                             }
-                        },
-                        content_hash: None, byte_length: None, line_count: None,
-                    }),
+                            Ok(_) => AnalysisStatus::Parsed {
+                                analyzer: "builtin-heuristic".into(),
+                            },
+                            Err(error) => {
+                                let message = error.to_string();
+                                entry.outcome = InventoryOutcome::Unreadable {
+                                    io_error: message.clone(),
+                                };
+                                let diagnostic_id = v2::stable_id(
+                                    "diagnostic",
+                                    &["unreadable", &entry.path, &message],
+                                );
+                                diagnostics.push(Diagnostic::UnreadableFile {
+                                    id: diagnostic_id,
+                                    path: entry.path.clone(),
+                                    message: message.clone(),
+                                });
+                                AnalysisStatus::Failed { message }
+                            }
+                        };
+                        source_files.push(SourceFile {
+                            id,
+                            path: entry.path.clone(),
+                            language: Some(language),
+                            analysis,
+                            content_hash: Some(format!("{:x}", Sha256::digest(&bytes))),
+                            byte_length: Some(bytes.len() as u64),
+                            line_count: Some(file_walker::line_count(&bytes)),
+                        });
+                    }
                     Err(error) => {
                         let message = error.to_string();
                         entry.outcome = InventoryOutcome::Unreadable {
@@ -233,18 +263,13 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
                             path: entry.path.clone(),
                             language: Some(language),
                             analysis: AnalysisStatus::Failed { message },
-                            content_hash: None, byte_length: None, line_count: None,
+                            content_hash: None,
+                            byte_length: None,
+                            line_count: None,
                         });
                     }
                 }
             }
-        }
-    }
-    for file in &mut source_files {
-        if let Ok(bytes) = std::fs::read(root.join(&file.path)) {
-            file.content_hash = Some(format!("{:x}", Sha256::digest(&bytes)));
-            file.byte_length = Some(bytes.len() as u64);
-            file.line_count = Some(bytes.split(|byte| *byte == b'\n').count().max(1) as u32);
         }
     }
 
@@ -253,7 +278,10 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let heuristic = crate::heuristic::analyze(root, &repository, &inventory, config);
     let analyzer_files: Vec<_> = source_files
         .iter()
-        .filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript")))
+        .filter(|file| {
+            matches!(file.language.as_deref(), Some("typescript" | "javascript"))
+                && matches!(&file.analysis, AnalysisStatus::None)
+        })
         .map(|file| file.path.clone())
         .collect();
     let mut analyzer_versions = std::collections::BTreeMap::new();
@@ -333,6 +361,7 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
             schema_version: "3".into(),
             root_scope_id: v2::ScopeId(v2::stable_id("scope", &["repository", &repository])),
             repository,
+            config_snapshot: serde_json::to_value(config).expect("config serializes"),
             scanned_at: chrono::Utc::now().to_rfc3339(),
             root: root.display().to_string(),
             tool_version: env!("CARGO_PKG_VERSION").into(),
@@ -360,18 +389,27 @@ pub fn scan_v2(root: &Path, config: &Config) -> io::Result<Snapshot> {
     let duplicates = v2::dedup_records(&mut snapshot);
     snapshot.diagnostics.extend(duplicates);
     crate::hierarchy::derive(&mut snapshot, &inventory, config);
-    snapshot.scope_index = Some(v2::ScopeIndex::with_extensions(&snapshot, &config.viewer.visible_extensions));
+    snapshot.scope_index = Some(v2::ScopeIndex::with_extensions(
+        &snapshot,
+        &config.viewer.visible_extensions,
+    ));
     let validation = crate::validate::validate(&snapshot);
     snapshot.manifest.validation = crate::validate::summary(&validation);
     snapshot.diagnostics.extend(validation);
-    snapshot.findings = crate::findings::derive_with_exclusions(&snapshot, &config.findings.unresolved.exclude_reasons);
+    snapshot.findings = crate::findings::derive_with_exclusions(
+        &snapshot,
+        &config.findings.unresolved.exclude_reasons,
+    );
     Ok(snapshot)
 }
 
 fn mark_typescript_analysis(source_files: &mut [SourceFile], status: AnalysisStatus) {
     for file in source_files
         .iter_mut()
-        .filter(|file| matches!(file.language.as_deref(), Some("typescript" | "javascript")))
+        .filter(|file| {
+            matches!(file.language.as_deref(), Some("typescript" | "javascript"))
+                && matches!(&file.analysis, AnalysisStatus::None)
+        })
     {
         file.analysis = status.clone();
     }
@@ -450,56 +488,6 @@ fn inventory_counts(inventory: &Inventory) -> InventoryCounts {
         }
     }
     counts
-}
-
-fn repository_identity(root: &Path, config: &Config) -> (String, bool) {
-    if let Ok(output) = Command::new("git")
-        .args(["-C"])
-        .arg(root)
-        .args(["config", "--get", "remote.origin.url"])
-        .output()
-    {
-        if output.status.success() {
-            let remote = String::from_utf8_lossy(&output.stdout);
-            let normalized = normalize_remote(remote.trim());
-            if !normalized.is_empty() {
-                return (normalized, true);
-            }
-        }
-    }
-    if let Some(name) = config
-        .repository
-        .name
-        .as_deref()
-        .filter(|name| !name.trim().is_empty())
-    {
-        return (name.trim().to_owned(), true);
-    }
-    (
-        root.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("unknown")
-            .to_owned(),
-        false,
-    )
-}
-
-fn normalize_remote(remote: &str) -> String {
-    let mut value = remote
-        .trim()
-        .trim_end_matches('/')
-        .trim_end_matches(".git")
-        .to_owned();
-    if let Some((_, rest)) = value.split_once("://") {
-        value = rest.to_owned();
-    }
-    if value.starts_with("git@") {
-        value = value.trim_start_matches("git@").replacen(':', "/", 1);
-    }
-    if let Some((_, rest)) = value.split_once('@') {
-        value = rest.to_owned();
-    }
-    value.trim_start_matches('/').to_owned()
 }
 
 #[cfg(test)]

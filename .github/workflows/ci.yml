@@ -10,6 +10,20 @@ on:
     branches: [main, epic/drill-down-ui, epic/drilldown-revref]
 
 jobs:
+  merge-gate:
+    name: Integrated merge gate
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: ./scripts/merge-gate.sh
+
   cli-tests:
     name: CLI (Rust)
     runs-on: ubuntu-latest

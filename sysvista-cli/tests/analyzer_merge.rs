@@ -16,6 +16,7 @@ fn entity(file: &str, name: &str) -> AnalyzerEntity {
         declaration_kind: "function".into(),
         file: file.into(),
         discriminator: 0,
+        is_local: false,
         owner_key: None,
         start_line: 1,
         start_column: 1,

@@ -18,6 +18,8 @@ pub struct AnalyzerEntity {
     pub declaration_kind: String,
     pub file: String,
     pub discriminator: usize,
+    #[serde(default)]
+    pub is_local: bool,
     /// Key of the nearest enclosing declaration; absent for top-level declarations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner_key: Option<String>,

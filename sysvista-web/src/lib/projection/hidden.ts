@@ -1,5 +1,7 @@
-import type { RelationshipId, Snapshot } from "../../types/v2";
+import type { CodeEntity, RelationshipId, Snapshot } from "../../types/v2";
 import type { AggregateRelationship, HiddenCounts } from "./types";
+
+export function isDefaultHidden(entity: CodeEntity): boolean { return entity.is_local === true; }
 
 export function hiddenCounts(
   snapshot: Snapshot,

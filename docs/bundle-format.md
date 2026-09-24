@@ -2,10 +2,9 @@
 
 A schema version 3 directory bundle contains:
 
-- `manifest.json`: schema/tool metadata, inventory and validation summary, the canonical file list, and `source_included`.
+- `manifest.json`: schema/tool metadata, resolved `config_snapshot`, inventory and validation summary, the canonical file list, and `source_included`.
 - `graph.json`: entities, relationships, modules, projections, unresolved references, evidence, claims, payload contracts, findings, and forbidden-dependency rules. Findings are also emitted separately for direct post-analysis consumption.
 - `diagnostics.json` and `findings.json`: canonical, independently loadable post-analysis output.
-- `config.snapshot.toml`: the logical-module selectors, tags, and forbidden-dependency rules used by the scan.
 - `index/scopes.json`: navigation slices for every physical and logical projection scope.
 - `source-index.json`: each `FileId`, normalized path, SHA-256 content hash, byte length, and source availability.
 

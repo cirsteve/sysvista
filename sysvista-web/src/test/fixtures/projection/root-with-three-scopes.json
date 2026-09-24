@@ -33,6 +33,7 @@
         "name": "View",
         "qualified_name": "View",
         "declaration_kind": "model",
+        "is_local": false,
         "file_id": "file:7f4991118fc0273c67050921",
         "scope_id": "scope:c83c947660a109fd81f28aea",
         "span": {
@@ -48,6 +49,7 @@
         "name": "<module>",
         "qualified_name": "<module>",
         "declaration_kind": "module",
+        "is_local": false,
         "file_id": "file:7f4991118fc0273c67050921",
         "scope_id": "scope:c83c947660a109fd81f28aea",
         "span": {
@@ -63,6 +65,7 @@
         "name": "Shared",
         "qualified_name": "Shared",
         "declaration_kind": "model",
+        "is_local": false,
         "file_id": "file:855451627205ca67d8df3151",
         "scope_id": "scope:5094f932909b02f7598338ba",
         "span": {
@@ -78,6 +81,7 @@
         "name": "<module>",
         "qualified_name": "<module>",
         "declaration_kind": "module",
+        "is_local": false,
         "file_id": "file:855451627205ca67d8df3151",
         "scope_id": "scope:5094f932909b02f7598338ba",
         "span": {
@@ -335,6 +339,71 @@
       "schema_version": "3",
       "root_scope_id": "scope:05f9eff257fe7464e97d3466",
       "repository": "github.com/cirsteve/sysvista",
+      "config_snapshot": {
+        "discovery": {
+          "exclude": [],
+          "extra_extensions": {},
+          "include": []
+        },
+        "exclude": [],
+        "extra_extensions": {},
+        "findings": {
+          "unresolved": {
+            "exclude_reasons": []
+          }
+        },
+        "forbidden_dependencies": [],
+        "include": [],
+        "modules": [
+          {
+            "name": "src",
+            "selectors": [
+              "src/**"
+            ],
+            "tags": [
+              "code"
+            ]
+          },
+          {
+            "name": "ui",
+            "selectors": [
+              "src/ui/**"
+            ],
+            "tags": [
+              "frontend"
+            ]
+          },
+          {
+            "name": "shared-a",
+            "selectors": [
+              "src/shared.rs"
+            ],
+            "tags": []
+          },
+          {
+            "name": "shared-b",
+            "selectors": [
+              "src/shared.rs"
+            ],
+            "tags": []
+          }
+        ],
+        "repository": {
+          "name": "fixture/hierarchy"
+        },
+        "viewer": {
+          "visible_extensions": [
+            "ts",
+            "tsx",
+            "js",
+            "jsx",
+            "mjs",
+            "cjs",
+            "rs",
+            "py"
+          ]
+        }
+      },
       "scanned_at": "2000-01-01T00:00:00Z",
       "root": "/fixture/hierarchy",
       "tool_version": "0.1.0",
@@ -372,7 +441,6 @@
         "warnings": 1
       },
       "files": [
-        "config.snapshot.toml",
         "diagnostics.json",
         "findings.json",
         "graph.json",

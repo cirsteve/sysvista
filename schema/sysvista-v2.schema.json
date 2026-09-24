@@ -211,6 +211,10 @@
         "id": {
           "type": "string"
         },
+        "is_local": {
+          "type": "boolean",
+          "default": false
+        },
         "name": {
           "type": "string"
         },
@@ -992,6 +996,9 @@
             "type": "string"
           },
           "default": {}
+        },
+        "config_snapshot": {
+          "default": null
         },
         "files": {
           "type": "array",

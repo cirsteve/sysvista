@@ -6,6 +6,20 @@ pub struct WalkedFile {
     pub relative_path: String,
 }
 
+pub fn line_count(bytes: &[u8]) -> u32 {
+    (bytes.iter().filter(|byte| **byte == b'\n').count()
+        + usize::from(!bytes.is_empty() && !bytes.ends_with(b"\n"))).max(1) as u32
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn trailing_newline_does_not_add_a_line() {
+        assert_eq!(super::line_count(b"one\ntwo"), 2);
+        assert_eq!(super::line_count(b"one\ntwo\n"), 2);
+    }
+}
+
 pub fn walk_directory(root: &Path) -> (Vec<WalkedFile>, u64) {
     let mut files = Vec::new();
     let mut skipped: u64 = 0;

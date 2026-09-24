@@ -372,6 +372,7 @@ export interface CodeEntity {
   declaration_kind: string;
   file_id: string;
   id: string;
+  is_local?: boolean;
   name: string;
   owner_id?: string | null;
   qualified_name: string;
@@ -392,6 +393,9 @@ export interface ForbiddenDependencyRule {
 export interface Manifest {
   analyzer_versions?: {
     [k: string]: string;
+  };
+  config_snapshot?: {
+    [k: string]: unknown;
   };
   files?: string[];
   inventory: InventoryCounts;

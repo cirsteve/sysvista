@@ -3,7 +3,7 @@ export const ANALYZER_VERSION = "0.2.0";
 
 export interface AnalyzeRequest { contract_version: number; root: string; files: string[]; tsconfig?: string }
 export interface Span { file: string; start_line: number; start_column: number; end_line: number; end_column: number }
-export interface Entity { name: string; ownership_chain: string; declaration_kind: string; file: string; discriminator: number; owner_key?: string; start_line: number; start_column: number; end_line: number; end_column: number; attributes: Record<string, unknown> }
+export interface Entity { name: string; ownership_chain: string; declaration_kind: string; file: string; discriminator: number; owner_key?: string; is_local: boolean; start_line: number; start_column: number; end_line: number; end_column: number; attributes: Record<string, unknown> }
 export interface Relationship { kind: string; source: string; target?: string; origin: "resolved" | "partial"; name?: string; span?: Span }
 export interface UnresolvedReference { source: string; name: string; span: Span; reason?: string }
 export interface Diagnostic { message: string; severity: "error" | "warning"; span?: Span }

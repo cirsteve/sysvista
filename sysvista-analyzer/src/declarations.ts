@@ -33,6 +33,12 @@ function kindOf(node: ts.Node): string {
   if (ts.isPropertyDeclaration(node)) return "property";
   return "variable";
 }
+function isLocal(node: ts.Node): boolean {
+  for (let parent = node.parent; parent && !ts.isSourceFile(parent); parent = parent.parent) {
+    if (ts.isFunctionLike(parent)) return true;
+  }
+  return false;
+}
 
 export function moduleKey(file: string): string { return `${file}#<module>#module#0`; }
 export function isScanned(declarations: Declarations, source: ts.SourceFile): boolean {
@@ -47,7 +53,7 @@ export function extractDeclarations(program: ts.Program, root: string, scannedFi
     const emit = ownedFiles.has(ts.sys.resolvePath(source.fileName));
     const file = relativePath(root, source.fileName);
     nodes.set(source, moduleKey(file));
-    if (emit) entities.push({ name: "<module>", ownership_chain: "<module>", declaration_kind: "module", file, discriminator: 0, start_line: 1, start_column: 1, end_line: source.getLineAndCharacterOfPosition(source.end).line + 1, end_column: 1, attributes: {} });
+    if (emit) entities.push({ name: "<module>", ownership_chain: "<module>", declaration_kind: "module", file, discriminator: 0, is_local: false, start_line: 1, start_column: 1, end_line: source.getLineAndCharacterOfPosition(source.end).line + 1, end_column: 1, attributes: {} });
     const counts = new Map<string, number>();
     const owners: { name: string; key: string }[] = [];
     const visit = (node: ts.Node) => {
@@ -57,7 +63,8 @@ export function extractDeclarations(program: ts.Program, root: string, scannedFi
         const group = `${file}#${ownership_chain}#${declaration_kind}`; const discriminator = counts.get(group) ?? 0; counts.set(group, discriminator + 1); const key = `${group}#${discriminator}`;
         if (emit) {
           const span = spanOf(root, node);
-          entities.push({ name, ownership_chain, declaration_kind, file, discriminator, owner_key: owners.at(-1)?.key, start_line: span.start_line, start_column: span.start_column, end_line: span.end_line, end_column: span.end_column, attributes: { implementation: "body" in node && !!node.body } });
+          const is_local = isLocal(node);
+          entities.push({ name, ownership_chain, declaration_kind, file, discriminator, owner_key: owners.at(-1)?.key, is_local, start_line: span.start_line, start_column: span.start_column, end_line: span.end_line, end_column: span.end_column, attributes: { implementation: "body" in node && !!node.body } });
         }
         nodes.set(node, key); owners.push({ name, key });
       }

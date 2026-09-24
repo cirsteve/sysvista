@@ -59,6 +59,18 @@ describe("openBundleArchive", () => {
     expect(second).toBeUndefined();
   });
 
+  it("does not inflate unrelated entries on a second source read", async () => {
+    const archive = zipSync({
+      "manifest.json": strToU8("{}"),
+      "source/one": strToU8("12345678"),
+      "source/unrelated": strToU8("x".repeat(100)),
+      "source/two": strToU8("abcdefgh"),
+    });
+    const opened = await openBundleArchive(archive, 110, 18);
+    expect(new TextDecoder().decode(await opened.read("source/one"))).toBe("12345678");
+    expect(new TextDecoder().decode(await opened.read("source/two"))).toBe("abcdefgh");
+  });
+
   it("aborts inflation when an entry understates its expanded size", async () => {
     const bytes = zipSync({ "source/understated": strToU8("x".repeat(100)) });
     const forged = bytes.slice();
